@@ -12,7 +12,7 @@ def config_location():
     elif platform.system() == "Windows":
         return os.getenv("USERPROFILE") + "\\AppData\\Local\\dbcli\\sqlcli\\"
     else:
-        return expanduser("~/.config/litecli/")
+        return expanduser("~/.config/sqlcli/")
 
 
 def load_config(usr_cfg, def_cfg=None):
@@ -49,14 +49,14 @@ def upgrade_config(config, def_config):
     cfg.write()
 
 
-def get_config(liteclirc_file=None):
+def get_config(sqlclirc_file=None):
     from sqlcli import __file__ as package_root
 
     package_root = os.path.dirname(package_root)
 
-    liteclirc_file = liteclirc_file or "%sconfig" % config_location()
+    sqlclirc_file = sqlclirc_file or "%sconfig" % config_location()
 
-    default_config = os.path.join(package_root, "liteclirc")
-    write_default_config(default_config, liteclirc_file)
+    default_config = os.path.join(package_root, "sqlclirc")
+    write_default_config(default_config, sqlclirc_file)
 
-    return load_config(liteclirc_file, default_config)
+    return load_config(sqlclirc_file, default_config)

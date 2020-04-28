@@ -66,7 +66,7 @@ class SQLCli(object):
         c = self.config = get_config(sqlclirc)
 
         self.formatter = TabularOutputFormatter(format_name=c["main"]["table_format"])
-        self.formatter.litecli = self
+        self.formatter.sqlcli = self
         self.syntax_style = c["main"]["syntax_style"]
         self.cli_style = c["colors"]
         self.output_style = style_factory_output(self.syntax_style, self.cli_style)

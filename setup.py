@@ -1,4 +1,7 @@
-from setuptools import setup
+import ast
+from io import open
+import re
+from setuptools import setup, find_packages
 
 '''
 How to build and upload this package to PyPi
@@ -7,18 +10,40 @@ How to build and upload this package to PyPi
     twine upload dist/*
 '''
 
+_version_re = re.compile(r"__version__\s+=\s+(.*)")
+
+with open("sqlcli/__init__.py", "rb") as f:
+    version = str(
+        ast.literal_eval(_version_re.search(f.read().decode("utf-8")).group(1))
+    )
+
+
+def open_file(filename):
+    """Open and read the file *filename*."""
+    with open(filename) as f:
+        return f.read()
+
+
+readme = open_file("README.md")
+
 setup(
     name='robotslacker-sqlcli',
-    version='0.0.1',
+    version=version,
     description='SQL Command tool, use JDBC, jaydebeapi',
+    long_description=readme,
     keywords='sql command jaydebeapi',
     platforms='any',
-    install_requires=['jaydebeapi', 'click', ],
+    install_requires=['jaydebeapi', 'click', 'prompt_toolkit', 'cli_helpers'],
 
     author='RobotSlacker',
     author_email='184902652@qq.com',
-    url='https://github.com/robotslacker/robotframework-comparelibrary',
+    url='https://github.com/robotslacker/sqlcli',
 
-    # packages=['sqlcli'],
-    # package_data={'CompareLibrary': ['tests/*.txt']}
+    packages=find_packages(),
+    package_data={"sqlcli": ["sqlclirc", ]},
+
+    entry_points={
+        "console_scripts": ["sqlcli = sqlcli.main:cli"],
+        "distutils.commands": ["lint = tasks:lint", "test = tasks:test"],
+    },
 )

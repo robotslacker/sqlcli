@@ -13,8 +13,8 @@ multi_line = False
 destructive_warning = True
 
 # log_file location.
-# In Unix/Linux: ~/.config/litecli/log
-# In Windows: %USERPROFILE%\AppData\Local\dbcli\litecli\log
+# In Unix/Linux: ~/.config/sqlcli/log
+# In Windows: %USERPROFILE%\AppData\Local\dbcli\sqlcli\log
 # %USERPROFILE% is typically C:\Users\{username}
 log_file = default
 
@@ -24,7 +24,7 @@ log_level = INFO
 
 # Log every query and its results to a file. Enable this by uncommenting the
 # line below.
-# audit_log = ~/.litecli-audit.log
+# audit_log = ~/.sqlcli-audit.log
 
 # Default pager.
 # By default '$PAGER' environment variable is used
@@ -52,7 +52,7 @@ key_bindings = emacs
 # Enabling this option will show the suggestions in a wider menu. Thus more items are suggested.
 wider_completion_menu = False
 
-# litecli prompt
+# sqlcli prompt
 # \D - The full current date
 # \d - Database name
 # \m - Minutes of the current time
