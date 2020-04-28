@@ -1,0 +1,14 @@
+.idea/
+localtest/
+/build
+/dist
+/sqlcli.egg-info
+/htmlcov
+/src
+
+*.pyc
+*.deb
+*.swp
+.cache/
+.coverage
+.coverage.*
