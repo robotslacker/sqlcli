@@ -20,7 +20,7 @@ with open("sqlcli/__init__.py", "rb") as f:
 
 def open_file(filename):
     """Open and read the file *filename*."""
-    with open(filename) as f:
+    with open(filename, 'r+', encoding='utf-8') as f:
         return f.read()
 
 
