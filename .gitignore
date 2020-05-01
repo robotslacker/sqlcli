@@ -1,14 +1,15 @@
 .idea/
+.vscode/
+.cache/
+.coverage/
+.coverage.*
 localtest/
-/build
-/dist
-/sqlcli.egg-info
-/htmlcov
-/src
+build/
+dist/
+*egg-info/
+htmlcov/
 
 *.pyc
 *.deb
 *.swp
-.cache/
-.coverage
-.coverage.*
+

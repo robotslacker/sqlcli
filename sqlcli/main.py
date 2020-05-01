@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import sys
 import traceback
@@ -5,7 +6,6 @@ import logging
 from time import time
 from datetime import datetime
 from io import open
-from collections import namedtuple
 import jaydebeapi
 import re
 
@@ -17,15 +17,13 @@ from prompt_toolkit.shortcuts import PromptSession
 from .packages import special
 from .clistyle import style_factory_output
 from .sqlexecute import SQLExecute
+from .sqlinternal import Create_file
 from .config import config_location, get_config
 from .__init__ import __version__
 
 import itertools
 
 click.disable_unicode_literals_warning = True
-
-# Query tuples are used for maintaining history
-Query = namedtuple("Query", ["query", "successful", "mutating"])
 
 PACKAGE_ROOT = os.path.abspath(os.path.dirname(__file__))
 
@@ -58,6 +56,8 @@ class SQLCli(object):
             nologo=None
     ):
         self.sqlexecute = SQLExecute()
+        __sqlinternal__sqlexecute__ = self.sqlexecute
+        print(str(__sqlinternal__sqlexecute__))
         self.logfile = logfile
         self.sqlscript = sqlscript
         self.nologo = nologo
@@ -86,6 +86,7 @@ class SQLCli(object):
 
     def register_special_commands(self):
 
+        # 加载数据库驱动
         special.register_special_command(
             self.load_driver,
             ".load",
@@ -94,6 +95,7 @@ class SQLCli(object):
             aliases=("load", "\\l"),
         )
 
+        # 连接数据库
         special.register_special_command(
             self.connect_db,
             ".connect",
@@ -110,6 +112,8 @@ class SQLCli(object):
             aliases=("tableformat", "\\T"),
             case_sensitive=True,
         )
+
+        # 从文件中执行脚本
         special.register_special_command(
             self.execute_from_file,
             "start",
@@ -117,12 +121,23 @@ class SQLCli(object):
             "Execute commands from file.",
             aliases=("\\.",),
         )
+
+        # 设置各种参数选项
         special.register_special_command(
             self.set_options,
             "set",
             "set parameter parameter_value",
             "set options .",
             aliases=("set", "\\c"),
+        )
+
+        # 执行特殊的命令
+        special.register_special_command(
+            self.exeucte_internal_command,
+            "__internal__",
+            "execute internal command.",
+            "execute internal command.",
+            aliases=("__internal__",),
         )
 
     def change_table_format(self, arg, **_):
@@ -200,7 +215,8 @@ class SQLCli(object):
             if not self.db_url:
                 if "SQLCLI_CONNECTION_URL" in os.environ:
                     # 从环境变量里头拼的连接字符串
-                    connect_parameters = [var for var in re.split(r'//|:|@|/', os.environ['SQLCLI_CONNECTION_URL']) if var]
+                    connect_parameters = [var for var in re.split(r'//|:|@|/', os.environ['SQLCLI_CONNECTION_URL']) if
+                                          var]
                     if len(connect_parameters) == 6:
                         self.db_type = connect_parameters[1]
                         self.db_driver_type = connect_parameters[2]
@@ -257,22 +273,23 @@ class SQLCli(object):
     def set_options(self, arg, **_):
         b_Successful = False
         if arg is None:
-            raise Exception("Missing required argument set parameter parameter_value.")
+            raise Exception("Missing required argument. set parameter parameter_value.")
         elif arg == "":
-            raise Exception("Missing required argument set parameter parameter_value.")
+            m_Result = []
+            for key, value in self.sqlexecute.options.items():
+                m_Result.append([str(key), str(value)])
+            yield (
+                "Current set options: ",
+                m_Result,
+                ["option","value"],
+                ""
+            )
         else:
-            options_parameters = str(arg).split();
+            options_parameters = str(arg).split()
             if len(options_parameters) != 2:
-                raise Exception("Missing required argument set parameter parameter_value.")
-            if (options_parameters[0].upper() == 'ECHO') and (options_parameters[1].upper() == 'ON'):
-                self.sqlexecute.options_echo = 'ON'
-                b_Successful = True
-            if (options_parameters[0].upper() == 'ECHO') and (options_parameters[1].upper() == 'OFF'):
-                self.sqlexecute.options_echo = 'OFF'
-                b_Successful = True
-            if (options_parameters[0].upper() == 'LONG') and (options_parameters[1].isdigit()):
-                self.sqlexecute.options_long = int(options_parameters[1])
-                b_Successful = True
+                raise Exception("Missing required argument. set parameter parameter_value.")
+            self.sqlexecute.options[options_parameters[0].upper()] = options_parameters[1].upper()
+            b_Successful = True
 
             if b_Successful:
                 yield (
@@ -286,6 +303,32 @@ class SQLCli(object):
                     None,
                     None,
                     'Invalid Option. Please double check.')
+
+    # 执行特殊的命令
+    def exeucte_internal_command(self, arg, **_):
+        b_Successful = False
+        # 去掉回车换行符，以及末尾的空格
+        strSQL = str(arg).replace('\r', '').replace('\n', '').strip()
+
+        matchObj = re.match(r"create\s+file\s+(.*?)\((.*)\)\s+?rows\s+([1-9]\d*)$", strSQL, re.IGNORECASE)
+        if matchObj:
+            # create file command  将根据格式要求创建需要的文件
+            b_Successful = Create_file(p_filename=str(matchObj.group(1)),
+                                       p_formula_str=str(matchObj.group(2)),
+                                       p_rows=int(matchObj.group(3)),
+                                       p_options=self.sqlexecute.options)
+        if b_Successful:
+            yield (
+                None,
+                None,
+                None,
+                str(matchObj.group(3)) + ' rows created Successful.')
+        else:
+            yield (
+                None,
+                None,
+                None,
+                'Invalid internal Command. Please double check.')
 
     def read_my_cnf_files(self, keys):
         """
@@ -426,7 +469,7 @@ class SQLCli(object):
                 iterations += 1
         except EOFError:
             special.close_tee()
-            self.echo("Disconnected!")
+            self.echo("Disconnected.")
 
     def log_output(self, output):
         """Log the output in the audit log, if it's enabled."""
@@ -640,7 +683,6 @@ def cli(
     if sys.stdin.isatty():
         sqlcli.run_cli()
     else:
-        print("herereqreqrerewq")
         stdin = click.get_text_stream("stdin")
         stdin_text = stdin.read()
 

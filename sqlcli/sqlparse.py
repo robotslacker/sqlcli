@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import re
 
 
@@ -57,8 +58,8 @@ def SQLAnalyze( p_SQLCommandPlainText):
             if len(sql) == 0:
                 continue
 
-            # 对于Load,Connect,Start,Set开头的语句要求当行结束
-            if re.match(r'^load\s|^connect\s|^start\s|^set\s', sql, re.IGNORECASE):
+            # 对于Load,Connect,Start,Set,Exit,Quit开头的语句要求当行结束
+            if re.match(r'^load\s|^connect\s|^start\s|^set\s|^exit|^quit', sql, re.IGNORECASE):
                 SQLSplitResults.append(sql)
                 SQLSplitResultsWithComments.append(strOrigin_SQL)
                 strOrigin_SQL = None
@@ -78,7 +79,8 @@ def SQLAnalyze( p_SQLCommandPlainText):
                               '^SELECT\\s|' \
                               '^UPDATE\\s|' \
                               '^DELETE\\s|' \
-                              '^INSERT\\s'
+                              '^INSERT\\s|' \
+                              '^__INTERNAL__\\s'
             if not re.match(strRegexPattern, sql, re.IGNORECASE):
                 SQLSplitResultsWithComments.append(strOrigin_SQL)
                 strOrigin_SQL = None
