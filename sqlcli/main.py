@@ -15,7 +15,6 @@ from .packages import special
 from .sqlexecute import SQLExecute
 from .sqlinternal import Create_file
 from .sqlcliexception import SQLCliException
-from .config import config_location, get_config
 from .__init__ import __version__
 from .sqlparse import SQLAnalyze
 
@@ -49,7 +48,6 @@ class SQLCli(object):
             self,
             logfile=None,
             auto_vertical_output=False,
-            sqlclirc=None,
             sqlscript=None,
             nologo=None
     ):
@@ -59,19 +57,13 @@ class SQLCli(object):
         self.sqlscript = sqlscript
         self.nologo = nologo
 
-        # Load config.
-        c = self.config = get_config(sqlclirc)
-
-        self.formatter = TabularOutputFormatter(format_name=c["main"]["table_format"])
+        self.formatter = TabularOutputFormatter(format_name='ascii')
         self.formatter.sqlcli = self
-        self.syntax_style = c["main"]["syntax_style"]
-        self.cli_style = c["colors"]
+        self.syntax_style = 'default'
         self.output_style = None
 
         # read from cli argument or user config file
-        self.auto_vertical_output = auto_vertical_output or c["main"].as_bool(
-            "auto_vertical_output"
-        )
+        self.auto_vertical_output = auto_vertical_output
 
         # 打开日志
         self.logger = logging.getLogger(__name__)
@@ -322,26 +314,6 @@ class SQLCli(object):
         # 不认识的internal命令
         raise SQLCliException("Unknown internal Command. Please double check.")
 
-    def read_my_cnf_files(self, keys):
-        """
-        Reads a list of config files and merges them. The last one will win.
-        :param files: list of files to read
-        :param keys: list of keys to retrieve
-        :returns: tuple, with None for missing keys.
-        """
-        cnf = self.config
-
-        sections = ["main"]
-
-        def get(key):
-            result = None
-            for sect in cnf:
-                if sect in sections and key in cnf[sect]:
-                    result = cnf[sect][key]
-            return result
-
-        return {x: get(x) for x in keys}
-
     def run_cli(self):
         iterations = 0
         self.configure_pager()
@@ -487,7 +459,7 @@ class SQLCli(object):
 
             fits = True
             buf = []
-            output_via_pager = self.explicit_pager and special.is_pager_enabled()
+            output_via_pager = self.explicit_pager
             for i, line in enumerate(output, 1):
                 self.log_output(line)
                 special.write_tee(line)
@@ -523,15 +495,7 @@ class SQLCli(object):
         if not os.environ.get("LESS"):
             os.environ["LESS"] = "-RXF"
 
-        cnf = self.read_my_cnf_files(["pager", "skip-pager"])
-        if cnf["pager"]:
-            special.set_pager(cnf["pager"])
-            self.explicit_pager = True
-        else:
-            self.explicit_pager = False
-
-        if cnf["skip-pager"] or not self.config["main"].as_bool("enable_pager"):
-            special.disable_pager()
+        self.explicit_pager = True
 
     def run_query(self, query, new_line=True):
         """Runs *query*."""
@@ -617,12 +581,6 @@ class SQLCli(object):
     help="Log every query and its results to a file.",
 )
 @click.option(
-    "--sqlclirc",
-    default=config_location() + "config",
-    help="Location of sqlclirc file.",
-    type=click.Path(dir_okay=False),
-)
-@click.option(
     "--auto-vertical-output",
     is_flag=True,
     help="Automatically switch to vertical output mode if the result is wider than the terminal width.",
@@ -640,7 +598,6 @@ def cli(
         table,
         csv,
         execute,
-        sqlclirc,
         nologo
 ):
     if version:
@@ -650,7 +607,6 @@ def cli(
     sqlcli = SQLCli(
         logfile=logfile,
         auto_vertical_output=auto_vertical_output,
-        sqlclirc=sqlclirc,
         sqlscript=execute,
         nologo=nologo
     )
