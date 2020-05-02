@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
-import traceback
 import logging
-from time import time
-from datetime import datetime
 from io import open
 import jaydebeapi
 import re
@@ -15,7 +12,6 @@ import click
 
 from prompt_toolkit.shortcuts import PromptSession
 from .packages import special
-from .clistyle import style_factory_output
 from .sqlexecute import SQLExecute
 from .sqlinternal import Create_file
 from .sqlcliexception import SQLCliException
@@ -70,8 +66,7 @@ class SQLCli(object):
         self.formatter.sqlcli = self
         self.syntax_style = c["main"]["syntax_style"]
         self.cli_style = c["colors"]
-        self.output_style = style_factory_output(self.syntax_style, self.cli_style)
-        self.output_style = style_factory_output(self.syntax_style, self.cli_style)
+        self.output_style = None
 
         # read from cli argument or user config file
         self.auto_vertical_output = auto_vertical_output or c["main"].as_bool(
