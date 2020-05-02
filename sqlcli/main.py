@@ -18,8 +18,10 @@ from .packages import special
 from .clistyle import style_factory_output
 from .sqlexecute import SQLExecute
 from .sqlinternal import Create_file
+from .sqlcliexception import SQLCliException
 from .config import config_location, get_config
 from .__init__ import __version__
+from .sqlparse import SQLAnalyze
 
 import itertools
 
@@ -57,7 +59,6 @@ class SQLCli(object):
     ):
         self.sqlexecute = SQLExecute()
         __sqlinternal__sqlexecute__ = self.sqlexecute
-        print(str(__sqlinternal__sqlexecute__))
         self.logfile = logfile
         self.sqlscript = sqlscript
         self.nologo = nologo
@@ -69,6 +70,7 @@ class SQLCli(object):
         self.formatter.sqlcli = self
         self.syntax_style = c["main"]["syntax_style"]
         self.cli_style = c["colors"]
+        self.output_style = style_factory_output(self.syntax_style, self.cli_style)
         self.output_style = style_factory_output(self.syntax_style, self.cli_style)
 
         # read from cli argument or user config file
@@ -133,7 +135,7 @@ class SQLCli(object):
 
         # 执行特殊的命令
         special.register_special_command(
-            self.exeucte_internal_command,
+            self.execute_internal_command,
             "__internal__",
             "execute internal command.",
             "execute internal command.",
@@ -229,11 +231,11 @@ class SQLCli(object):
                     else:
                         print(str(connect_parameters))
                         print(len(connect_parameters))
-                        raise Exception("Unexpeced env SQLCLI_CONNECTION_URL\n." +
+                        raise SQLCliException("Unexpeced env SQLCLI_CONNECTION_URL\n." +
                                         "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
                 else:
                     # 用户第一次连接，而且没有指定环境变量
-                    raise Exception("Missing required argument\n." + "connect [user name]/[password]@" +
+                    raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
                                     "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
 
         # 连接数据库
@@ -243,12 +245,9 @@ class SQLCli(object):
                                               self.db_host + ":" + self.db_port + "/" + self.db_service_name,
                                               [self.db_username, self.db_password],
                                               self.jar_file, )
+            self.sqlexecute.set_connection(self.db_conn)
         except Exception as e:  # Connecting to a database fail.
-            self.logger.debug("Database connection failed: %r.", e)
-            self.logger.error("traceback: %r", traceback.format_exc())
-            self.echo(str(e), err=True, fg="red")
-            exit(1)
-        self.sqlexecute.set_connection(self.db_conn)
+            raise SQLCliException(str(e))
 
         yield (
             None,
@@ -305,30 +304,28 @@ class SQLCli(object):
                     'Invalid Option. Please double check.')
 
     # 执行特殊的命令
-    def exeucte_internal_command(self, arg, **_):
-        b_Successful = False
+    def execute_internal_command(self, arg, **_):
         # 去掉回车换行符，以及末尾的空格
         strSQL = str(arg).replace('\r', '').replace('\n', '').strip()
 
-        matchObj = re.match(r"create\s+file\s+(.*?)\((.*)\)\s+?rows\s+([1-9]\d*)$", strSQL, re.IGNORECASE)
+        # 创建数据文件
+        matchObj = re.match(r"create\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+([1-9]\d*)(\s+)?(\;)?$",
+                            strSQL, re.IGNORECASE)
         if matchObj:
             # create file command  将根据格式要求创建需要的文件
-            b_Successful = Create_file(p_filename=str(matchObj.group(1)),
-                                       p_formula_str=str(matchObj.group(2)),
-                                       p_rows=int(matchObj.group(3)),
-                                       p_options=self.sqlexecute.options)
-        if b_Successful:
+            Create_file(p_filename=str(matchObj.group(1)),
+                        p_formula_str=str(matchObj.group(2)),
+                        p_rows=int(matchObj.group(4)),
+                        p_options=self.sqlexecute.options)
             yield (
                 None,
                 None,
                 None,
-                str(matchObj.group(3)) + ' rows created Successful.')
-        else:
-            yield (
-                None,
-                None,
-                None,
-                'Invalid internal Command. Please double check.')
+                str(matchObj.group(4)) + ' rows created Successful.')
+            return
+
+        # 不认识的internal命令
+        raise SQLCliException("Unknown internal Command. Please double check.")
 
     def read_my_cnf_files(self, keys):
         """
@@ -362,6 +359,7 @@ class SQLCli(object):
             if text is None:
                 full_text = None
                 while True:
+                    # 用户一行一行的输入SQL语句
                     try:
                         if full_text is None:
                             text = self.prompt_app.prompt('SQL> ')
@@ -369,41 +367,25 @@ class SQLCli(object):
                             text = self.prompt_app.prompt('   > ')
                     except KeyboardInterrupt:
                         return
+                    # 拼接SQL语句
                     if full_text is None:
                         full_text = text
                     else:
                         full_text = full_text + '\n' + text
-                    if full_text.startswith('set '):
-                        break
-                    # 如果语句以create|drop|alter|select|update|insert|delete开头，可能出现换行
-                    # 如果语句以create|drop|alter开头，且其中包含function, procedure的，可能出现程序段落
-                    # print('FULL_TEXT = [' + full_text + ']')
-                    if (full_text.startswith('create')
-                            or full_text.startswith('drop')
-                            or full_text.startswith('alter')
-                            or full_text.startswith('select')
-                            or full_text.startswith('update')
-                            or full_text.startswith('insert')
-                            or full_text.startswith('delete')):
-                        if full_text.endswith(';'):
-                            break
-                    else:
+                    # 判断SQL语句是否已经结束
+                    (ret_bSQLCompleted, ret_SQLSplitResults, ret_SQLSplitResultsWithComments) = SQLAnalyze(full_text)
+                    if ret_bSQLCompleted:
+                        # SQL 语句已经结束
                         break
                 text = full_text
 
                 special.iocommands.set_expanded_output(False)
 
+            # 如果文本是空行，直接跳过
             if not text.strip():
                 return
 
             try:
-                if self.logfile:
-                    self.logfile.write("\n# %s\n" % datetime.now())
-                    self.logfile.write(text)
-                    self.logfile.write("\n")
-
-                start = time()
-
                 res = self.sqlexecute.run(text)
 
                 self.formatter.query = text
@@ -425,7 +407,6 @@ class SQLCli(object):
                         title, cur, headers, special.is_expanded_output(), max_width
                     )
 
-                    t = time() - start
                     try:
                         if result_count > 0:
                             self.echo("")
@@ -436,7 +417,6 @@ class SQLCli(object):
                     except KeyboardInterrupt:
                         pass
 
-                    start = time()
                     result_count += 1
                 special.unset_once_if_written()
             except EOFError as e:

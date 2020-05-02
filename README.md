@@ -11,4 +11,4 @@ Install robotslacker-sqlcli
 
 ## Usage
     
-    Please read Doc.md for more.
+    [Doc](https://github.com/robotslacker/sqlcli/blob/master/Doc.md)

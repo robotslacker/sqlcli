@@ -2,6 +2,7 @@
 import logging
 from .sqlparse import SQLAnalyze
 from .packages import special
+from .sqlcliexception import SQLCliException
 
 _logger = logging.getLogger(__name__)
 
@@ -11,8 +12,11 @@ class SQLExecute(object):
     options = None         # 用户设置的各种选项
 
     def __init__(self):
-        self.options = {"ECHO":"OFF", "LONG": 20}
-        pass
+        # 设置一些默认的参数
+        self.options = {}
+        self.options["WHENEVER_SQLERROR"] = "CONTINUE"
+        self.options["ECHO"] = "OFF"
+        self.options["LONG"] = 20
 
     def set_connection(self, p_conn):
         self.conn = p_conn
@@ -30,11 +34,24 @@ class SQLExecute(object):
 
         # 分析SQL语句
         (ret_bSQLCompleted, ret_SQLSplitResults, ret_SQLSplitResultsWithComments) = SQLAnalyze(statement)
-        for sql in ret_SQLSplitResults:
+        for m_nPos in range(0, len(ret_SQLSplitResults)):
+
+            sql = ret_SQLSplitResults[m_nPos]
+            m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]
+
             # \G is treated specially since we have to set the expanded output.
             if sql.endswith("\\G"):
                 special.iocommands.set_expanded_output(True)
                 sql = sql[:-2].strip()
+
+            # SQL的回显
+            if self.options["ECHO"] == 'ON':
+                if len(m_CommentSQL.strip()) != 0:
+                    yield 'SQL> ' + m_CommentSQL, None, None, None
+
+            # 如果是空语句，不在执行
+            if len(sql.strip()) == 0:
+                continue
 
             # 在没有数据库连接的时候，必须先加载驱动程序，连接数据库
             if not self.conn and not (
@@ -53,21 +70,26 @@ class SQLExecute(object):
                 or sql.startswith("quit")
                 or sql.startswith("set")
             ):
-                _logger.debug(
-                    "Not connected to database. Will not run statement: %s.", sql
-                )
-                raise Exception("Please connect database first. ")
+                if self.options["WHENEVER_SQLERROR"] == "CONTINUE":
+                    yield None,None,None, "Not connected. "
+                else:
+                    raise SQLCliException("Not Connected. ")
             cur = self.conn.cursor() if self.conn else None
-            if self.options["ECHO"] == 'ON':
-                yield 'SQL> ' + sql, None, None, None
+
             try:
                 # 首先假设这是一个特殊命令
                 for result in special.execute(cur, sql):
                     yield result
             except special.CommandNotFound:
                 # 执行正常的SQL语句
-                cur.execute(sql)
-                yield self.get_result(cur)
+                if cur is not None:
+                    cur.execute(sql)
+                    yield self.get_result(cur)
+            except SQLCliException as e:
+                if self.options["WHENEVER_SQLERROR"] == "CONTINUE":
+                    yield None,None,None, str(e.message)
+                else:
+                    raise Exception(e.message)
 
     def get_result(self, cursor):
         """Get the current result's data from the cursor."""
@@ -98,5 +120,4 @@ class SQLExecute(object):
             cursor = None
 
         status = status.format(rowcount, "" if rowcount == 1 else "s")
-
         return title, cursor, headers, status

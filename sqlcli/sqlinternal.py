@@ -138,7 +138,7 @@ def Create_file(p_filename, p_formula_str, p_rows, p_options):
             else:
                 raise SQLCliException("Please set KAFKA_SERVERS first")
         else:
-            raise Exception("Unknown file format.")
+            raise SQLCliException("Unknown file format.")
 
         m_row_struct = parse_formula_str(p_formula_str)
         for i in range(1, p_rows):
@@ -149,5 +149,5 @@ def Create_file(p_filename, p_formula_str, p_rows, p_options):
         if not p_filename.startswith('kafka://'):
             m_output.close()
     except Exception as e:
-        raise e
-    return True
+        raise SQLCliException(e)
+    return
