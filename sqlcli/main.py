@@ -44,17 +44,18 @@ class SQLCli(object):
     sqlexecute = None
     nologo = None
     logon = None
+    logfile = None
 
     def __init__(
             self,
             logon=None,
-            logfile=None,
-            auto_vertical_output=False,
+            logfilename=None,
             sqlscript=None,
             nologo=None
     ):
         self.sqlexecute = SQLExecute()
-        self.logfile = logfile
+        if logfilename is not None:
+            self.logfile = open(logfilename, mode="a", encoding="utf-8")
         self.sqlscript = sqlscript
         self.nologo = nologo
         self.logon = logon
@@ -122,16 +123,16 @@ class SQLCli(object):
     # 加载JDBC驱动文件
     def load_driver(self, arg, **_):
         if arg is None:
-            raise Exception("Missing required argument, load [driver file name] [driver class name].")
+            raise SQLCliException("Missing required argument, load [driver file name] [driver class name].")
         elif arg == "":
-            raise Exception("Missing required argument, load [driver file name] [driver class name].")
+            raise SQLCliException("Missing required argument, load [driver file name] [driver class name].")
         else:
             load_parameters = str(arg).split();
             if len(load_parameters) != 2:
                 self.logger.debug('arg = ' + str(load_parameters))
-                raise Exception("Missing required argument, load [driver file name] [driver class name].")
+                raise SQLCliException("Missing required argument, load [driver file name] [driver class name].")
             if not os.path.exists(str(load_parameters[0])):
-                raise Exception("driver file [" + str(arg) + "] does not exist.")
+                raise SQLCliException("driver file [" + str(arg) + "] does not exist.")
 
             # 如果jar包或者驱动类发生了变化，则当前数据库连接自动失效
             if self.jar_file:
@@ -155,13 +156,13 @@ class SQLCli(object):
     # 连接数据库
     def connect_db(self, arg, **_):
         if arg is None:
-            raise Exception("Missing required argument\n." + "connect [user name]/[password]@" +
+            raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
                             "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
         elif arg == "":
-            raise Exception("Missing required argument\n." + "connect [user name]/[password]@" +
+            raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
                             "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
         elif self.jar_file is None:
-            raise Exception("Please load driver first.")
+            raise SQLCliException("Please load driver first.")
 
         # 去掉为空的元素
         connect_parameters = [var for var in re.split(r'//|:|@|/', arg) if var]
@@ -398,9 +399,11 @@ class SQLCli(object):
             if self.logon:
                 one_iteration("connect " + str(self.logon))
 
-            # 如果传递的参数中有SQL文件，先执行SQL文件
+            # 如果传递的参数中有SQL文件，先执行SQL文件, 执行完成后自动退出
             if self.sqlscript:
                 one_iteration('start ' + self.sqlscript)
+                iterations += 1
+                one_iteration('exit')
                 iterations += 1
 
             # 循环从控制台读取命令
@@ -537,7 +540,7 @@ class SQLCli(object):
 )
 @click.option(
     "--logfile",
-    type=click.File(mode="a", encoding="utf-8"),
+    type=str,
     help="Log every query and its results to a file.",
 )
 @click.option("--execute", type=str, help="Execute SQL script.")
@@ -554,7 +557,7 @@ def cli(
         sys.exit(0)
 
     sqlcli = SQLCli(
-        logfile=logfile,
+        logfilename=logfile,
         logon=logon,
         sqlscript=execute,
         nologo=nologo

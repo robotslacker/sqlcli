@@ -10,6 +10,9 @@ How to build and upload this package to PyPi
     python setup.py sdist
     python setup.py bdist_wheel --universal
     twine upload dist/*
+
+How to build and upload this package to Local site:
+    python setup.py install
 '''
 
 _version_re = re.compile(r"__version__\s+=\s+(.*)")
