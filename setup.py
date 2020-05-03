@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import ast
 from io import open
 import re

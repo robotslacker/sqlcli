@@ -90,15 +90,6 @@ class SQLCli(object):
             aliases=("connect", "\\c"),
         )
 
-        special.register_special_command(
-            self.change_table_format,
-            ".mode",
-            "\\T",
-            "Change the table format used to output results.",
-            aliases=("tableformat", "\\T"),
-            case_sensitive=True,
-        )
-
         # 从文件中执行脚本
         special.register_special_command(
             self.execute_from_file,
@@ -125,16 +116,6 @@ class SQLCli(object):
             "execute internal command.",
             aliases=("__internal__",),
         )
-
-    def change_table_format(self, arg, **_):
-        try:
-            self.formatter.format_name = arg
-            yield None, None, None, "Changed table format to {}".format(arg)
-        except ValueError:
-            msg = "Table format {} not recognized. Allowed formats:".format(arg)
-            for table_type in self.formatter.supported_formats:
-                msg += "\n\t{}".format(table_type)
-            yield None, None, None, msg
 
     # 加载JDBC驱动文件
     def load_driver(self, arg, **_):
@@ -345,8 +326,6 @@ class SQLCli(object):
                         # SQL 语句已经结束
                         break
                 text = full_text
-
-                special.iocommands.set_expanded_output(False)
 
             # 如果文本是空行，直接跳过
             if not text.strip():
@@ -568,23 +547,8 @@ def cli(
         nologo=nologo
     )
 
-    if sys.stdin.isatty():
-        sqlcli.run_cli()
-    else:
-        stdin = click.get_text_stream("stdin")
-        stdin_text = stdin.read()
-
-        try:
-            sys.stdin = open("/dev/tty")
-        except (FileNotFoundError, OSError):
-            sqlcli.logger.warning("Unable to open TTY as stdin.")
-
-        try:
-            sqlcli.run_query(stdin_text, True)
-            exit(0)
-        except Exception as e:
-            click.secho(str(e), err=True, fg="red")
-            exit(1)
+    # 运行主程序
+    sqlcli.run_cli()
 
 
 def is_select(status):

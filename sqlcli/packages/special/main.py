@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+# -*- coding: utf-8 -*-
 import logging
 from collections import namedtuple
 
@@ -137,7 +137,7 @@ def show_help():  # All the parameters are ignored.
     return [(None, result, headers, None)]
 
 
-@special_command(".exit", "\\q", "Exit.", arg_type=NO_QUERY, aliases=("\\q", "exit"))
+@special_command("exit", "\\q", "Exit.", arg_type=NO_QUERY)
 @special_command("quit", "\\q", "Quit.", arg_type=NO_QUERY)
 def quit(*_args):
     raise EOFError
