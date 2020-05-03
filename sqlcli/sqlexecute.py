@@ -15,6 +15,8 @@ class SQLExecute(object):
         # 设置一些默认的参数
         self.options = {}
         self.options["WHENEVER_SQLERROR"] = "CONTINUE"
+        self.options["PAGE"] = "OFF"
+        self.options["OUTPUT_FORMAT"] = "ASCII"
         self.options["ECHO"] = "OFF"
         self.options["LONG"] = 20
 
@@ -38,11 +40,6 @@ class SQLExecute(object):
 
             sql = ret_SQLSplitResults[m_nPos]
             m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]
-
-            # \G is treated specially since we have to set the expanded output.
-            if sql.endswith("\\G"):
-                special.iocommands.set_expanded_output(True)
-                sql = sql[:-2].strip()
 
             # SQL的回显
             if self.options["ECHO"] == 'ON':

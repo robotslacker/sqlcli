@@ -7,6 +7,4 @@ def export(defn):
     __all__.append(defn.__name__)
     return defn
 
-
-from . import dbcommands
-from . import iocommands
+from . import main

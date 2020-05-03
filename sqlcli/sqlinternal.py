@@ -147,6 +147,7 @@ def Create_file(p_filename, p_formula_str, p_rows, p_options):
             else:
                 m_output.write(get_final_string(m_row_struct) + '\n')
         if not p_filename.startswith('kafka://'):
+            m_producer.flush()
             m_output.close()
     except Exception as e:
         raise SQLCliException(e)

@@ -50,8 +50,8 @@ def special_command(
     shortcut,
     description,
     arg_type=PARSED_QUERY,
-    hidden=False,
-    case_sensitive=False,
+    hidden=False,                     # 是否显示在帮助信息里头
+    case_sensitive=False,             # 是否忽略输入的大小写
     aliases=(),
 ):
     def wrapper(wrapped):
@@ -141,13 +141,3 @@ def show_help():  # All the parameters are ignored.
 @special_command("quit", "\\q", "Quit.", arg_type=NO_QUERY)
 def quit(*_args):
     raise EOFError
-
-@special_command(
-    "\\G",
-    "\\G",
-    "Display current query results vertically.",
-    arg_type=NO_QUERY,
-    case_sensitive=True,
-)
-def stub():
-    raise NotImplementedError

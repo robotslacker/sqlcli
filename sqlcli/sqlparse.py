@@ -84,6 +84,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 if m_nPos == len(SQLCommands) - 1:
                     # 如果本行就是最后一行
                     SQLSplitResultsWithComments.append(m_CommentSQL)
+                    m_NewSQLWithCommentsLastPos = 0
                 else:
                     # 一直找到下一个有效语句的开始
                     for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
@@ -98,6 +99,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                             # 完全注释行
                             m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos]
                 continue
+
             # 如果本行只有唯一的内容，就是段落终止符的话，本语句没有任何意义
             if re.match(r'^/$', SQLCommands[m_nPos]):
                 SQLSplitResults.append("")
@@ -105,6 +107,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 if m_nPos == len(SQLCommands) - 1:
                     # 如果本行就是最后一行
                     SQLSplitResultsWithComments.append(m_CommentSQL)
+                    m_NewSQLWithCommentsLastPos = 0
                 else:
                     # 一直找到下一个有效语句的开始
                     for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
@@ -119,6 +122,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                             # 完全注释行
                             m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos]
                 continue
+
             # 如何本行没有任何内容，就是空行，直接结束，本语句没有任何意义
             if SQLCommands[m_nPos].strip() == "":
                 SQLSplitResults.append("")
@@ -161,7 +165,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                     if m_nPos == len(SQLCommands) - 1:
                         # 如果本行就是最后一行
                         SQLSplitResultsWithComments.append(m_NewSQLWithComments)
-                        SQLSplitResultsWithComments = 0
+                        m_NewSQLWithCommentsLastPos = 0
                         m_NewSQLWithComments = None
                     else:
                         # 一直找到下一个有效语句的开始
@@ -195,7 +199,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 if m_nPos == len(SQLCommands) - 1:
                     # 如果本行就是最后一行
                     SQLSplitResultsWithComments.append(m_NewSQLWithComments)
-                    SQLSplitResultsWithComments = 0
+                    m_NewSQLWithCommentsLastPos = 0
                     m_NewSQLWithComments = None
                 else:
                     # 一直找到下一个有效语句的开始
@@ -232,7 +236,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                         if m_nPos == len(SQLCommands) - 1:
                             # 如果本行就是最后一行
                             SQLSplitResultsWithComments.append(m_NewSQLWithComments)
-                            SQLSplitResultsWithComments = 0
+                            m_NewSQLWithCommentsLastPos = 0
                             m_NewSQLWithComments = None
                         else:
                             # 一直找到下一个有效语句的开始

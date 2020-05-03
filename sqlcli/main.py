@@ -62,9 +62,6 @@ class SQLCli(object):
         self.syntax_style = 'default'
         self.output_style = None
 
-        # read from cli argument or user config file
-        self.auto_vertical_output = auto_vertical_output
-
         # 打开日志
         self.logger = logging.getLogger(__name__)
 
@@ -316,7 +313,10 @@ class SQLCli(object):
 
     def run_cli(self):
         iterations = 0
-        self.configure_pager()
+
+        # 给Page做准备，PAGE显示的默认换页方式.
+        if not os.environ.get("LESS"):
+            os.environ["LESS"] = "-RXF"
 
         if not self.nologo:
             print("SQL*Cli Release " + __version__)
@@ -365,13 +365,21 @@ class SQLCli(object):
                             fg="red",
                         )
 
-                    if self.auto_vertical_output:
-                        max_width = self.prompt_app.output.get_size().columns
-                    else:
-                        max_width = None
+                     # prompt_app 默认列最长的宽度是119
+                    # max_width = self.prompt_app.output.get_size().columns
+                    max_width = None
 
+                    # title 包含原有语句的SQL信息，如果ECHO打开的话
+                    # headers 包含原有语句的列名
+                    # cur 是语句的执行结果
+                    # output_format 输出格式
+                    #   ascii              默认，即表格格式
+                    #   vertical           分行显示，每行、每列都分行
+                    #   csv                csv格式显示
                     formatted = self.format_output(
-                        title, cur, headers, special.is_expanded_output(), max_width
+                        title, cur, headers,
+                        self.sqlexecute.options["OUTPUT_FORMAT"].lower(),
+                        max_width
                     )
 
                     try:
@@ -385,7 +393,6 @@ class SQLCli(object):
                         pass
 
                     result_count += 1
-                special.unset_once_if_written()
             except EOFError as e:
                 raise e
             except NotImplementedError:
@@ -415,7 +422,6 @@ class SQLCli(object):
                 one_iteration()
                 iterations += 1
         except EOFError:
-            special.close_tee()
             self.echo("Disconnected.")
 
     def log_output(self, output):
@@ -443,32 +449,31 @@ class SQLCli(object):
         return margin
 
     def output(self, output, status=None):
-        """Output text to stdout or a pager command.
+        """
+        Output text to stdout or a pager command.
 
         The status text is not outputted to pager or files.
 
-        The message will be logged in the audit log, if enabled. The
-        message will be written to the tee file, if enabled. The
-        message will be written to the output file, if enabled.
+        The message will be written to the output file, if enabled.
 
         """
         if output:
+            # size    记录了 每页输出最大行数，以及行的宽度。  Size(rows=30, columns=119)
+            # margin  记录了每页需要留下多少边界行，如状态显示信息等 （2 或者 3）
             size = self.prompt_app.output.get_size()
-
             margin = self.get_output_margin(status)
 
+            # 打印输出信息
             fits = True
             buf = []
-            output_via_pager = self.explicit_pager
+            output_via_pager = ((self.sqlexecute.options["PAGE"]).upper() == "ON")
             for i, line in enumerate(output, 1):
-                self.log_output(line)
-                special.write_tee(line)
-                special.write_once(line)
-
+                self.log_output(line)       # 输出文件中总是不考虑分页问题
                 if fits or output_via_pager:
                     # buffering
                     buf.append(line)
                     if len(line) > size.columns or i > (size.rows - margin):
+                        # 如果行超过页要求，或者行内容过长，且没有分页要求的话，直接显示
                         fits = False
                         if not output_via_pager:
                             # doesn't fit, flush buffer
@@ -480,7 +485,6 @@ class SQLCli(object):
 
             if buf:
                 if output_via_pager:
-                    # sadly click.echo_via_pager doesn't accept generators
                     click.echo_via_pager("\n".join(buf))
                 else:
                     for line in buf:
@@ -490,25 +494,7 @@ class SQLCli(object):
             self.log_output(status)
             click.secho(status)
 
-    def configure_pager(self):
-        # Provide sane defaults for less if they are empty.
-        if not os.environ.get("LESS"):
-            os.environ["LESS"] = "-RXF"
-
-        self.explicit_pager = True
-
-    def run_query(self, query, new_line=True):
-        """Runs *query*."""
-        results = self.sqlexecute.run(query)
-        for result in results:
-            title, cur, headers, status = result
-            self.formatter.query = query
-            output = self.format_output(title, cur, headers)
-            for line in output:
-                click.echo(line, nl=new_line)
-
-    def format_output(self, title, cur, headers, expanded=False, max_width=None):
-        expanded = expanded or self.formatter.format_name == "vertical"
+    def format_output(self, title, cur, headers, p_format_name, max_width=None):
         output = []
 
         output_kwargs = {
@@ -523,6 +509,7 @@ class SQLCli(object):
             output = itertools.chain(output, [title])
 
         if cur:
+            # 列的描述信息，如果不存在，按照None来处理
             column_types = None
             if hasattr(cur, "description"):
                 def get_col_type(col):
@@ -538,37 +525,20 @@ class SQLCli(object):
             formatted = self.formatter.format_output(
                 cur,
                 headers,
-                format_name="vertical" if expanded else None,
+                format_name=p_format_name,
                 column_types=column_types,
                 **output_kwargs
             )
-
             if isinstance(formatted, str):
                 formatted = formatted.splitlines()
             formatted = iter(formatted)
 
+            # 获得输出信息的首行
             first_line = next(formatted)
+            # 获得输出信息的格式控制
             formatted = itertools.chain([first_line], formatted)
-
-            if (
-                    not expanded
-                    and max_width
-                    and headers
-                    and cur
-                    and len(first_line) > max_width
-            ):
-                formatted = self.formatter.format_output(
-                    cur,
-                    headers,
-                    format_name="vertical",
-                    column_types=column_types,
-                    **output_kwargs
-                )
-                if isinstance(formatted, str):
-                    formatted = iter(formatted.splitlines())
-
+            # 返回输出信息
             output = itertools.chain(output, formatted)
-
         return output
 
 
@@ -580,23 +550,11 @@ class SQLCli(object):
     type=click.File(mode="a", encoding="utf-8"),
     help="Log every query and its results to a file.",
 )
-@click.option(
-    "--auto-vertical-output",
-    is_flag=True,
-    help="Automatically switch to vertical output mode if the result is wider than the terminal width.",
-)
-@click.option(
-    "-t", "--table", is_flag=True, help="Display batch output in table format."
-)
-@click.option("--csv", is_flag=True, help="Display batch output in CSV format.")
 @click.option("-e", "--execute", type=str, help="Execute SQL script.")
 @click.option("--nologo", is_flag=True, help="Execute with silent mode.")
 def cli(
         version,
         logfile,
-        auto_vertical_output,
-        table,
-        csv,
         execute,
         nologo
 ):
@@ -606,7 +564,6 @@ def cli(
 
     sqlcli = SQLCli(
         logfile=logfile,
-        auto_vertical_output=auto_vertical_output,
         sqlscript=execute,
         nologo=nologo
     )
@@ -623,14 +580,7 @@ def cli(
             sqlcli.logger.warning("Unable to open TTY as stdin.")
 
         try:
-            new_line = True
-
-            if csv:
-                sqlcli.formatter.format_name = "csv"
-            elif not table:
-                sqlcli.formatter.format_name = "tsv"
-
-            sqlcli.run_query(stdin_text, new_line=new_line)
+            sqlcli.run_query(stdin_text, True)
             exit(0)
         except Exception as e:
             click.secho(str(e), err=True, fg="red")
