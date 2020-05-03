@@ -11,10 +11,10 @@ from cli_helpers.tabular_output import preprocessors
 import click
 
 from prompt_toolkit.shortcuts import PromptSession
-from .packages import special
 from .sqlexecute import SQLExecute
 from .sqlinternal import Create_file
 from .sqlcliexception import SQLCliException
+from .commandanalyze import register_special_command
 from .__init__ import __version__
 from .sqlparse import SQLAnalyze
 
@@ -43,19 +43,21 @@ class SQLCli(object):
     sqlscript = None
     sqlexecute = None
     nologo = None
+    logon = None
 
     def __init__(
             self,
+            logon=None,
             logfile=None,
             auto_vertical_output=False,
             sqlscript=None,
             nologo=None
     ):
         self.sqlexecute = SQLExecute()
-        __sqlinternal__sqlexecute__ = self.sqlexecute
         self.logfile = logfile
         self.sqlscript = sqlscript
         self.nologo = nologo
+        self.logon = logon
 
         self.formatter = TabularOutputFormatter(format_name='ascii')
         self.formatter.sqlcli = self
@@ -73,7 +75,7 @@ class SQLCli(object):
     def register_special_commands(self):
 
         # 加载数据库驱动
-        special.register_special_command(
+        register_special_command(
             self.load_driver,
             ".load",
             ".load",
@@ -82,7 +84,7 @@ class SQLCli(object):
         )
 
         # 连接数据库
-        special.register_special_command(
+        register_special_command(
             self.connect_db,
             ".connect",
             ".connect",
@@ -91,7 +93,7 @@ class SQLCli(object):
         )
 
         # 从文件中执行脚本
-        special.register_special_command(
+        register_special_command(
             self.execute_from_file,
             "start",
             "\\. filename",
@@ -100,7 +102,7 @@ class SQLCli(object):
         )
 
         # 设置各种参数选项
-        special.register_special_command(
+        register_special_command(
             self.set_options,
             "set",
             "set parameter parameter_value",
@@ -109,7 +111,7 @@ class SQLCli(object):
         )
 
         # 执行特殊的命令
-        special.register_special_command(
+        register_special_command(
             self.execute_internal_command,
             "__internal__",
             "execute internal command.",
@@ -245,7 +247,7 @@ class SQLCli(object):
             yield (
                 "Current set options: ",
                 m_Result,
-                ["option","value"],
+                ["option", "value"],
                 ""
             )
         else:
@@ -292,6 +294,7 @@ class SQLCli(object):
         # 不认识的internal命令
         raise SQLCliException("Unknown internal Command. Please double check.")
 
+    # 主程序
     def run_cli(self):
         iterations = 0
 
@@ -390,6 +393,10 @@ class SQLCli(object):
                               os.environ["SQLCLI_CONNECTION_JAR_NAME"] + ' ' + os.environ[
                                   "SQLCLI_CONNECTION_CLASS_NAME"])
                 iterations += 1
+
+            # 如果用户制定了用户名，口令，尝试直接进行数据库连接
+            if self.logon:
+                one_iteration("connect " + str(self.logon))
 
             # 如果传递的参数中有SQL文件，先执行SQL文件
             if self.sqlscript:
@@ -522,17 +529,22 @@ class SQLCli(object):
 
 
 @click.command()
-@click.option("-V", "--version", is_flag=True, help="Output sqlcli's version.")
+@click.option("--version", is_flag=True, help="Output sqlcli's version.")
 @click.option(
-    "-l",
+    "--logon",
+    type=str,
+    help="logon user name and password. user/pass",
+)
+@click.option(
     "--logfile",
     type=click.File(mode="a", encoding="utf-8"),
     help="Log every query and its results to a file.",
 )
-@click.option("-e", "--execute", type=str, help="Execute SQL script.")
+@click.option("--execute", type=str, help="Execute SQL script.")
 @click.option("--nologo", is_flag=True, help="Execute with silent mode.")
 def cli(
         version,
+        logon,
         logfile,
         execute,
         nologo
@@ -543,6 +555,7 @@ def cli(
 
     sqlcli = SQLCli(
         logfile=logfile,
+        logon=logon,
         sqlscript=execute,
         nologo=nologo
     )

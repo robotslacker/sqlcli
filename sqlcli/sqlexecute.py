@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
 from .sqlparse import SQLAnalyze
-from .packages import special
+from .commandanalyze import execute
+from .commandanalyze import CommandNotFound
 from .sqlcliexception import SQLCliException
 
 _logger = logging.getLogger(__name__)
@@ -75,9 +76,9 @@ class SQLExecute(object):
 
             try:
                 # 首先假设这是一个特殊命令
-                for result in special.execute(cur, sql):
+                for result in execute(cur, sql):
                     yield result
-            except special.CommandNotFound:
+            except CommandNotFound:
                 # 执行正常的SQL语句
                 if cur is not None:
                     cur.execute(sql)

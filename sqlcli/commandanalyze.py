@@ -2,13 +2,21 @@
 import logging
 from collections import namedtuple
 
-from . import export
-
 log = logging.getLogger(__name__)
 
 NO_QUERY = 0
 PARSED_QUERY = 1
 RAW_QUERY = 2
+
+__all__ = []
+
+
+def export(defn):
+    """Decorator to explicitly mark functions that are exposed in a lib."""
+    globals()[defn.__name__] = defn
+    __all__.append(defn.__name__)
+    return defn
+
 
 SpecialCommand = namedtuple(
     "SpecialCommand",
