@@ -45,7 +45,8 @@ setup(
     url='https://github.com/robotslacker/sqlcli',
 
     zip_safe = False,
-    packages=find_packages(),
+    packages=['sqlcli'],
+    package_data={'sqlcli': []},
 
     entry_points={
         "console_scripts": ["sqlcli = sqlcli.main:cli"],
