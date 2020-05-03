@@ -44,8 +44,8 @@ setup(
     author_email='184902652@qq.com',
     url='https://github.com/robotslacker/sqlcli',
 
+    zip_safe = False,
     packages=find_packages(),
-    package_data={"sqlcli": []},
 
     entry_points={
         "console_scripts": ["sqlcli = sqlcli.main:cli"],
