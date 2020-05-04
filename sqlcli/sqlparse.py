@@ -158,7 +158,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
             m_NewSQL = SQLCommands[m_nPos]
             m_NewSQLWithComments = SQLCommandsWithComments[m_nPos][m_NewSQLWithCommentsLastPos:]
             if re.match(r'(.*);(\s+)?$', SQLCommands[m_nPos]):  # 本行以；结尾
-                strRegexPattern = r'^((\s+)?CREATE(\s+)|^(\s+)?DROP(\s+)|^(\s+)?REPLACE(\s+))(.*)?(FUNCTION|PROCEDURE)'
+                strRegexPattern = r'^((\s+)?CREATE(\s+)|^(\s+)?REPLACE(\s+))(.*)?(FUNCTION|PROCEDURE)'
                 if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE):
                     # 这不是一个存储过程，本行可以结束了
                     SQLSplitResults.append(SQLCommands[m_nPos])
@@ -191,11 +191,11 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 # 不知道是啥，至少是一个语句段， NewSQL,CommentSQL已经被记录，跳到下一行处理
                 m_bInMultiLineSQL = True
         else:  # 工作在多行语句中
-            # 如果本行只有唯一的内容，就是段落终止符的话，本语句没有任何意义
+            # 本行只有唯一的内容，就是段落终止符的话，语句应该可以提交了
             if re.match(r'^/$', SQLCommands[m_nPos]):
-                SQLSplitResults.append("")
+                SQLSplitResults.append(m_NewSQL)
                 # 注释信息包含/符号
-                m_NewSQLWithComments = m_NewSQLWithComments + SQLCommandsWithComments[m_nPos]
+                m_NewSQLWithComments = m_NewSQLWithComments + '\n' + SQLCommandsWithComments[m_nPos]
                 if m_nPos == len(SQLCommands) - 1:
                     # 如果本行就是最后一行
                     SQLSplitResultsWithComments.append(m_NewSQLWithComments)

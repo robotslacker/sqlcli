@@ -81,13 +81,26 @@ class SQLExecute(object):
             except CommandNotFound:
                 # 执行正常的SQL语句
                 if cur is not None:
-                    cur.execute(sql)
-                    yield self.get_result(cur)
+                    try:
+                        cur.execute(sql)
+                        yield self.get_result(cur)
+                    except Exception as e:
+                        if (
+                                str(e).find("SQLSyntaxErrorException") != -1 or
+                                str(e).find("SQLException") != -1
+                        ):
+                            # SQL 语法错误
+                            if self.options["WHENEVER_SQLERROR"] == "CONTINUE":
+                                yield None, None, None, str(e)
+                            else:
+                                raise e
+                        else:
+                            raise e
             except SQLCliException as e:
                 if self.options["WHENEVER_SQLERROR"] == "CONTINUE":
                     yield None,None,None, str(e.message)
                 else:
-                    raise Exception(e.message)
+                    raise e
 
     def get_result(self, cursor):
         """Get the current result's data from the cursor."""

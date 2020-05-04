@@ -127,7 +127,7 @@ class SQLCli(object):
         elif arg == "":
             raise SQLCliException("Missing required argument, load [driver file name] [driver class name].")
         else:
-            load_parameters = str(arg).split();
+            load_parameters = str(arg).split()
             if len(load_parameters) != 2:
                 self.logger.debug('arg = ' + str(load_parameters))
                 raise SQLCliException("Missing required argument, load [driver file name] [driver class name].")
@@ -200,11 +200,11 @@ class SQLCli(object):
                         print(str(connect_parameters))
                         print(len(connect_parameters))
                         raise SQLCliException("Unexpeced env SQLCLI_CONNECTION_URL\n." +
-                                        "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
+                                              "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
                 else:
                     # 用户第一次连接，而且没有指定环境变量
                     raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
-                                    "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
+                                          "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
 
         # 连接数据库
         try:
@@ -238,7 +238,6 @@ class SQLCli(object):
 
     # 设置一些选项
     def set_options(self, arg, **_):
-        b_Successful = False
         if arg is None:
             raise Exception("Missing required argument. set parameter parameter_value.")
         elif arg == "":
@@ -256,20 +255,11 @@ class SQLCli(object):
             if len(options_parameters) != 2:
                 raise Exception("Missing required argument. set parameter parameter_value.")
             self.sqlexecute.options[options_parameters[0].upper()] = options_parameters[1].upper()
-            b_Successful = True
-
-            if b_Successful:
-                yield (
-                    None,
-                    None,
-                    None,
-                    '')
-            else:
-                yield (
-                    None,
-                    None,
-                    None,
-                    'Invalid Option. Please double check.')
+            yield (
+                None,
+                None,
+                None,
+                '')
 
     # 执行特殊的命令
     def execute_internal_command(self, arg, **_):
@@ -277,7 +267,7 @@ class SQLCli(object):
         strSQL = str(arg).replace('\r', '').replace('\n', '').strip()
 
         # 创建数据文件
-        matchObj = re.match(r"create\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+([1-9]\d*)(\s+)?(\;)?$",
+        matchObj = re.match(r"create\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+([1-9]\d*)(\s+)?(;)?$",
                             strSQL, re.IGNORECASE)
         if matchObj:
             # create file command  将根据格式要求创建需要的文件
@@ -348,7 +338,7 @@ class SQLCli(object):
                             fg="red",
                         )
 
-                     # prompt_app 默认列最长的宽度是119
+                    # prompt_app 默认列最长的宽度是119
                     # max_width = self.prompt_app.output.get_size().columns
                     max_width = None
 
@@ -466,8 +456,8 @@ class SQLCli(object):
                         fits = False
                         if not output_via_pager:
                             # doesn't fit, flush buffer
-                            for line in buf:
-                                click.secho(line)
+                            for bufline in buf:
+                                click.secho(bufline)
                             buf = []
                 else:
                     click.secho(line)

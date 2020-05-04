@@ -5,6 +5,7 @@ import os
 from kafka import KafkaProducer
 from .sqlcliexception import SQLCliException
 
+
 def random_digits(p_arg):
     n = int(p_arg[0])
     seed = '0123456789'.encode()
