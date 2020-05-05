@@ -14,12 +14,8 @@ class SQLExecute(object):
 
     def __init__(self):
         # 设置一些默认的参数
-        self.options = {}
-        self.options["WHENEVER_SQLERROR"] = "CONTINUE"
-        self.options["PAGE"] = "OFF"
-        self.options["OUTPUT_FORMAT"] = "ASCII"
-        self.options["ECHO"] = "OFF"
-        self.options["LONG"] = 20
+        self.options = {"WHENEVER_SQLERROR": "CONTINUE", "PAGE": "OFF", "OUTPUT_FORMAT": "ASCII", "ECHO": "OFF",
+                        "LONG": 20}
 
     def set_connection(self, p_conn):
         self.conn = p_conn
@@ -69,7 +65,7 @@ class SQLExecute(object):
                 or sql.startswith("set")
             ):
                 if self.options["WHENEVER_SQLERROR"] == "CONTINUE":
-                    yield None,None,None, "Not connected. "
+                    yield None, None, None, "Not connected. "
                 else:
                     raise SQLCliException("Not Connected. ")
             cur = self.conn.cursor() if self.conn else None
@@ -98,7 +94,7 @@ class SQLExecute(object):
                             raise e
             except SQLCliException as e:
                 if self.options["WHENEVER_SQLERROR"] == "CONTINUE":
-                    yield None,None,None, str(e.message)
+                    yield None, None, None, str(e.message)
                 else:
                     raise e
 

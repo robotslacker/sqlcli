@@ -156,11 +156,13 @@ class SQLCli(object):
     # 连接数据库
     def connect_db(self, arg, **_):
         if arg is None:
-            raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
-                            "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
+            raise SQLCliException(
+                "Missing required argument\n." + "connect [user name]/[password]@" +
+                "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
         elif arg == "":
-            raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
-                            "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
+            raise SQLCliException(
+                "Missing required argument\n." + "connect [user name]/[password]@" +
+                "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
         elif self.jar_file is None:
             raise SQLCliException("Please load driver first.")
 
@@ -175,9 +177,10 @@ class SQLCli(object):
             self.db_host = connect_parameters[5]
             self.db_port = connect_parameters[6]
             self.db_service_name = connect_parameters[7]
-            self.db_url = connect_parameters[2] + ':' + connect_parameters[3] + ':' + \
-                          connect_parameters[4] + '://' + connect_parameters[5] + ':' + \
-                          connect_parameters[6] + ':/' + connect_parameters[7]
+            self.db_url = \
+                connect_parameters[2] + ':' + connect_parameters[3] + ':' + \
+                connect_parameters[4] + '://' + connect_parameters[5] + ':' + \
+                connect_parameters[6] + ':/' + connect_parameters[7]
         elif len(connect_parameters) == 2:
             # 用户只指定了用户名和口令， 认为用户和上次保留一直的连接字符串信息
             self.db_username = connect_parameters[0]
@@ -193,9 +196,10 @@ class SQLCli(object):
                         self.db_host = connect_parameters[3]
                         self.db_port = connect_parameters[4]
                         self.db_service_name = connect_parameters[5]
-                        self.db_url = connect_parameters[0] + ':' + connect_parameters[1] + ':' + \
-                                      connect_parameters[2] + '://' + connect_parameters[3] + ':' + \
-                                      connect_parameters[4] + ':/' + connect_parameters[5]
+                        self.db_url = \
+                            connect_parameters[0] + ':' + connect_parameters[1] + ':' +\
+                            connect_parameters[2] + '://' + connect_parameters[3] + ':' + \
+                            connect_parameters[4] + ':/' + connect_parameters[5]
                     else:
                         print(str(connect_parameters))
                         print(len(connect_parameters))
@@ -488,7 +492,7 @@ class SQLCli(object):
             output = itertools.chain(output, [title])
 
         if cur:
-            # 列的描述信息，如果不存在，按照None来处理
+            # 列的数据类型，如果不存在，按照None来处理
             column_types = None
             if hasattr(cur, "description"):
                 def get_col_type(col):

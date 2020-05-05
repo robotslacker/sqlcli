@@ -1,56 +1,324 @@
-# robotslacker-sqlcli
+# SQLCli 快速说明
 
-robotslacker-sqlcli 是一个SQL命令行工具，用来执行SQL脚本的工具，程序的开发中用到了jaydebeapi和prompt_kit.  
+SQLCli 是一个命令行工具， 用来连接数据库，通过交互或者批处理的方式来执行SQL语句。  
+SQLCli 是一个Python程序，通过jaydebeapi连接数据库的JDBC驱动。
 
-理论上来说这个工具和具体的数据库无关，但我并没有在更多的数据库上验证过。
+### 谁需要用这个文档
+
+需要通过SQL语句来查看、维护数据内容。使用的前提是你熟悉基本的SQL操作。
+
+### 安装
+安装的前提有：
+   * 有一个Python 3.6以上的环境，并且安装了pip包管理器
+   * 能够连接到互联网上， 便于下载必要的包
+   * 对于Windows平台，还需要提前安装微软的C++编译器（Jaydebeapi安装过程中需要动态编译JType）
+
+安装命令：
+```
+   pip install -U robotslacker-sqlcli
+```
+
+### 第一次使用
+安装后直接在命令下执行sqlcli命令即可。  
+如果你的$PYTHON_HOME/Scripts没有被添加到当前环境的$PATH中，你可能需要输入全路径名  
+```
+(base) >sqlcli
+SQL*Cli Release 0.0.13
+SQL> 
+```
+如果你这里看到了版本信息，那祝贺你，你的安装成功了
+
+### 使用
+#### 程序的命令行参数
+```
+(base) sqlcli --help
+Usage: sqlcli [OPTIONS]
+
+Options:
+  --version       Output sqlcli's version.
+  --logon TEXT    logon user name and password. user/pass
+  --logfile TEXT  Log every query and its results to a file.
+  --execute TEXT  Execute SQL script.
+  --nologo        Execute with silent mode.
+  --help          Show this message and exit.
+```  
+--version 用来显示当前工具的版本号
+```
+(base) sqlcli --version
+Version: 0.0.13
+```
+--logon  用来输入连接数据的的用户名和口令
+```
+(base) sqlcli --logon user/pass
+Version: 0.0.13
+Driver loaded.
+Database connected.
+SQL>
+如果用户、口令正确，且相关环境配置正常，你应该看到如上信息。
+
+user/pass : 数据库连接的用户名和口令  
+
+成功执行这个命令的前提是你已经在环境变量中设置了数据库连接的必要信息。  
+这里的必要信息包括：
+环境变量：  SQLCLI_CONNECTION_URL  
+    参数格式是： jdbc:[数据库类型]:[数据库通讯协议]://[数据库主机地址]:[数据库端口号]/[数据库服务名]  
+环境变量：  SQLCLI_CONNECTION_JAR_NAME  
+    参数格式是： xxxxx-jdbc-x.x.x.jar
+    这是程序连接数据库需要用到的Jar包，具体的写法应查询相应数据库产品的JDBC文档。
+    对于一个特定的数据库有一个特定的写法，但是后面x.x.x代表的版本信息可能会有所不同。
+    jar包必须放置在sqlcli程序能够访问到的目录下，如果不在当前目录下，这里需要写入相对或者绝对路径，比如: dir1\xxxxx-jdbc-x.x.x.jar
+环境变量：  SQLCLI_CONNECTION_CLASS_NAME  
+    参数格式是：  com.xxxx.xxxxxxx.jdbc.JdbcDriver  
+    这是一个类名，具体的写法应查询相应数据库产品的JDBC文档。通常对于一种特定的数据库有一个特定的写法
+```
+--logfile   用来记录本次命令行操作的所有过程信息  
+这里的操作过程信息包含你随后在命令行里头的所有输出信息。  
+如果你在随后的命令行里头设置了set ECHO ON，那么记录里头还包括了你所有执行的SQL语句原信息  
+```
+(base) sqlcli --logon user/pass --logfile test.log
+Version: 0.0.13
+Driver loaded.
+Database connected.
+set echo on
+select * from test_tab;
++----+----------+
+| ID | COL2     |
++----+----------+
+| 1  | XYXYXYXY |
+| 1  | XYXYXYXY |
++----+----------+
+SQL> exit
+Disconnected.
+
+(base) type test.log
+Driver loaded.
+Database connected.
+SQL> select * from test_tab;
+
++----+----------+
+| ID | COL2     |
++----+----------+
+| 1  | XYXYXYXY |
+| 1  | XYXYXYXY |
++----+----------+
+2 rows selected.
+SQL> exit
+Disconnected.
+```
+--execute 在SQLCli启动后执行特定的SQL脚本  
+为了能够批处理一些SQL语句，我们通常将这批SQL语句保存在一个特定的文件中，这个文件的习惯后缀是.sql  
+通过execute参数，可以让SQLCli来执行这个脚本，而不再需要我们一行一行的在控制台输入
+```
+(base) type test.sql
+select * from test_tab;
+
+(base) sqlcli --logon user/pass --execute test.sql
+Version: 0.0.13
+Driver loaded.
+Database connected.
+set echo on
+select * from test_tab;
++----+----------+
+| ID | COL2     |
++----+----------+
+| 1  | XYXYXYXY |
+| 1  | XYXYXYXY |
++----+----------+
+SQL> exit
+Disconnected.
+注意： 即使你的SQL脚本中不包含Exit语句，在sqlcli执行完当前脚本后，他也会自动执行exit语句
+如果SQL脚本中不包含数据库驱动加载或者数据库连接语句，请在执行这个命令前设置好相应的环境变量信息
+```
+--nologo    这是一个选项，用来控制sqlcli是否会在连接的时候显示当前的程序版本
+```
+(base) sqlcli 
+SQL*Cli Release 0.0.13
+SQL>   
+区别：
+(base) sqlcli --nologo
+SQL>
+```
+
+#### 加载数据库驱动
+在sqlcli命令行里头，可以通过load命令来加载数据库驱动文件。
+```
+(base) sqlcli 
+SQL*Cli Release 0.0.13
+SQL> load  xxxxx-jdbc-x.x.x.jar   com.xxxx.xxxxxxx.jdbc.JdbcDriver 
+Driver loaded.
+SQL> 
+
+这里具体的写法应查询相应数据库产品的JDBC文档  
+jar包必须放置在sqlcli程序能够访问到的目录下，如果不在当前目录下，这里需要写入相对或者绝对路径，比如: dir1\xxxxx-jdbc-x.x.x.jar  
+  
+再次执行load命令，则会断开当前的数据库连接，并重新加载新的驱动。load后，下次执行的数据库操作将依赖新的加载包  
+```
+
+#### 连接数据库
+在sqlcli命令行里头，可以通过connect命令来连接到具体的数据库
+```
+(base) sqlcli 
+SQL*Cli Release 0.0.13
+SQL> connect user/pass@jdbc:[数据库类型]:[数据库通讯协议]://[数据库主机地址]:[数据库端口号]/[数据库服务名] 
+Database connected.
+SQL> 
+能够成功执行connect的前提是： 数据库驱动已经被手工加载，或者通过环境变量的方式，在程序启动之前已经被默认加载
+
+如果已经在环境变量中指定了SQLCLI_CONNECTION_URL，连接可以简化为
+(base) sqlcli 
+SQL*Cli Release 0.0.13
+SQL> connect user/pass
+Database connected.
+SQL> 
+
+在数据库第一次连接后，第二次以及以后的连接可以不再输入连接字符串，程序会默认使用上一次已经使用过的连接字符串信息，比如：
+(base) sqlcli 
+SQL*Cli Release 0.0.13
+SQL> connect user/pass@jdbc:[数据库类型]:[数据库通讯协议]://[数据库主机地址]:[数据库端口号]/[数据库服务名] 
+Database connected.
+SQL> connect user2/pass2
+Database connected.
+SQL> 
+
+```
+
+#### 执行数据库SQL语句
+在数据库连接成功后，我们就可以执行我们需要的SQL语句了，对于不同的SQL语句我们有不同的语法格式要求。  
+* 对于SQL语句块的格式要求：  
+  SQL语句块是指用来创建存储过程、SQL函数等较长的SQL语句  
+  SQL语句块的判断依据是：
+```
+     CREATE | REPLACE ******   FUNCTION|PROCEDURE ****
+```
+&emsp; SQL语句块的结束符为【/】，且【/】必须出现在具体一行语句的开头  比如：
+```
+    SQL> CREATE PROCEDURE PROC_TEST()
+       > BEGIN
+       >     bulabulabula....;
+       > END;
+       > /
+    SQL> 
+```
+&emsp; 对于SQL语句块，SQLCli将被等待语句结束符后把全部的SQL一起送给SQL引擎（不包括语句结束符）。
+
+* 对于多行SQL语句的格式要求：  
+   多行SQL语句是指不能在一行内写完，需要分成多行来写的SQL语句。  
+   多行SQL语句的判断依据是： 语句用如下内容作为关键字开头
+```
+    CREATE | SELECT | UPDATE | DELETE | INSERT | __INTERNAL__ | DROP | REPLACE
+
+```
+&emsp; 多行SQL结束符为分号【 ；】 比如：
+```
+    SQL> CREATE TABLE TEST_TAB
+       > (
+       >    ID   CHAR(20),
+       >    COL1 CHAR(20)
+       > );
+    SQL> 
+    对于多行SQL语句，同样也可以使用行首的【/】作为多行语句的结束符
+```
+&emsp; 对于SQL多行语句，SQLCli将被等待语句结束符后把全部的SQL一起送给SQL引擎（包括语句结束符）。
+
+* 其他SQL语句  
+  不符合上述条件的，即不是语句块也不是多行语句的，则在输入或者脚本回车换行后结束当前语句。  
+  结束后的语句会被立刻送到SQL引擎中执行。
+
+* 语句中的注释  
+  注释信息分为行注释和段落注释，这些注释信息不会被送入到SQL引擎中，而是会被SQLCli直接忽略。  
+  
+  行注释的写法是： 【 ...SQL...   -- Comment 】  
+  即单行中任何【--】标识符后的内容都被理解为行注释信息。  
+  
+  段落注释的写法是： 【 ...SQL...  /* Comment .... */ 】  
+  即单行中任何【/*】标识符和【*/】标识符中的内容都被理解为行注释信息。  
+  比如：
+```
+    SQL> CREATE TABLE TEST_TAB
+       > (
+       >    ID   CHAR(20),          -- ID信息，这是是一个行注释
+       >    COL1 CHAR(20)           -- 第一个CHAR字段，这也是一个行注释
+       >  /*  这个表是做测试用的，有两个字段：
+       >      ID和COL
+       >      这上下的4行内容都是段落注释
+       >   */
+       > );
+    SQL> 
+
+```  
+#### 执行特殊的内部语句
+   SQLCli支持的特殊语句包括两种：
+   * 显示或行为控制语句  
+   通过在SQLCli命令行里头执行set命令可以控制显示的格式以及变化SQLCli执行的行为。
+   
+   目前支持的控制参数有：  
+&emsp; ECHO    SQL回显标志， 默认为OFF，即SQL内容在LOG中不回显
+```
+        SQL> set ECHO ON      # 在LOG中将会回显SQL语句
+        SQL> set ECHO OFF     # 在LOG中不会回显SQL语句
+
+        例如：执行SELECT 3 + 5 COL1 FROM DUAL，
+
+        在ECHO打开下，log文件内容如下:
+        SQL> SELECT 3 + 5 COL1 FROM DUAL;
+        SQL> ===========
+        SQL> =  COL1 ===
+        SQL> ===========
+        SQL>           8
+        SQL> 1 rows selected.
+
+        在ECHO关闭下，log文件内容如下:
+        SQL> ===========
+        SQL> =  COL1 ===
+        SQL> ===========
+        SQL>           8
+        SQL> 1 rows selected.
+```
+
+&emsp; WHENEVER_SQLERROR  SQL错误终端表示， 用来控制在执行SQL过程中遇到SQL错误，是否继续。 默认是CONTINUE，即继续  
+&emsp; 目前支持的选项有：    
+---------------- | ------------------
+CONTINUE |     遇到SQL语句错误继续执行 
+EXIT     |     遇到SQL语句错误直接退出SQLCli程序
+
+&emsp; PAGE        是否分页显示，当执行的SQL语句结果超过了屏幕显示的内容，是否会暂停显示，等待用户输入任意键后继续显示下一页，默认是OFF，即不中断。
+  
+$emsp; OUTPUT_FORMAT   显示格式， 默认是ASCII
+$emsp; 目前支持的选项有：
+       ASCII        默认，即表格格式
+       CSV          输入信息为CSV格式
+       
+
+       
+   +-------------------+----------+
+| option            | value    |
++-------------------+----------+
+| WHENEVER_SQLERROR | CONTINUE |
+| PAGE              | OFF      |
+| OUTPUT_FORMAT     | ASCII    |
+| ECHO              | OFF      |
+| LONG              | 20       |
++-------------------+----------+
+   * 内部的其他操作
+    
+#### 退出
+你可以使用exit或者quit来退出命令行程序，这里exit和quit的效果是完全一样的
+```
+SQL> exit
+Disconnected.
+或者
+SQL> quit
+Disconnected.
+```
+### 程序员必读部分
 
 
-## Install
 
 Install robotslacker-sqlcli
 
     pip install -U robotslacker-sqlcli
 
 ## Usage
-    # 直接登录SQLCli工具，登录后会进入到命令行窗口
-    $> sqlcli
-    SQL> 这里就进入这个工具了
-    
-    # 如何连接数据库
-        # 连接数据库的第一步是加载驱动程序，这是jaydebeapi的要求
-        SQL> load [jar filename] [driver class name]
-        SQL> Driver loaded.
-        # 例子
-        SQL> load linkoopdb-jdbc-0.0.1.jar com.datapps.linkoopdb.jdbc.JdbcDriver
-        
-        # 连接数据库
-        SQL> connect [User Name]/[Password]@jdbc:[driver type]:[protocol type]://[IP Address]:[Port]/[Service Name]
-        SQL> Database Connected.
-        # 例子
-        SQL> connect admin/000000@jdbc:linkoopdb:tcp://127.0.0.1:9115/ldb
-        
-        # 重新连接数据库
-        在数据库连接成功后，更换数据库用户，并不需要再次输入连接字符串，直接输入用户名和口令即可，比如：
-        SQL> connect [User Name]/[Password]@jdbc:[driver type]:[protocol type]://[IP Address]:[Port]/[Service Name]
-        SQL> Database Connected.
-        SQL> connect [User Name]/[Password]
-        SQL> Database Connected.
-        
-        # 环境变量的使用
-        如果外部环境中定义了环境变量SQLCLI_CONNECTION_JAR_NAME和SQLCLI_CONNECTION_CLASS_NAME，则不再需要Load操作，比如
-        setenv SQLCLI_CONNECTION_JAR_NAME [jar filename]
-        setenv SQLCLI_CONNECTION_CLASS_NAME [driver class name]
-        
-        如果外部环境中定义了环境变量SQLCLI_CONNECTION_URL，则只需要输入用户名和口令，比如：
-        setenv SQLCLI_CONNECTION_URL jdbc:[driver type]:[protocol type]://[IP Address]:[Port]/[Service Name]
-        SQL> connect [User Name]/[Password]
-        SQL> Database Connected.
-     
-    # 如何执行数据库脚本
-    数据库脚本可以保存在sql文件中，通常sqlcli的参数来执行。
-    $> sqlcli --execute <test.sql> --logfile <test.log>
-    此时程序将会启动后自动读入test.sql文件，并将文件结果记录在test.log中
-    
     # 显示格式的控制
         # SQL回显的控制
         在默认的情况下，执行的SQL并不会在LOG文件中体现，LOG文件中出现的只有SQL执行的结果
@@ -89,30 +357,4 @@ Install robotslacker-sqlcli
         SQL> =====================
         SQL>       ABCDEFGHIJKLMNO
         SQL> 1 rows selected.
-    
-    # SQL语句的解析规则
-    一： 如果行内容为set，load，connect开头，则该语句为单行语句，不支持换行
-    二： 如果行内容为create,drop,replace开头，且其后有function，procedure,则认为这一段为代码段
-        代码段必须用/来结尾，比如:
-        Create Procedure Proc_AAA As
-        Begin
-            bulabulabula ...
-        End;
-        /
-    三： 如果行以create,drop,replace,select,update,delete,insert等开头，且不是存储过程的，则认为这一段为语句段
-        语句段需要用；或者用/来结尾，比如：
-         Create Table Test_Table 
-         (
-            COL1  CHAR(20),
-            COL2  CHAR(30)
-         );
-         或者
-         Create Table Test_Table 
-         (
-            COL1  CHAR(20),
-            COL2  CHAR(30)
-         )
-         /
-    三： 对于代码行中出现的--符号，本行内这个符号之后的内容将被认为是注释，不再处理
-    四： 对于代码行中的/* fadfas */ 符号，认为这一段为注释内容，不再处理
-        
+

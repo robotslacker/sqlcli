@@ -116,6 +116,10 @@ def get_final_string(p_row_struct):
 
 def Create_file(p_filename, p_formula_str, p_rows, p_options):
     try:
+        m_producer = None
+        m_topicname = None
+        m_output = None
+
         if p_filename.startswith('mem://'):
             m_fs = fs.open_fs('mem://')
             m_filename = p_filename[6:]

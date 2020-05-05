@@ -44,8 +44,9 @@ def SQLAnalyze(p_SQLCommandPlainText):
                         m_nBlockCommentsEnd == -1
                 ):
                     m_bInCommentBlock = True
-                    SQLCommands[m_nPos] = SQLCommands[m_nPos][0:m_nBlockCommentsStart] + \
-                                          re.sub(r'.', ' ', SQLCommands[m_nPos][m_nBlockCommentsStart:])
+                    SQLCommands[m_nPos] = \
+                        SQLCommands[m_nPos][0:m_nBlockCommentsStart] + \
+                        re.sub(r'.', ' ', SQLCommands[m_nPos][m_nBlockCommentsStart:])
                     break
 
                 # 没有找到任何注释
@@ -173,8 +174,9 @@ def SQLAnalyze(p_SQLCommandPlainText):
                             if len(SQLCommands[m_CommentPos].lstrip()) != 0:
                                 # 这是一个非完全空行，有效内容从第一个字符开始
                                 nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
-                                m_NewSQLWithComments = m_NewSQLWithComments + '\n' + \
-                                                       SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
+                                m_NewSQLWithComments = \
+                                    m_NewSQLWithComments + '\n' + \
+                                    SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
                                 m_NewSQLWithCommentsLastPos = nLeadSpace
                                 SQLSplitResultsWithComments.append(m_NewSQLWithComments)
                                 m_NewSQLWithComments = None
@@ -226,7 +228,9 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 m_NewSQLWithComments = m_NewSQLWithComments + '\n' + SQLCommandsWithComments[m_nPos]
             else:
                 m_NewSQL = m_NewSQL + '\n' + SQLCommands[m_nPos]
-                m_NewSQLWithComments = m_NewSQLWithComments + '\n' + SQLCommandsWithComments[m_nPos][m_NewSQLWithCommentsLastPos:]
+                m_NewSQLWithComments = \
+                    m_NewSQLWithComments + '\n' + \
+                    SQLCommandsWithComments[m_nPos][m_NewSQLWithCommentsLastPos:]
                 # 工作在多行语句中，查找;结尾的内容
                 if re.match(r'(.*);(\s+)?$', SQLCommands[m_nPos]):  # 本行以；结尾
                     strRegexPattern = r'(^(\s+)?CREATE|^(\s+)?DROP|^(\s+)?REPLACE)(.*)?\s+(FUNCTION|PROCEDURE)(.*)?'
@@ -245,8 +249,9 @@ def SQLAnalyze(p_SQLCommandPlainText):
                                     # 这是一个非完全空行，有效内容从第一个字符开始
                                     nLeadSpace = len(SQLCommands[m_CommentPos]) - len(
                                         SQLCommands[m_CommentPos].lstrip())
-                                    m_NewSQLWithComments = m_NewSQLWithComments + '\n' + \
-                                                           SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
+                                    m_NewSQLWithComments = \
+                                        m_NewSQLWithComments + '\n' + \
+                                        SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
                                     m_NewSQLWithCommentsLastPos = nLeadSpace
                                     SQLSplitResultsWithComments.append(m_NewSQLWithComments)
                                     m_NewSQLWithComments = None
