@@ -146,13 +146,14 @@ def Create_file(p_filename, p_formula_str, p_rows, p_options):
             raise SQLCliException("Unknown file format.")
 
         m_row_struct = parse_formula_str(p_formula_str)
-        for i in range(1, p_rows):
+        for i in range(0, p_rows):
             if p_filename.startswith('kafka://'):
                 m_producer.send(m_topicname, get_final_string(m_row_struct).encode())
             else:
                 m_output.write(get_final_string(m_row_struct) + '\n')
-        if not p_filename.startswith('kafka://'):
+        if p_filename.startswith('kafka://'):
             m_producer.flush()
+        else:
             m_output.close()
     except Exception as e:
         raise SQLCliException(e)

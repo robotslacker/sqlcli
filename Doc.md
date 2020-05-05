@@ -2,11 +2,11 @@
 
 SQLCli 是一个命令行工具， 用来连接数据库，通过交互或者批处理的方式来执行SQL语句。  
 SQLCli 是一个Python程序，通过jaydebeapi连接数据库的JDBC驱动。
-
+***
 ### 谁需要用这个文档
 
 需要通过SQL语句来查看、维护数据内容。使用的前提是你熟悉基本的SQL操作。
-
+***
 ### 安装
 安装的前提有：
    * 有一个Python 3.6以上的环境，并且安装了pip包管理器
@@ -17,7 +17,7 @@ SQLCli 是一个Python程序，通过jaydebeapi连接数据库的JDBC驱动。
 ```
    pip install -U robotslacker-sqlcli
 ```
-
+***
 ### 第一次使用
 安装后直接在命令下执行sqlcli命令即可。  
 如果你的$PYTHON_HOME/Scripts没有被添加到当前环境的$PATH中，你可能需要输入全路径名  
@@ -27,7 +27,7 @@ SQL*Cli Release 0.0.13
 SQL> 
 ```
 如果你这里看到了版本信息，那祝贺你，你的安装成功了
-
+***
 ### 使用
 #### 程序的命令行参数
 ```
@@ -138,7 +138,7 @@ SQL>
 (base) sqlcli --nologo
 SQL>
 ```
-
+***
 #### 加载数据库驱动
 在sqlcli命令行里头，可以通过load命令来加载数据库驱动文件。
 ```
@@ -153,7 +153,7 @@ jar包必须放置在sqlcli程序能够访问到的目录下，如果不在当�
   
 再次执行load命令，则会断开当前的数据库连接，并重新加载新的驱动。load后，下次执行的数据库操作将依赖新的加载包  
 ```
-
+***
 #### 连接数据库
 在sqlcli命令行里头，可以通过connect命令来连接到具体的数据库
 ```
@@ -181,7 +181,7 @@ Database connected.
 SQL> 
 
 ```
-
+***
 #### 执行数据库SQL语句
 在数据库连接成功后，我们就可以执行我们需要的SQL语句了，对于不同的SQL语句我们有不同的语法格式要求。  
 * 对于SQL语句块的格式要求：  
@@ -246,13 +246,14 @@ SQL>
     SQL> 
 
 ```  
+***
 #### 执行特殊的内部语句
    SQLCli支持的特殊语句包括两种：
    * 显示或行为控制语句  
    通过在SQLCli命令行里头执行set命令可以控制显示的格式以及变化SQLCli执行的行为。
    
    目前支持的控制参数有：  
-&emsp; ECHO    SQL回显标志， 默认为OFF，即SQL内容在LOG中不回显
+1.&emsp; ECHO    SQL回显标志， 默认为OFF，即SQL内容在LOG中不回显
 ```
         SQL> set ECHO ON      # 在LOG中将会回显SQL语句
         SQL> set ECHO OFF     # 在LOG中不会回显SQL语句
@@ -275,73 +276,45 @@ SQL>
         SQL> 1 rows selected.
 ```
 
-&emsp; WHENEVER_SQLERROR  SQL错误终端表示， 用来控制在执行SQL过程中遇到SQL错误，是否继续。 默认是CONTINUE，即继续  
+2.&emsp; WHENEVER_SQLERROR  SQL错误终端表示， 用来控制在执行SQL过程中遇到SQL错误，是否继续。 默认是CONTINUE，即继续。   
 &emsp; 目前支持的选项有：    
----------------- | ------------------
-CONTINUE |     遇到SQL语句错误继续执行 
-EXIT     |     遇到SQL语句错误直接退出SQLCli程序
-
+```
+       CONTINUE |     遇到SQL语句错误继续执行 
+       EXIT     |     遇到SQL语句错误直接退出SQLCli程序
+```
 &emsp; PAGE        是否分页显示，当执行的SQL语句结果超过了屏幕显示的内容，是否会暂停显示，等待用户输入任意键后继续显示下一页，默认是OFF，即不中断。
-  
-$emsp; OUTPUT_FORMAT   显示格式， 默认是ASCII
-$emsp; 目前支持的选项有：
-       ASCII        默认，即表格格式
-       CSV          输入信息为CSV格式
-       
 
-       
-   +-------------------+----------+
-| option            | value    |
-+-------------------+----------+
-| WHENEVER_SQLERROR | CONTINUE |
-| PAGE              | OFF      |
-| OUTPUT_FORMAT     | ASCII    |
-| ECHO              | OFF      |
-| LONG              | 20       |
-+-------------------+----------+
-   * 内部的其他操作
-    
-#### 退出
-你可以使用exit或者quit来退出命令行程序，这里exit和quit的效果是完全一样的
+
+3.&emsp; OUTPUT_FORMAT   显示格式， 默认是ASCII
+&emsp; 目前支持的选项有：
 ```
-SQL> exit
-Disconnected.
-或者
-SQL> quit
-Disconnected.
+      ASCII |     显示格式为表格的格式 
+      CSV   |     显示格式为CSV文件的格式
 ```
-### 程序员必读部分
+&emsp; 以下是一个例子：
+```
+       SQL> set output_format ascii
+       SQL> select * from test_tab;
+       +----+----------+
+       | ID | COL2     |
+       +----+----------+
+       | 1  | XYXYXYXY |
+       | 1  | XYXYXYXY |
+       +----+----------+
+       2 rows selected.
+      
+       SQL> set output_format csv
+       SQL> select * from test_tab;
+       "ID","COL2"
+       "1","XYXYXYXY"
+       "1","XYXYXYXY"
+       2 rows selected.
+       SQL>           
+```
 
-
-
-Install robotslacker-sqlcli
-
-    pip install -U robotslacker-sqlcli
-
-## Usage
-    # 显示格式的控制
-        # SQL回显的控制
-        在默认的情况下，执行的SQL并不会在LOG文件中体现，LOG文件中出现的只有SQL执行的结果
-        通过set命令可以改变这个特性
-        SQL> set ECHO ON      # 在LOG中将会回显SQL语句
-        SQL> set ECHO OFF     # 在LOG中不会回显SQL语句
-        例如：执行SELECT 3 + 5 COL1 FROM DUAL，
-        在ECHO打开下，log文件内容如下:
-        SQL> SELECT 3 + 5 COL1 FROM DUAL;
-        SQL> ===========
-        SQL> =  COL1 ===
-        SQL> ===========
-        SQL>           8
-        SQL> 1 rows selected.
-        在ECHO关闭下，log文件内容如下:
-        SQL> ===========
-        SQL> =  COL1 ===
-        SQL> ===========
-        SQL>           8
-        SQL> 1 rows selected.
-                  
-        # CLOB字段的输出
-        在默认的情况下，CLOB字段的内容输出只有20个字符，通过set命令可以改变这个特性
+4.&emsp; LONG      控制LOB字段的输出长度，默认是20  
+&emsp; &emsp; 由于LOB字段中的文本长度可能会比较长，所以默认不会显示出所有的LOB内容到当前输出中，而是最大长度显示LONG值所代表的长度  
+```       
         SQL> set long 300     # CLOB将会显示前300个字符
         例子，执行一个CLOB字段查询,CLOB中的信息为ABCDEFGHIJKLMNOPQRSTUVWXYZ
         SQL> set long 5
@@ -357,4 +330,65 @@ Install robotslacker-sqlcli
         SQL> =====================
         SQL>       ABCDEFGHIJKLMNO
         SQL> 1 rows selected.
+```
 
+   * 内部的其他操作  
+   这里指的内部语句是说不需要后台SQL引擎完成，而是通过在SQLCli程序中扩展代码来支持的语句。目前支持的扩展语句有：
+```
+   __internal__ CREATE FILE '[mem://xxx]|[file://xxx]|[zip://xxx]|[tar://xxx]|[kafka://xxx]'
+   (
+     这里输入一个文本，文本中可以包含宏代码来表示特殊信息. 
+     这里可以换行，但是换行符会在处理过程中被去掉
+   ) ROWS [number of rows];
+   
+   这里语句的开头：  __internal__ 是必须的内容，固定写法
+   宏代码的格式包括：
+     {identity(start_number)}         表示一个自增字段，起始数字为start_number
+     {random_ascii_letters(length)}   表示一个随机的ascii字符串，可能大写，可能小写，可能数字，最大长度为length
+     {random_ascii_lowercase(length)} 表示一个随机的ascii字符串，只能是大写字母，最大长度为length
+     {random_ascii_uppercase(length)} 表示一个随机的ascii字符串，只能是小写字母，最大长度为length
+     {random_digits(length)}          表示一个随机的数字，可能数字，最大长度为length
+   文件格式：
+     mem://xxx            会在内存中创建这个文件，一旦退出sqlcli，相关信息将会丢失
+     file://xxx           会在本地文件系统中创建这个文件，其中xxx为文件名称信息
+     zip://xxx            会在本地文件系统中创建一个ZIP压缩文件，其中xxx为文件名称信息
+     tar://xxx            会在本地文件系统中创建一个TAR压缩文件，其中xxx为文件名称信息
+     kafka://xxx          会连接Kafka服务器，将生成的字符串发送过去，其中xxx为需要发送的TOPIC内容
+   注意：
+     如果需要发送数据到kafka, 必须提前设置kafka服务器的地址, 设置的方法是：
+     SQL>  set KAFKA_SERVERS [kafka Server地址]:[kafka 端口号]
+
+
+   例子：
+   SQL> __internal__ CREATE FILE file://abc.txt
+      > (
+      > {identity(10)},'{random_ascii_letters(5)}','{random_ascii_lowercase(3)}'
+      > ) ROWS 2;
+    会在当前的文件目录下创建一个名字为abc.txt的文本文件，其中的内容为：
+    10,'vxbMd','jsr'
+    11,'SSiAa','vtg'
+```
+***    
+#### 退出
+你可以使用exit或者quit来退出命令行程序，这里exit和quit的效果是完全一样的
+```
+SQL> exit
+Disconnected.
+或者
+SQL> quit
+Disconnected.
+```
+***
+### 程序员必读部分
+```
+---------- sqlcli
+--------------- __init__.py            # 包标识文件，用来记录版本信息
+--------------- sqlparse.py            # 用来解析SQL语句，判断注释部分，语句的分段、分行等
+--------------- sqlinternal.py         # 执行internal命令
+--------------- sqlexecute.py          # 执行SQL语句
+--------------- commandanalyze.py      # 对用户或者脚本输入的命令进行判断，判断是否需要后续解析，或者执行内部命令
+--------------- main.py                # 主程序
+---------- setup.py                    # 打包发布程序
+
+
+```
