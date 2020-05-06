@@ -3,6 +3,19 @@ import re
 import copy
 
 
+def SQLFormatWithPrefix(p_szCommentSQLScript):
+    # 把所有的SQL换行, 第一行加入[SQL >]， 随后加入[   >]
+    m_FormattedString = None
+    m_CommentSQLLists = p_szCommentSQLScript.split('\n')
+    for m_nPos in range(0, len(m_CommentSQLLists)):
+        if m_nPos == 0:
+            m_FormattedString = 'SQL> ' + m_CommentSQLLists[m_nPos]
+        else:
+            m_FormattedString = \
+                m_FormattedString + '\n' + '   > ' + m_CommentSQLLists[m_nPos]
+    return m_FormattedString
+
+
 def SQLAnalyze(p_SQLCommandPlainText):
     SQLCommands = p_SQLCommandPlainText.split('\n')
 

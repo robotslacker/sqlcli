@@ -15,6 +15,8 @@ from .sqlexecute import SQLExecute
 from .sqlinternal import Create_file
 from .sqlcliexception import SQLCliException
 from .commandanalyze import register_special_command
+from .commandanalyze import CommandNotFound
+
 from .__init__ import __version__
 from .sqlparse import SQLAnalyze
 
@@ -56,6 +58,8 @@ class SQLCli(object):
         self.sqlexecute = SQLExecute()
         if logfilename is not None:
             self.logfile = open(logfilename, mode="a", encoding="utf-8")
+            self.sqlexecute.logfile = self.logfile
+        self.sqlexecute.sqlscript = sqlscript
         self.sqlscript = sqlscript
         self.nologo = nologo
         self.logon = logon
@@ -258,12 +262,16 @@ class SQLCli(object):
             options_parameters = str(arg).split()
             if len(options_parameters) != 2:
                 raise Exception("Missing required argument. set parameter parameter_value.")
-            self.sqlexecute.options[options_parameters[0].upper()] = options_parameters[1].upper()
-            yield (
-                None,
-                None,
-                None,
-                '')
+            # 如果不是已知的选项，则直接抛出到SQL引擎
+            if options_parameters[0].upper() in self.sqlexecute.options:
+                self.sqlexecute.options[options_parameters[0].upper()] = options_parameters[1].upper()
+                yield (
+                    None,
+                    None,
+                    None,
+                    '')
+            else:
+                raise CommandNotFound
 
     # 执行特殊的命令
     def execute_internal_command(self, arg, **_):
@@ -408,7 +416,6 @@ class SQLCli(object):
             self.echo("Disconnected.")
 
     def log_output(self, output):
-        """Log the output in the audit log, if it's enabled."""
         if self.logfile:
             click.echo(output, file=self.logfile)
 

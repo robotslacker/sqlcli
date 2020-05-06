@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 import logging
 from .sqlparse import SQLAnalyze
+from .sqlparse import SQLFormatWithPrefix
 from .commandanalyze import execute
 from .commandanalyze import CommandNotFound
 from .sqlcliexception import SQLCliException
+import click
 
 _logger = logging.getLogger(__name__)
 
@@ -11,11 +13,13 @@ _logger = logging.getLogger(__name__)
 class SQLExecute(object):
     conn = None            # 数据库连接
     options = None         # 用户设置的各种选项
+    logfile = None         # 打印的日志文件
+    sqlscript = None       # 需要执行的SQL脚本
 
     def __init__(self):
         # 设置一些默认的参数
         self.options = {"WHENEVER_SQLERROR": "CONTINUE", "PAGE": "OFF", "OUTPUT_FORMAT": "ASCII", "ECHO": "OFF",
-                        "LONG": 20}
+                        "LONG": 20, 'KAFKA_SERVERS': None}
 
     def set_connection(self, p_conn):
         self.conn = p_conn
@@ -39,9 +43,12 @@ class SQLExecute(object):
             m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]
 
             # SQL的回显
-            if self.options["ECHO"] == 'ON':
-                if len(m_CommentSQL.strip()) != 0:
-                    yield 'SQL> ' + m_CommentSQL, None, None, None
+            if self.options["ECHO"] == 'ON' and len(m_CommentSQL.strip()) != 0 and  self.logfile is not None:
+                click.echo(SQLFormatWithPrefix(m_CommentSQL), file = self.logfile)
+
+            # 如果运行在脚本模式下，需要在控制台回显SQL
+            if self.sqlscript is not None:
+                click.secho(SQLFormatWithPrefix(m_CommentSQL))
 
             # 如果是空语句，不在执行
             if len(sql.strip()) == 0:
