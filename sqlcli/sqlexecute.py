@@ -44,8 +44,8 @@ class SQLExecute(object):
             m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]
 
             # SQL的回显
-            if self.options["ECHO"] == 'ON' and len(m_CommentSQL.strip()) != 0 and  self.logfile is not None:
-                click.echo(SQLFormatWithPrefix(m_CommentSQL), file = self.logfile)
+            if self.options["ECHO"] == 'ON' and len(m_CommentSQL.strip()) != 0 and self.logfile is not None:
+                click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.logfile)
 
             # 如果运行在脚本模式下，需要在控制台回显SQL
             if self.sqlscript is not None:
@@ -78,6 +78,10 @@ class SQLExecute(object):
                     raise SQLCliException("Not Connected. ")
             cur = self.conn.cursor() if self.conn else None
 
+            # 记录命令开始时间
+            start = time.time()
+
+            # 执行SQL
             try:
                 # 首先假设这是一个特殊命令
                 for result in execute(cur, sql):
@@ -86,15 +90,8 @@ class SQLExecute(object):
                 # 执行正常的SQL语句
                 if cur is not None:
                     try:
-                        start = time.clock()
                         cur.execute(sql)
                         yield self.get_result(cur)
-                        end = time.clock()
-
-                        # 如果需要，打印语句执行时间
-                        if self.options['TIMING'] == 'ON':
-                            yield None, None, None, 'Running time: %10.2f Seconds' % (end - start)
-
                     except Exception as e:
                         if (
                                 str(e).find("SQLSyntaxErrorException") != -1 or
@@ -112,6 +109,13 @@ class SQLExecute(object):
                     yield None, None, None, str(e.message)
                 else:
                     raise e
+
+            # 记录结束时间
+            end = time.time()
+            # 如果需要，打印语句执行时间
+            if self.options['TIMING'] == 'ON':
+                if sql.strip().upper() not in ('EXIT','QUIT'):
+                    yield None, None, None, 'Running time elapsed: %8.2f Seconds' % (end - start)
 
     def get_result(self, cursor):
         """Get the current result's data from the cursor."""

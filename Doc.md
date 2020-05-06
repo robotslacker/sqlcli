@@ -9,9 +9,12 @@ SQLCli 是一个Python程序，通过jaydebeapi连接数据库的JDBC驱动。
 ***
 ### 安装
 安装的前提有：
-   * 有一个Python 3.6以上的环境，并且安装了pip包管理器
+   * 有一个Python 3.6以上的Anacoda环境，其他环境的Python版本在Windows下由于无法降级jpype，所以无法使用
    * 能够连接到互联网上， 便于下载必要的包
-   * 对于Windows平台，还需要提前安装微软的C++编译器（Jaydebeapi安装过程中需要动态编译JType）
+   * 安装JDK8
+   * 对于Windows平台，还需要提前安装微软的C++编译器（Jaydebeapi安装过程中需要动态编译jpype）  
+     在jaydebeapi 1.1.1的版本下，发现jpype必须进行降级，否则无法使用  
+     pip install --upgrade jpype1==0.6.3 --user
 
 安装命令：
 ```
@@ -335,6 +338,12 @@ SQL>
    * 内部的其他操作  
    这里指的内部语句是说不需要后台SQL引擎完成，而是通过在SQLCli程序中扩展代码来支持的语句。目前支持的扩展语句有：
 ```
+
+   __internal__ CREATE SEEDDATAFILE;
+   这个程序将在$SQLCLI_HOME下创建若干seed文件，用来后续的随机函数
+   若不创建这个文件，则random_from_seed会抛出异常
+   对于一个环境只需要执行一次这样的操作，以后的每次随机数操作并不需要重复进行这个操作。
+
    __internal__ CREATE FILE '[mem://xxx]|[file://xxx]|[zip://xxx]|[tar://xxx]|[kafka://xxx]'
    (
      这里输入一个文本，文本中可以包含宏代码来表示特殊信息. 
@@ -343,11 +352,20 @@ SQL>
    
    这里语句的开头：  __internal__ 是必须的内容，固定写法
    宏代码的格式包括：
-     {identity(start_number)}         表示一个自增字段，起始数字为start_number
-     {random_ascii_letters(length)}   表示一个随机的ascii字符串，可能大写，可能小写，可能数字，最大长度为length
-     {random_ascii_lowercase(length)} 表示一个随机的ascii字符串，只能是大写字母，最大长度为length
-     {random_ascii_uppercase(length)} 表示一个随机的ascii字符串，只能是小写字母，最大长度为length
-     {random_digits(length)}          表示一个随机的数字，可能数字，最大长度为length
+     {identity(start_number)}                  表示一个自增字段，起始数字为start_number
+     {random_ascii_letters(length)}            表示一个随机的ascii字符串，可能大写，可能小写，可能数字，最大长度为length
+     {random_ascii_lowercase(length)}          表示一个随机的ascii字符串，只能是大写字母，最大长度为length
+     {random_ascii_uppercase(length)}          表示一个随机的ascii字符串，只能是小写字母，最大长度为length
+     {random_digits(length)}                   表示一个随机的数字，可能数字，最大长度为length
+     {random_ascii_letters_and_digits(length)} 表示一个随机的ascii字符串，可能大写，可能小写，可能数字，最大长度为length
+     {random_from_seed(seedname,length}        表示从seed文件中随机选取一个内容，并且最大长度限制在length, 写的时候seedname不要引号
+                                               
+                                                支持的字符串seedname有， 10s， 100s， 1Ks, 10Ks, 100Ks
+                                                由于seed文件中的字符串最大为100，这里设置比100更高的length并没有实际意义
+                                                                                              
+                                                支持的数字seedname有， 10n， 100n， 1Kn, 10Kn
+                                                由于seed文件中的字符串最大为10，这里设置比10更高的length并没有实际意义
+
    文件格式：
      mem://xxx            会在内存中创建这个文件，一旦退出sqlcli，相关信息将会丢失
      file://xxx           会在本地文件系统中创建这个文件，其中xxx为文件名称信息

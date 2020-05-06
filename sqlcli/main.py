@@ -13,6 +13,7 @@ import click
 from prompt_toolkit.shortcuts import PromptSession
 from .sqlexecute import SQLExecute
 from .sqlinternal import Create_file
+from .sqlinternal import Create_SeedCacheFile
 from .sqlcliexception import SQLCliException
 from .commandanalyze import register_special_command
 from .commandanalyze import CommandNotFound
@@ -292,6 +293,18 @@ class SQLCli(object):
                 None,
                 None,
                 str(matchObj.group(4)) + ' rows created Successful.')
+            return
+
+        # 创建随机数Seed的缓存文件
+        matchObj = re.match(r"create\s+seeddatafile(\s+)?;$",
+                            strSQL, re.IGNORECASE)
+        if matchObj:
+            Create_SeedCacheFile()
+            yield (
+                None,
+                None,
+                None,
+                'file created Successful.')
             return
 
         # 不认识的internal命令
