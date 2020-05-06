@@ -6,6 +6,7 @@ from .commandanalyze import execute
 from .commandanalyze import CommandNotFound
 from .sqlcliexception import SQLCliException
 import click
+import time
 
 _logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ class SQLExecute(object):
     def __init__(self):
         # 设置一些默认的参数
         self.options = {"WHENEVER_SQLERROR": "CONTINUE", "PAGE": "OFF", "OUTPUT_FORMAT": "ASCII", "ECHO": "OFF",
-                        "LONG": 20, 'KAFKA_SERVERS': None}
+                        "LONG": 20, 'KAFKA_SERVERS': None, 'TIMING': 'OFF'}
 
     def set_connection(self, p_conn):
         self.conn = p_conn
@@ -85,8 +86,15 @@ class SQLExecute(object):
                 # 执行正常的SQL语句
                 if cur is not None:
                     try:
+                        start = time.clock()
                         cur.execute(sql)
                         yield self.get_result(cur)
+                        end = time.clock()
+
+                        # 如果需要，打印语句执行时间
+                        if self.options['TIMING'] == 'ON':
+                            yield None, None, None, 'Running time: %10.2f Seconds' % (end - start)
+
                     except Exception as e:
                         if (
                                 str(e).find("SQLSyntaxErrorException") != -1 or
