@@ -365,6 +365,8 @@ SQL>
                                                                                               
                                                 支持的数字seedname有， 10n， 100n， 1Kn, 10Kn
                                                 由于seed文件中的字符串最大为10，这里设置比10更高的length并没有实际意义
+     {random_date(start, end)}                  表示一个随机的日期， 日期区间为 start到end，日期格式为%Y-%M-%D
+     {random_timestamp(start, end)}             表示一个随机的时间戳， 时间区间为 start到end，日期格式为%Y-%M-%D %H:%M%S
 
    文件格式：
      mem://xxx            会在内存中创建这个文件，一旦退出sqlcli，相关信息将会丢失
