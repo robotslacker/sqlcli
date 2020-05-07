@@ -58,28 +58,28 @@ def Create_SeedCacheFile():
 
     buf = []
     for n in range(1, 10):
-        buf.append(random_digits([10, ]) + "\n")
+        buf.append(random_digits([20, ]) + "\n")
     seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.10")
     with open(seed_file, 'w') as f:
         f.writelines(buf)
 
     buf = []
     for n in range(1, 100):
-        buf.append(random_digits([10, ]) + "\n")
+        buf.append(random_digits([20, ]) + "\n")
     seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.100")
     with open(seed_file, 'w') as f:
         f.writelines(buf)
 
     buf = []
     for n in range(1, 1000):
-        buf.append(random_digits([10, ]) + "\n")
+        buf.append(random_digits([20, ]) + "\n")
     seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.1K")
     with open(seed_file, 'w') as f:
         f.writelines(buf)
 
     buf = []
     for n in range(1, 10 * 1000):
-        buf.append(random_digits([10, ]) + "\n")
+        buf.append(random_digits([20, ]) + "\n")
     seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.10K")
     with open(seed_file, 'w') as f:
         f.writelines(buf)
@@ -240,7 +240,8 @@ def parse_formula_str(p_formula_str):
 
     for m_nRowPos in range(0, len(m_row_struct)):
         if re.search('random_ascii_lowercase|random_ascii_uppercase|random_ascii_letters' +
-                     '|random_digits|identity|random_ascii_letters_and_digits|random_from_seed',
+                     '|random_digits|identity|random_ascii_letters_and_digits|random_from_seed' +
+                     '|random_date|random_timestamp',
                      m_row_struct[m_nRowPos], re.IGNORECASE):
             m_function_struct = re.split(r'[(,)]', m_row_struct[m_nRowPos])
             for m_nPos in range(0, len(m_function_struct)):
@@ -324,6 +325,7 @@ def Create_file(p_filename, p_formula_str, p_rows, p_options):
             raise SQLCliException("Unknown file format.")
 
         m_row_struct = parse_formula_str(p_formula_str)
+        print("m_Row_struct" + str(m_row_struct))
         buf = []
         for i in range(0, p_rows):
             if p_filename.startswith('kafka://'):

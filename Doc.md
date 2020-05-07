@@ -353,7 +353,7 @@ SQL>
    这里语句的开头：  __internal__ 是必须的内容，固定写法
    宏代码的格式包括：
      {identity(start_number)}                  表示一个自增字段，起始数字为start_number
-     {random_ascii_letters(length)}            表示一个随机的ascii字符串，可能大写，可能小写，可能数字，最大长度为length
+     {random_ascii_letters(length)}            表示一个随机的ascii字符串，可能大写，可能小写，最大长度为length
      {random_ascii_lowercase(length)}          表示一个随机的ascii字符串，只能是大写字母，最大长度为length
      {random_ascii_uppercase(length)}          表示一个随机的ascii字符串，只能是小写字母，最大长度为length
      {random_digits(length)}                   表示一个随机的数字，可能数字，最大长度为length
