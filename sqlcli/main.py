@@ -224,7 +224,7 @@ class SQLCli(object):
                                               self.jar_file, )
             self.sqlexecute.set_connection(self.db_conn)
         except Exception as e:  # Connecting to a database fail.
-            raise SQLCliException(str(e))
+            raise SQLCliException(repr(e))
 
         yield (
             None,
