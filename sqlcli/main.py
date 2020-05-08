@@ -2,6 +2,7 @@
 import os
 import sys
 import logging
+import traceback
 from io import open
 import jaydebeapi
 import re
@@ -224,6 +225,8 @@ class SQLCli(object):
                                               self.jar_file, )
             self.sqlexecute.set_connection(self.db_conn)
         except Exception as e:  # Connecting to a database fail.
+            print('traceback.print_exc():\n%s' % traceback.print_exc())
+            print('traceback.format_exc():\n%s' % traceback.format_exc())
             raise SQLCliException(repr(e))
 
         yield (
