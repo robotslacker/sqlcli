@@ -145,6 +145,11 @@ def Load_SeedCacheFile():
         seed_cache["10Kn"] = f.readlines()
 
 
+# 返回随机的Boolean类型
+def random_boolean(p_arg):
+    return "1" if (random.randint(0, 1) == 1) else "0"
+
+
 # 返回一个随机的时间戳   start < 返回值 < end
 def random_timestamp(p_arg):
     frmt = "%Y-%m-%d %H:%M:%S"
@@ -241,7 +246,7 @@ def parse_formula_str(p_formula_str):
     for m_nRowPos in range(0, len(m_row_struct)):
         if re.search('random_ascii_lowercase|random_ascii_uppercase|random_ascii_letters' +
                      '|random_digits|identity|random_ascii_letters_and_digits|random_from_seed' +
-                     '|random_date|random_timestamp',
+                     '|random_date|random_timestamp|random_boolean',
                      m_row_struct[m_nRowPos], re.IGNORECASE):
             m_function_struct = re.split(r'[(,)]', m_row_struct[m_nRowPos])
             for m_nPos in range(0, len(m_function_struct)):
@@ -279,6 +284,9 @@ def parse_formula_str(p_formula_str):
                 m_call_out_struct.append(m_function_struct[1:])
             if m_function_struct[0].upper() == "RANDOM_TIMESTAMP":
                 m_call_out_struct.append(random_timestamp)
+                m_call_out_struct.append(m_function_struct[1:])
+            if m_function_struct[0].upper() == "RANDOM_BOOLEAN":
+                m_call_out_struct.append(random_boolean)
                 m_call_out_struct.append(m_function_struct[1:])
             m_row_struct[m_nRowPos] = m_call_out_struct
     return m_row_struct
@@ -325,7 +333,6 @@ def Create_file(p_filename, p_formula_str, p_rows, p_options):
             raise SQLCliException("Unknown file format.")
 
         m_row_struct = parse_formula_str(p_formula_str)
-        print("m_Row_struct" + str(m_row_struct))
         buf = []
         for i in range(0, p_rows):
             if p_filename.startswith('kafka://'):

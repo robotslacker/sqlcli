@@ -14,7 +14,11 @@ SQLCli 是一个Python程序，通过jaydebeapi连接数据库的JDBC驱动。
    * 安装JDK8
    * 对于Windows平台，还需要提前安装微软的C++编译器（Jaydebeapi安装过程中需要动态编译jpype）  
      在jaydebeapi 1.1.1的版本下，发现jpype必须进行降级，否则无法使用  
-     pip install --upgrade jpype1==0.6.3 --user
+     pip install --upgrade jpype1==0.6.3 --user          # 目前只有Anacoda环境可以降级
+   * 对于Linux平台，也需要提前安装gcc编译器（Jaydebeapi安装过程中需要动态编译jpype）
+     yum install -y gcc-c++ gcc
+     在jaydebeapi 1.1.1的版本下，发现jpype必须进行降级，否则无法使用  
+     pip install --upgrade jpype1==0.6.3 --user          # 目前只有Anacoda环境可以降级
 
 安装命令：
 ```
@@ -367,6 +371,7 @@ SQL>
                                                 由于seed文件中的字符串最大为10，这里设置比10更高的length并没有实际意义
      {random_date(start, end)}                  表示一个随机的日期， 日期区间为 start到end，日期格式为%Y-%M-%D
      {random_timestamp(start, end)}             表示一个随机的时间戳， 时间区间为 start到end，日期格式为%Y-%M-%D %H:%M%S
+     {random_boolean())                         表示一个随机的Boolean，可能为0，也可能为1
 
    文件格式：
      mem://xxx            会在内存中创建这个文件，一旦退出sqlcli，相关信息将会丢失
