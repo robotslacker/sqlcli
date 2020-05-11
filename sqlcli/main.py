@@ -84,10 +84,10 @@ class SQLCli(object):
         # 加载数据库驱动
         register_special_command(
             self.load_driver,
-            ".load",
-            ".load",
+            ".loaddriver",
+            ".loaddriver",
             "load JDBC driver .",
-            aliases=("load", "\\l"),
+            aliases=("loaddriver", "\\l"),
         )
 
         # 连接数据库
@@ -136,7 +136,7 @@ class SQLCli(object):
             load_parameters = str(arg).split()
             if len(load_parameters) != 2:
                 self.logger.debug('arg = ' + str(load_parameters))
-                raise SQLCliException("Missing required argument, load [driver file name] [driver class name].")
+                raise SQLCliException("Missing required argument, loaddriver [driver file name] [driver class name].")
             if not os.path.exists(str(load_parameters[0])):
                 raise SQLCliException("driver file [" + str(arg) + "] does not exist.")
 
@@ -207,8 +207,11 @@ class SQLCli(object):
                             connect_parameters[2] + '://' + connect_parameters[3] + ':' + \
                             connect_parameters[4] + ':/' + connect_parameters[5]
                     else:
-                        print(str(connect_parameters))
-                        print(len(connect_parameters))
+                        print("db_type = [" + str(self.db_type) + "]")
+                        print("db_host = [" + str(self.db_host) + "]")
+                        print("db_port = [" + str(self.db_port) + "]")
+                        print("db_service_name = [" + str(self.db_service_name) + "]")
+                        print("db_url = [" + str(self.db_url) + "]")
                         raise SQLCliException("Unexpeced env SQLCLI_CONNECTION_URL\n." +
                                               "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
                 else:
@@ -218,15 +221,34 @@ class SQLCli(object):
 
         # 连接数据库
         try:
-            self.db_conn = jaydebeapi.connect(self.driver_class,
-                                              'jdbc:' + self.db_type + ":" + self.db_driver_type + "://" +
-                                              self.db_host + ":" + self.db_port + "/" + self.db_service_name,
-                                              [self.db_username, self.db_password],
-                                              self.jar_file, )
+            if (self.db_type.upper() == "ORACLE"):
+                self.db_conn = jaydebeapi.connect(self.driver_class,
+                                                  'jdbc:' + self.db_type + ":" + self.db_driver_type + ":@" +
+                                                  self.db_host + ":" + self.db_port + "/" + self.db_service_name,
+                                                  [self.db_username, self.db_password],
+                                                  self.jar_file, )
+            elif (self.db_type.upper() == "LINKOOPDB"):
+                self.db_conn = jaydebeapi.connect(self.driver_class,
+                                                  'jdbc:' + self.db_type + ":" + self.db_driver_type + "://" +
+                                                  self.db_host + ":" + self.db_port + "/" + self.db_service_name +
+                                                  ";query_iterator=1",
+                                                  [self.db_username, self.db_password],
+                                                  self.jar_file, )
+            else:
+                self.db_conn = jaydebeapi.connect(self.driver_class,
+                                                  'jdbc:' + self.db_type + ":" + self.db_driver_type + "://" +
+                                                  self.db_host + ":" + self.db_port + "/" + self.db_service_name,
+                                                  [self.db_username, self.db_password],
+                                                  self.jar_file, )
             self.sqlexecute.set_connection(self.db_conn)
         except Exception as e:  # Connecting to a database fail.
             print('traceback.print_exc():\n%s' % traceback.print_exc())
             print('traceback.format_exc():\n%s' % traceback.format_exc())
+            print("db_type = [" + str(self.db_type) + "]")
+            print("db_host = [" + str(self.db_host) + "]")
+            print("db_port = [" + str(self.db_port) + "]")
+            print("db_service_name = [" + str(self.db_service_name) + "]")
+            print("db_url = [" + str(self.db_url) + "]")
             raise SQLCliException(repr(e))
 
         yield (
@@ -408,7 +430,7 @@ class SQLCli(object):
             # 则直接加载
             if "SQLCLI_CONNECTION_JAR_NAME" in os.environ and \
                     "SQLCLI_CONNECTION_CLASS_NAME" in os.environ:
-                one_iteration('load ' +
+                one_iteration('loaddriver ' +
                               os.environ["SQLCLI_CONNECTION_JAR_NAME"] + ' ' + os.environ[
                                   "SQLCLI_CONNECTION_CLASS_NAME"])
                 iterations += 1

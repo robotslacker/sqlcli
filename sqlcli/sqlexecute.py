@@ -20,7 +20,7 @@ class SQLExecute(object):
     def __init__(self):
         # 设置一些默认的参数
         self.options = {"WHENEVER_SQLERROR": "CONTINUE", "PAGE": "OFF", "OUTPUT_FORMAT": "ASCII", "ECHO": "OFF",
-                        "LONG": 20, 'KAFKA_SERVERS': None, 'TIMING': 'OFF'}
+                        "LONG": 20, 'KAFKA_SERVERS': None, 'TIMING': 'OFF', 'TERMOUT': 'ON', 'FEEDBACK': 'ON'}
 
     def set_connection(self, p_conn):
         self.conn = p_conn
@@ -123,27 +123,39 @@ class SQLExecute(object):
 
         # cursor.description is not None for queries that return result sets,
         # e.g. SELECT.
+        result = []
         if cursor.description is not None:
             headers = [x[0] for x in cursor.description]
             status = "{0} row{1} selected."
-            cursor = list(cursor.fetchall())
-            result = []
-            for row in cursor:
-                m_row = []
-                for column in row:
-                    if str(type(column)).find('JDBCClobClient') != -1:
-                        m_row.append(column.getSubString(1, int(self.options["LONG"])))
-                    else:
-                        m_row.append(column)
-                m_row = tuple(m_row)
-                result.append(m_row)
-            cursor = result
-            rowcount = len(cursor)
+            rowcount = 0
+            while True:
+                m_arraysize = 10000
+                rowset = list(cursor.fetchmany(m_arraysize))
+                if self.options['TERMOUT']  != 'OFF':
+                    for row in rowset:
+                        m_row = []
+                        for column in row:
+                            if str(type(column)).find('JDBCClobClient') != -1:
+                                m_row.append(column.getSubString(1, int(self.options["LONG"])))
+                            else:
+                                m_row.append(column)
+                        m_row = tuple(m_row)
+                        result.append(m_row)
+                rowcount = rowcount + len(rowset)
+                if len(rowset) < m_arraysize:
+                    # 已经没有什么可以取的了, 游标结束
+                    break
         else:
             _logger.debug("No rows in result.")
             status = "{0} row{1} affected"
             rowcount = 0 if cursor.rowcount == -1 else cursor.rowcount
-            cursor = None
+            result = None
 
-        status = status.format(rowcount, "" if rowcount == 1 else "s")
-        return title, cursor, headers, status
+        if self.options['FEEDBACK'] == 'ON':
+            status = status.format(rowcount, "" if rowcount == 1 else "s")
+        else:
+            status  = None
+        if self.options['TERMOUT'] == 'OFF':
+            return title, [], headers, status
+        else:
+            return title, result, headers, status

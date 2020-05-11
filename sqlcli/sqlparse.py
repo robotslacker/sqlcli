@@ -7,6 +7,13 @@ def SQLFormatWithPrefix(p_szCommentSQLScript):
     # 把所有的SQL换行, 第一行加入[SQL >]， 随后加入[   >]
     m_FormattedString = None
     m_CommentSQLLists = p_szCommentSQLScript.split('\n')
+    # 从最后一行开始，依次删除空行，空行内容不打印
+    for m_nPos in range(len(m_CommentSQLLists), 0, -1):
+        if len(m_CommentSQLLists[m_nPos-1].strip()) == 0:
+            del m_CommentSQLLists[-1]
+        else:
+            break
+    # 拼接字符串
     for m_nPos in range(0, len(m_CommentSQLLists)):
         if m_nPos == 0:
             m_FormattedString = 'SQL> ' + m_CommentSQLLists[m_nPos]
@@ -89,7 +96,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
     for m_nPos in range(0, len(SQLCommands)):
         if not m_bInMultiLineSQL:  # 没有在多行语句中
             # 这是一个单行语句, 要求单行结束， 属于内部执行，需要去掉其中的注释信息
-            if re.match(r'^(\s+)?load\s|^(\s+)?connect\s|^(\s+)?start\s|^(\s+)?set\s|'
+            if re.match(r'^(\s+)?loaddriver\s|^(\s+)?connect\s|^(\s+)?start\s|^(\s+)?set\s|'
                         r'^(\s+)?exit(\s+)?$|^(\s+)?quit(\s+)?$',
                         SQLCommands[m_nPos], re.IGNORECASE):
                 m_SQL = SQLCommands[m_nPos].strip()
@@ -146,7 +153,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
             # 如果本行每行没有包含任何关键字信息，则直接返回
             strRegexPattern = r'^(\s+)?CREATE(\s+)?|^(\s+)?SELECT(\s+)?|^(\s+)?UPDATE(\s+)?|' \
                               r'^(\s+)?DELETE(\s+)?|^(\s+)?INSERT(\s+)?|^(\s+)?__INTERNAL__(\s+)?|' \
-                              r'^(\s+)?DROP(\s+)?|^(\s+)?REPLACE(\s+)?'
+                              r'^(\s+)?DROP(\s+)?|^(\s+)?REPLACE(\s+)?|^(\s+)?LOAD(\s+)?'
             if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE):
                 SQLSplitResults.append(SQLCommands[m_nPos])
                 m_CommentSQL = SQLCommandsWithComments[m_nPos]
@@ -282,6 +289,11 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 else:
                     # 多行语句还没有结束
                     continue
+
+    # 去掉SQL语句中的最后一个；
+    for m_nPos in range(0, len(SQLSplitResults)):
+        if SQLSplitResults[m_nPos][-1:] == ';':
+            SQLSplitResults[m_nPos] = SQLSplitResults[m_nPos][:-1]
 
     # 去掉注释信息中的最后一个回车换行符
     for m_nPos in range(0, len(SQLSplitResultsWithComments)):

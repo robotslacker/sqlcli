@@ -151,14 +151,14 @@ SQL>
 ```
 (base) sqlcli 
 SQL*Cli Release 0.0.13
-SQL> load  xxxxx-jdbc-x.x.x.jar   com.xxxx.xxxxxxx.jdbc.JdbcDriver 
+SQL> loaddriver  xxxxx-jdbc-x.x.x.jar   com.xxxx.xxxxxxx.jdbc.JdbcDriver 
 Driver loaded.
 SQL> 
 
 这里具体的写法应查询相应数据库产品的JDBC文档  
 jar包必须放置在sqlcli程序能够访问到的目录下，如果不在当前目录下，这里需要写入相对或者绝对路径，比如: dir1\xxxxx-jdbc-x.x.x.jar  
   
-再次执行load命令，则会断开当前的数据库连接，并重新加载新的驱动。load后，下次执行的数据库操作将依赖新的加载包  
+再次执行loaddriver命令，则会断开当前的数据库连接，并重新加载新的驱动。load后，下次执行的数据库操作将依赖新的加载包  
 ```
 ***
 #### 连接数据库
@@ -339,6 +339,13 @@ SQL>
         SQL> 1 rows selected.
 ```
 
+5.&emsp; FEEDBACK      控制是否回显执行影响的行数，默认是ON，显示  
+
+6.&emsp; TERMOUT       控制是否显示SQL查询的返回，默认是ON，显示  
+
+```
+
+```
    * 内部的其他操作  
    这里指的内部语句是说不需要后台SQL引擎完成，而是通过在SQLCli程序中扩展代码来支持的语句。目前支持的扩展语句有：
 ```
