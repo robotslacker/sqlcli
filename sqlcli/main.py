@@ -418,7 +418,10 @@ class SQLCli(object):
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
                 self.echo(str(e), err=True, fg="red")
 
-        self.prompt_app = PromptSession()
+        # 如果运行在脚本方式下，不在调用PromptSession
+        # 调用PromptSession会导致程序在IDE下无法运行
+        if self.sqlscript is None:
+            self.prompt_app = PromptSession()
 
         try:
             # 如果环境变量中包含了SQLCLI_CONNECTION_JAR_NAME或者SQLCLI_CONNECTION_CLASS_NAME
@@ -461,16 +464,6 @@ class SQLCli(object):
         self.log_output(s)
         click.secho(s, **kwargs)
 
-    def get_output_margin(self, status=None):
-        """Get the output margin (number of rows for the prompt, footer and
-        timing message."""
-        margin = 2
-
-        if status:
-            margin += 1 + status.count("\n")
-
-        return margin
-
     def output(self, output, status=None):
         """
         Output text to stdout or a pager command.
@@ -483,8 +476,9 @@ class SQLCli(object):
         if output:
             # size    记录了 每页输出最大行数，以及行的宽度。  Size(rows=30, columns=119)
             # margin  记录了每页需要留下多少边界行，如状态显示信息等 （2 或者 3）
-            size = self.prompt_app.output.get_size()
-            margin = self.get_output_margin(status)
+            m_size_rows = 30
+            m_size_columns = 119
+            margin = 3
 
             # 打印输出信息
             fits = True
@@ -495,7 +489,7 @@ class SQLCli(object):
                 if fits or output_via_pager:
                     # buffering
                     buf.append(line)
-                    if len(line) > size.columns or i > (size.rows - margin):
+                    if len(line) > m_size_columns or i > (m_size_rows - margin):
                         # 如果行超过页要求，或者行内容过长，且没有分页要求的话，直接显示
                         fits = False
                         if not output_via_pager:
