@@ -75,24 +75,36 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 # 当前已经在注释中，需要找到*/ 来标记注释的结束
                 m_nBlockCommentsEnd = SQLCommands[m_nPos].find('*/')
                 if m_nBlockCommentsEnd != -1:
-                    # 注释已经结束
+                    # 注释已经结束， 注释部分替换为空格
                     SQLCommands[m_nPos] = re.sub(r'.', ' ', SQLCommands[m_nPos][0:m_nBlockCommentsEnd + 2]) + \
                                           SQLCommands[m_nPos][m_nBlockCommentsEnd + 2:]
                     m_bInCommentBlock = False
                     continue
                 else:
-                    # 本行完全还在注释中
+                    # 本行完全还在注释中，全部替换为空格
                     SQLCommands[m_nPos] = re.sub(r'.', ' ', SQLCommands[m_nPos])
                     break
 
     # 开始分析SQL
+
+    # SQL分析的结果， 这两个（包含注释，不包含注释）的数组长度相等，若只有注释，则SQL结果中为空白
     SQLSplitResults = []
+    # 包含注释的SQL语句分析结果
     SQLSplitResultsWithComments = []
+
+    # 是否在代码段内部
     m_bInBlockSQL = False
+    # 是否在多行语句内部
     m_bInMultiLineSQL = False
+
+    # 拼接好的SQL
     m_NewSQL = None
+    # 拼接好的SQL，包含了注释信息
     m_NewSQLWithComments = None
-    m_NewSQLWithCommentsLastPos = 0
+
+    # 下一段注释将从m_NewSQLWithCommentPos的m_NewSQLWithCommentsLastPos字符开始
+    m_NewSQLWithCommentsLastPos = 0            # 注释已经截止到的行中列位置
+    m_NewSQLWithCommentPos = 0                 # 注释已经截止到的行号
     for m_nPos in range(0, len(SQLCommands)):
         if not m_bInMultiLineSQL:  # 没有在多行语句中
             # 这是一个单行语句, 要求单行结束， 属于内部执行，需要去掉其中的注释信息
@@ -101,78 +113,132 @@ def SQLAnalyze(p_SQLCommandPlainText):
                         SQLCommands[m_nPos], re.IGNORECASE):
                 m_SQL = SQLCommands[m_nPos].strip()
                 SQLSplitResults.append(m_SQL)
-                m_CommentSQL = SQLCommandsWithComments[m_nPos]
+                SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
                 if m_nPos == len(SQLCommands) - 1:
                     # 如果本行就是最后一行
-                    SQLSplitResultsWithComments.append(m_CommentSQL)
                     m_NewSQLWithCommentsLastPos = 0
                 else:
-                    # 一直找到下一个有效语句的开始
+                    # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
+                    m_CommentSQL = None
                     for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
                         if len(SQLCommands[m_CommentPos].lstrip()) != 0:
                             # 这是一个非完全空行，有效内容从第一个字符开始
                             nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
-                            m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
+                            if m_CommentSQL is None:
+                                m_CommentSQL = SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
+                            else:
+                                m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
                             m_NewSQLWithCommentsLastPos = nLeadSpace
-                            SQLSplitResultsWithComments.append(m_CommentSQL)
+                            m_NewSQLWithCommentPos = m_CommentPos
                             break
                         else:
                             # 完全注释行
-                            m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos]
+                            if m_CommentSQL is None:
+                                m_CommentSQL = SQLCommandsWithComments[m_CommentPos]
+                            else:
+                                m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos]
+                            m_NewSQLWithCommentPos = m_CommentPos + 1
+                    SQLSplitResults.append("")
+                    SQLSplitResultsWithComments.append(m_CommentSQL)
                 continue
 
-            # 如果本行只有唯一的内容，就是段落终止符的话，本语句没有任何意义
+            # 如果本行只有唯一的内容，就是段落终止符的话，本语句没有意义，不会执行；但是注释有意义
+            # / 不能送给SQL解析器
             if re.match(r'^/$', SQLCommands[m_nPos]):
                 SQLSplitResults.append("")
-                m_CommentSQL = SQLCommandsWithComments[m_nPos]
+                SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
                 if m_nPos == len(SQLCommands) - 1:
                     # 如果本行就是最后一行
-                    SQLSplitResultsWithComments.append(m_CommentSQL)
                     m_NewSQLWithCommentsLastPos = 0
                 else:
-                    # 一直找到下一个有效语句的开始
+                    # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
+                    m_CommentSQL = None
                     for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
                         if len(SQLCommands[m_CommentPos].lstrip()) != 0:
                             # 这是一个非完全空行，有效内容从第一个字符开始
                             nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
-                            m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
+                            if m_CommentSQL is None:
+                                m_CommentSQL = SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
+                            else:
+                                m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
                             m_NewSQLWithCommentsLastPos = nLeadSpace
-                            SQLSplitResultsWithComments.append(m_CommentSQL)
+                            m_NewSQLWithCommentPos = m_CommentPos
                             break
                         else:
                             # 完全注释行
-                            m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos]
+                            if m_CommentSQL is None:
+                                m_CommentSQL = SQLCommandsWithComments[m_CommentPos]
+                            else:
+                                m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos]
+                            m_NewSQLWithCommentPos = m_CommentPos + 1
+                    SQLSplitResults.append("")
+                    SQLSplitResultsWithComments.append(m_CommentSQL)
                 continue
 
             # 如何本行没有任何内容，就是空行，直接结束，本语句没有任何意义
             if SQLCommands[m_nPos].strip() == "":
+                if m_NewSQLWithCommentPos > m_nPos:
+                    continue
+
+                # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
+                m_CommentSQL = SQLCommandsWithComments[m_nPos]
+                for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
+                    if len(SQLCommands[m_CommentPos].lstrip()) != 0:
+                        # 这是一个非完全空行，有效内容从第一个字符开始
+                        nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
+                        if m_CommentSQL is None:
+                            m_CommentSQL = SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
+                        else:
+                            m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
+                        m_NewSQLWithCommentsLastPos = nLeadSpace
+                        m_NewSQLWithCommentPos = m_CommentPos
+                        break
+                    else:
+                        # 完全注释行
+                        if m_CommentSQL is None:
+                            m_CommentSQL = SQLCommandsWithComments[m_CommentPos]
+                        else:
+                            m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos]
+                        m_NewSQLWithCommentPos = m_CommentPos + 1
+                        m_NewSQLWithCommentsLastPos = 0
                 SQLSplitResults.append("")
-                SQLSplitResultsWithComments.append("")
+                SQLSplitResultsWithComments.append(m_CommentSQL)
                 continue
 
             # 如果本行每行没有包含任何关键字信息，则直接返回
             strRegexPattern = r'^(\s+)?CREATE(\s+)?|^(\s+)?SELECT(\s+)?|^(\s+)?UPDATE(\s+)?|' \
                               r'^(\s+)?DELETE(\s+)?|^(\s+)?INSERT(\s+)?|^(\s+)?__INTERNAL__(\s+)?|' \
-                              r'^(\s+)?DROP(\s+)?|^(\s+)?REPLACE(\s+)?|^(\s+)?LOAD(\s+)?'
+                              r'^(\s+)?DROP(\s+)?|^(\s+)?REPLACE(\s+)?|^(\s+)?LOAD(\s+)?|' \
+                              r'^(\s+)?MERGE(\s+)?'
             if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE):
                 SQLSplitResults.append(SQLCommands[m_nPos])
-                m_CommentSQL = SQLCommandsWithComments[m_nPos]
+                SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
                 if m_nPos == len(SQLCommands) - 1:
                     # 如果本行就是最后一行
-                    SQLSplitResultsWithComments.append(m_CommentSQL)
+                    m_NewSQLWithCommentsLastPos = 0
                 else:
-                    # 一直找到下一个有效语句的开始
+                    # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
+                    m_CommentSQL = None
                     for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
                         if len(SQLCommands[m_CommentPos].lstrip()) != 0:
                             # 这是一个非完全空行，有效内容从第一个字符开始
                             nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
-                            m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
+                            if m_CommentSQL is None:
+                                m_CommentSQL = SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
+                            else:
+                                m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
                             m_NewSQLWithCommentsLastPos = nLeadSpace
-                            SQLSplitResultsWithComments.append(m_CommentSQL)
+                            m_NewSQLWithCommentPos = m_CommentPos
                             break
                         else:
                             # 完全注释行
-                            m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos]
+                            if m_CommentSQL is None:
+                                m_CommentSQL = SQLCommandsWithComments[m_CommentPos]
+                            else:
+                                m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos]
+                            m_NewSQLWithCommentPos = m_CommentPos + 1
+                    SQLSplitResults.append("")
+                    SQLSplitResultsWithComments.append(m_CommentSQL)
                 continue
 
             # 以下本行内一定包含了关键字，是多行SQL，或者多段SQL, 也可能是单行；结尾
@@ -183,28 +249,35 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE):
                     # 这不是一个存储过程，本行可以结束了
                     SQLSplitResults.append(SQLCommands[m_nPos])
+                    SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
                     if m_nPos == len(SQLCommands) - 1:
                         # 如果本行就是最后一行
-                        SQLSplitResultsWithComments.append(m_NewSQLWithComments)
                         m_NewSQLWithCommentsLastPos = 0
-                        m_NewSQLWithComments = None
                     else:
-                        # 一直找到下一个有效语句的开始
+                        # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
+                        m_CommentSQL = None
                         for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
                             if len(SQLCommands[m_CommentPos].lstrip()) != 0:
                                 # 这是一个非完全空行，有效内容从第一个字符开始
                                 nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
-                                m_NewSQLWithComments = \
-                                    m_NewSQLWithComments + '\n' + \
-                                    SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
+                                if m_CommentSQL is None:
+                                    m_CommentSQL = SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
+                                else:
+                                    m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos][
+                                                                         0:nLeadSpace]
                                 m_NewSQLWithCommentsLastPos = nLeadSpace
-                                SQLSplitResultsWithComments.append(m_NewSQLWithComments)
-                                m_NewSQLWithComments = None
+                                m_NewSQLWithCommentPos = m_CommentPos
                                 break
                             else:
                                 # 完全注释行
-                                m_NewSQLWithComments = m_NewSQLWithComments + '\n' + \
-                                                       SQLCommandsWithComments[m_CommentPos]
+                                if m_CommentSQL is None:
+                                    m_CommentSQL = SQLCommandsWithComments[m_CommentPos]
+                                else:
+                                    m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos]
+                                m_NewSQLWithCommentPos = m_CommentPos + 1
+                        SQLSplitResults.append("")
+                        SQLSplitResultsWithComments.append(m_CommentSQL)
+                    continue
                 else:
                     # 这是一个存储过程
                     m_bInBlockSQL = True
@@ -217,80 +290,97 @@ def SQLAnalyze(p_SQLCommandPlainText):
             if re.match(r'^/$', SQLCommands[m_nPos]):
                 SQLSplitResults.append(m_NewSQL)
                 # 注释信息包含/符号
-                m_NewSQLWithComments = m_NewSQLWithComments + '\n' + SQLCommandsWithComments[m_nPos]
+                SQLSplitResultsWithComments.append(m_NewSQLWithComments + "\n/")
                 if m_nPos == len(SQLCommands) - 1:
                     # 如果本行就是最后一行
-                    SQLSplitResultsWithComments.append(m_NewSQLWithComments)
                     m_NewSQLWithCommentsLastPos = 0
-                    m_NewSQLWithComments = None
                 else:
-                    # 一直找到下一个有效语句的开始
+                    # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
+                    m_CommentSQL = None
                     for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
                         if len(SQLCommands[m_CommentPos].lstrip()) != 0:
                             # 这是一个非完全空行，有效内容从第一个字符开始
                             nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
-                            m_NewSQLWithComments = m_NewSQLWithComments + '\n' + SQLCommandsWithComments[m_CommentPos][
-                                                                                 0:nLeadSpace]
+                            if m_CommentSQL is None:
+                                m_CommentSQL = SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
+                            else:
+                                m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
                             m_NewSQLWithCommentsLastPos = nLeadSpace
-                            SQLSplitResultsWithComments.append(m_NewSQLWithComments)
-                            m_NewSQLWithComments = None
+                            m_NewSQLWithCommentPos = m_CommentPos
                             break
                         else:
                             # 完全注释行
-                            m_NewSQLWithComments = m_NewSQLWithComments + '\n' + SQLCommandsWithComments[m_CommentPos]
+                            if m_CommentSQL is None:
+                                m_CommentSQL = SQLCommandsWithComments[m_CommentPos]
+                            else:
+                                m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos]
+                            m_NewSQLWithCommentPos = m_CommentPos + 1
+                    SQLSplitResults.append("")
+                    SQLSplitResultsWithComments.append(m_CommentSQL)
                 m_bInBlockSQL = False
                 m_bInMultiLineSQL = False
                 continue
 
             if m_bInBlockSQL:
-                # 不可能终止，因为/已经被之前判断了
+                # 只要开始不是/，就一直拼接下去
                 m_NewSQL = m_NewSQL + '\n' + SQLCommands[m_nPos]
                 m_NewSQLWithComments = m_NewSQLWithComments + '\n' + SQLCommandsWithComments[m_nPos]
             else:
+                # 多行语句，首先进行SQL的拼接
                 m_NewSQL = m_NewSQL + '\n' + SQLCommands[m_nPos]
                 m_NewSQLWithComments = \
                     m_NewSQLWithComments + '\n' + \
                     SQLCommandsWithComments[m_nPos][m_NewSQLWithCommentsLastPos:]
                 # 工作在多行语句中，查找;结尾的内容
                 if re.match(r'(.*);(\s+)?$', SQLCommands[m_nPos]):  # 本行以；结尾
+                    # 查找这个多行语句是否就是一个存储过程
                     strRegexPattern = r'(^(\s+)?CREATE|^(\s+)?DROP|^(\s+)?REPLACE)(.*)?\s+(FUNCTION|PROCEDURE)(.*)?'
                     if not re.match(strRegexPattern, m_NewSQL, re.IGNORECASE):
-                        # 这不是一个存储过程，本行可以结束了
+                        # 这不是一个存储过程，遇到了；本行可以结束了
                         SQLSplitResults.append(m_NewSQL)
-                        if m_nPos == len(SQLCommands) - 1:
-                            # 如果本行就是最后一行
-                            SQLSplitResultsWithComments.append(m_NewSQLWithComments)
-                            m_NewSQLWithCommentsLastPos = 0
-                            m_NewSQLWithComments = None
-                        else:
-                            # 一直找到下一个有效语句的开始
-                            for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
-                                if len(SQLCommands[m_CommentPos].lstrip()) != 0:
-                                    # 这是一个非完全空行，有效内容从第一个字符开始
-                                    nLeadSpace = len(SQLCommands[m_CommentPos]) - len(
-                                        SQLCommands[m_CommentPos].lstrip())
-                                    m_NewSQLWithComments = \
-                                        m_NewSQLWithComments + '\n' + \
-                                        SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
-                                    m_NewSQLWithCommentsLastPos = nLeadSpace
-                                    SQLSplitResultsWithComments.append(m_NewSQLWithComments)
-                                    m_NewSQLWithComments = None
-                                    break
+                        SQLSplitResultsWithComments.append(m_NewSQLWithComments)
+                        # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
+                        m_CommentSQL = None
+                        for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
+                            if len(SQLCommands[m_CommentPos].lstrip()) != 0:
+                                # 这是一个非完全空行，有效内容从第一个字符开始
+                                nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
+                                if m_CommentSQL is None:
+                                    m_CommentSQL = SQLCommandsWithComments[m_CommentPos][0:nLeadSpace]
                                 else:
-                                    # 完全注释行
-                                    m_NewSQLWithComments = m_NewSQLWithComments + '\n' + \
-                                                           SQLCommandsWithComments[m_CommentPos]
+                                    m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos][
+                                                                         0:nLeadSpace]
+                                m_NewSQLWithCommentsLastPos = nLeadSpace
+                                m_NewSQLWithCommentPos = m_CommentPos
+                                break
+                            else:
+                                # 完全注释行
+                                if m_CommentSQL is None:
+                                    m_CommentSQL = SQLCommandsWithComments[m_CommentPos]
+                                else:
+                                    m_CommentSQL = m_CommentSQL + '\n' + SQLCommandsWithComments[m_CommentPos]
+                                m_NewSQLWithCommentPos = m_CommentPos + 1
+                        SQLSplitResults.append("")
+                        SQLSplitResultsWithComments.append(m_CommentSQL)
                         m_bInMultiLineSQL = False
                         continue
                     else:
                         # 才发现这是一个存储过程
+                        # 之前语句已经拼接过，所以这里标记后，直接开始下一个循环
                         m_bInBlockSQL = True
                         m_bInMultiLineSQL = True
+                        continue
                 else:
                     # 多行语句还没有结束
+                    # 之前语句已经拼接过，所以这里标记后，直接开始下一个循环
                     continue
 
-    # 去掉SQL语句中的最后一个；
+    # 如果当前语句没有结束，但是文件结束了，送最后一段到SQL引擎中，忽略其实际内容是什么，也许不能执行
+    if m_bInMultiLineSQL:
+        SQLSplitResults.append(m_NewSQL)
+        SQLSplitResultsWithComments.append(m_NewSQLWithComments)
+
+    # 去掉SQL语句中的最后一个； ORACLE数据库不支持带有；的语句
     for m_nPos in range(0, len(SQLSplitResults)):
         if SQLSplitResults[m_nPos][-1:] == ';':
             SQLSplitResults[m_nPos] = SQLSplitResults[m_nPos][:-1]

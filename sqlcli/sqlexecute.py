@@ -19,8 +19,9 @@ class SQLExecute(object):
 
     def __init__(self):
         # 设置一些默认的参数
-        self.options = {"WHENEVER_SQLERROR": "CONTINUE", "PAGE": "OFF", "OUTPUT_FORMAT": "ASCII", "ECHO": "OFF",
-                        "LONG": 20, 'KAFKA_SERVERS': None, 'TIMING': 'OFF', 'TERMOUT': 'ON', 'FEEDBACK': 'ON'}
+        self.options = {"WHENEVER_SQLERROR": "CONTINUE", "PAGE": "OFF", "OUTPUT_FORMAT": "ASCII", "ECHO": "ON",
+                        "LONG": 20, 'KAFKA_SERVERS': None, 'TIMING': 'OFF', 'TERMOUT': 'ON', 'FEEDBACK': 'ON',
+                        "ARRAYSIZE": 10000}
 
     def set_connection(self, p_conn):
         self.conn = p_conn
@@ -114,7 +115,7 @@ class SQLExecute(object):
             end = time.time()
             # 如果需要，打印语句执行时间
             if self.options['TIMING'] == 'ON':
-                if sql.strip().upper() not in ('EXIT','QUIT'):
+                if sql.strip().upper() not in ('EXIT', 'QUIT'):
                     yield None, None, None, 'Running time elapsed: %8.2f Seconds' % (end - start)
 
     def get_result(self, cursor):
@@ -129,9 +130,9 @@ class SQLExecute(object):
             status = "{0} row{1} selected."
             rowcount = 0
             while True:
-                m_arraysize = 10000
+                m_arraysize = int(self.options["ARRAYSIZE"])
                 rowset = list(cursor.fetchmany(m_arraysize))
-                if self.options['TERMOUT']  != 'OFF':
+                if self.options['TERMOUT'] != 'OFF':
                     for row in rowset:
                         m_row = []
                         for column in row:
@@ -154,7 +155,7 @@ class SQLExecute(object):
         if self.options['FEEDBACK'] == 'ON':
             status = status.format(rowcount, "" if rowcount == 1 else "s")
         else:
-            status  = None
+            status = None
         if self.options['TERMOUT'] == 'OFF':
             return title, [], headers, status
         else:

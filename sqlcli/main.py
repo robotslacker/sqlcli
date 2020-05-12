@@ -221,13 +221,13 @@ class SQLCli(object):
 
         # 连接数据库
         try:
-            if (self.db_type.upper() == "ORACLE"):
+            if self.db_type.upper() == "ORACLE":
                 self.db_conn = jaydebeapi.connect(self.driver_class,
                                                   'jdbc:' + self.db_type + ":" + self.db_driver_type + ":@" +
                                                   self.db_host + ":" + self.db_port + "/" + self.db_service_name,
                                                   [self.db_username, self.db_password],
                                                   self.jar_file, )
-            elif (self.db_type.upper() == "LINKOOPDB"):
+            elif self.db_type.upper() == "LINKOOPDB":
                 self.db_conn = jaydebeapi.connect(self.driver_class,
                                                   'jdbc:' + self.db_type + ":" + self.db_driver_type + "://" +
                                                   self.db_host + ":" + self.db_port + "/" + self.db_service_name +
@@ -381,13 +381,6 @@ class SQLCli(object):
                 self.formatter.query = text
                 result_count = 0
                 for title, cur, headers, status in res:
-                    threshold = 1000
-                    if is_select(status) and cur and cur.rowcount > threshold:
-                        self.echo(
-                            "The result set has more than {} rows.".format(threshold),
-                            fg="red",
-                        )
-
                     # prompt_app 默认列最长的宽度是119
                     # max_width = self.prompt_app.output.get_size().columns
                     max_width = None
@@ -421,6 +414,8 @@ class SQLCli(object):
             except NotImplementedError:
                 self.echo("Not Yet Implemented.", fg="yellow")
             except Exception as e:
+                print('traceback.print_exc():\n%s' % traceback.print_exc())
+                print('traceback.format_exc():\n%s' % traceback.format_exc())
                 self.echo(str(e), err=True, fg="red")
 
         self.prompt_app = PromptSession()
@@ -604,13 +599,6 @@ def cli(
 
     # 运行主程序
     sqlcli.run_cli()
-
-
-def is_select(status):
-    """Returns true if the first word in status is 'select'."""
-    if not status:
-        return False
-    return status.split(None, 1)[0].lower() == "select"
 
 
 if __name__ == "__main__":
