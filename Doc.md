@@ -14,11 +14,11 @@ SQLCli 是一个Python程序，通过jaydebeapi连接数据库的JDBC驱动。
    * 安装JDK8
    * 对于Windows平台，还需要提前安装微软的C++编译器（Jaydebeapi安装过程中需要动态编译jpype）  
      在jaydebeapi 1.1.1的版本下，发现jpype必须进行降级，否则无法使用  
-     pip install --upgrade jpype1==0.6.3 --user          # 目前只有Anacoda环境可以降级
+     pip install --upgrade jpype1==0.6.3 --user
    * 对于Linux平台，也需要提前安装gcc编译器（Jaydebeapi安装过程中需要动态编译jpype）  
      yum install -y gcc-c++ gcc  
      在jaydebeapi 1.1.1的版本下，发现jpype必须进行降级，否则无法使用  
-     pip install --upgrade jpype1==0.6.3 --user          # 目前只有Anacoda环境可以降级
+     pip install --upgrade jpype1==0.6.3 --user
 
 安装命令：
 ```
@@ -295,8 +295,9 @@ SQL>
 3.&emsp; OUTPUT_FORMAT   显示格式， 默认是ASCII
 &emsp; 目前支持的选项有：
 ```
-      ASCII |     显示格式为表格的格式 
-      CSV   |     显示格式为CSV文件的格式
+      ASCII    |     显示格式为表格的格式 
+      CSV      |     显示格式为CSV文件的格式
+      VERTICAL |     分列显示
 ```
 &emsp; 以下是一个例子：
 ```
@@ -340,10 +341,40 @@ SQL>
 ```
 
 5.&emsp; FEEDBACK      控制是否回显执行影响的行数，默认是ON，显示  
-
+```
+       SQL> set feedback on
+       SQL> select * from test_tab;
+       +----+----------+
+       | ID | COL2     |
+       +----+----------+
+       | 1  | XYXYXYXY |
+       | 1  | XYXYXYXY |
+       +----+----------+
+       2 rows selected.
+       SQL> set feedback off
+       SQL> select * from test_tab;
+       +----+----------+
+       | ID | COL2     |
+       +----+----------+
+       | 1  | XYXYXYXY |
+       | 1  | XYXYXYXY |
+       +----+----------+
+```
 6.&emsp; TERMOUT       控制是否显示SQL查询的返回，默认是ON，显示  
 
 ```
+       SQL> set termout on
+       SQL> select * from test_tab;
+       +----+----------+
+       | ID | COL2     |
+       +----+----------+
+       | 1  | XYXYXYXY |
+       | 1  | XYXYXYXY |
+       +----+----------+
+       2 rows selected.
+       SQL> set termout off
+       SQL> select * from test_tab;
+       2 rows selected.
 
 ```
    * 内部的其他操作  

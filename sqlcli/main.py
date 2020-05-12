@@ -59,7 +59,7 @@ class SQLCli(object):
     ):
         self.sqlexecute = SQLExecute()
         if logfilename is not None:
-            self.logfile = open(logfilename, mode="a", encoding="utf-8")
+            self.logfile = open(logfilename, mode="w", encoding="utf-8")
             self.sqlexecute.logfile = self.logfile
         self.sqlexecute.sqlscript = sqlscript
         self.sqlscript = sqlscript
@@ -249,6 +249,8 @@ class SQLCli(object):
             print("db_port = [" + str(self.db_port) + "]")
             print("db_service_name = [" + str(self.db_service_name) + "]")
             print("db_url = [" + str(self.db_url) + "]")
+            print("jar_file = [" + str(self.jar_file) + "]")
+            print("driver_class = [" + str(self.driver_class) + "]")
             raise SQLCliException(repr(e))
 
         yield (
