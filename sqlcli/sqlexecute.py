@@ -12,16 +12,17 @@ _logger = logging.getLogger(__name__)
 
 
 class SQLExecute(object):
-    conn = None            # 数据库连接
-    options = None         # 用户设置的各种选项
-    logfile = None         # 打印的日志文件
-    sqlscript = None       # 需要执行的SQL脚本
+    conn = None                         # 数据库连接
+    options = None                      # 用户设置的各种选项
+    logfile = None                      # 打印的日志文件
+    sqlscript = None                    # 需要执行的SQL脚本
+    SQLMappingHandler = None            # SQL重写处理
 
     def __init__(self):
         # 设置一些默认的参数
         self.options = {"WHENEVER_SQLERROR": "CONTINUE", "PAGE": "OFF", "OUTPUT_FORMAT": "ASCII", "ECHO": "ON",
                         "LONG": 20, 'KAFKA_SERVERS': None, 'TIMING': 'OFF', 'TERMOUT': 'ON', 'FEEDBACK': 'ON',
-                        "ARRAYSIZE": 10000}
+                        "ARRAYSIZE": 10000, 'SQLREWRITE': 'ON', "DEBUG": 'OFF'}
 
     def set_connection(self, p_conn):
         self.conn = p_conn
@@ -44,7 +45,7 @@ class SQLExecute(object):
             sql = ret_SQLSplitResults[m_nPos]
             m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]
 
-            # SQL的回显
+            # 如果打开了回显，并且指定了输出文件，则在输出文件里显示SQL语句
             if self.options["ECHO"] == 'ON' and len(m_CommentSQL.strip()) != 0 and self.logfile is not None:
                 click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.logfile)
 
@@ -52,31 +53,41 @@ class SQLExecute(object):
             if self.sqlscript is not None:
                 click.secho(SQLFormatWithPrefix(m_CommentSQL))
 
+            # 如果打开了回显，并且指定了输出文件，且SQL被改写过，输出改写后的SQL
+            if self.options["SQLREWRITE"] == 'ON':
+                old_sql = sql
+                sql = self.SQLMappingHandler.RewriteSQL(self.sqlscript, old_sql)
+                if old_sql != sql:
+                    if self.options["ECHO"] == 'ON' and self.logfile is not None:
+                        # SQL已经发生了改变
+                        click.echo('---> SQL OVERWROTE:\n' +
+                                   SQLFormatWithPrefix(sql), file=self.logfile)
+                    if self.sqlscript is not None:
+                        click.secho('---> SQL OVERWROTE:\n' +
+                                    SQLFormatWithPrefix(sql))
+
             # 如果是空语句，不在执行
             if len(sql.strip()) == 0:
                 continue
 
             # 在没有数据库连接的时候，必须先加载驱动程序，连接数据库
             if not self.conn and not (
-                sql.startswith("load")
-                or sql.startswith(".load")
+                sql.startswith("loaddriver")
+                or sql.startswith("loadsqlmap")
                 or sql.startswith("connect")
-                or sql.startswith(".connect")
                 or sql.startswith("start")
-                or sql.startswith(".start")
                 or sql.startswith("__internal__")
-                or sql.startswith(".internal")
-                or sql.startswith("\\?")
-                or sql.startswith("\\q")
                 or sql.startswith("help")
                 or sql.startswith("exit")
                 or sql.startswith("quit")
                 or sql.startswith("set")
             ):
-                if self.options["WHENEVER_SQLERROR"] == "CONTINUE":
-                    yield None, None, None, "Not connected. "
-                else:
+                if self.options["WHENEVER_SQLERROR"] == "EXIT":
                     raise SQLCliException("Not Connected. ")
+                else:
+                    yield None, None, None, "Not connected. "
+
+            # 打开游标
             cur = self.conn.cursor() if self.conn else None
 
             # 记录命令开始时间
@@ -99,17 +110,18 @@ class SQLExecute(object):
                                 str(e).find("SQLException") != -1
                         ):
                             # SQL 语法错误
-                            if self.options["WHENEVER_SQLERROR"] == "CONTINUE":
-                                yield None, None, None, str(e)
+                            if self.options["WHENEVER_SQLERROR"] == "EXIT":
+                                raise SQLCliException(str(e))
                             else:
-                                raise e
+                                yield None, None, None, str(e)
                         else:
+                            # 其他不明错误
                             raise e
             except SQLCliException as e:
-                if self.options["WHENEVER_SQLERROR"] == "CONTINUE":
-                    yield None, None, None, str(e.message)
-                else:
+                if self.options["WHENEVER_SQLERROR"] == "EXIT":
                     raise e
+                else:
+                    yield None, None, None, str(e.message)
 
             # 记录结束时间
             end = time.time()

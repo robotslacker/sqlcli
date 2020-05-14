@@ -23,7 +23,6 @@ SpecialCommand = namedtuple(
     [
         "handler",
         "command",
-        "shortcut",
         "description",
         "arg_type",
         "hidden",
@@ -55,23 +54,19 @@ def parse_special_command(sql):
 @export
 def special_command(
     command,
-    shortcut,
     description,
     arg_type=PARSED_QUERY,
     hidden=False,                     # 是否显示在帮助信息里头
     case_sensitive=False,             # 是否忽略输入的大小写
-    aliases=(),
 ):
     def wrapper(wrapped):
         register_special_command(
             wrapped,
             command,
-            shortcut,
             description,
             arg_type,
             hidden,
             case_sensitive,
-            aliases,
         )
         return wrapped
 
@@ -82,29 +77,15 @@ def special_command(
 def register_special_command(
     handler,
     command,
-    shortcut,
     description,
     arg_type=PARSED_QUERY,
     hidden=False,
-    case_sensitive=False,
-    aliases=(),
+    case_sensitive=False
 ):
     cmd = command.lower() if not case_sensitive else command
     COMMANDS[cmd] = SpecialCommand(
-        handler, command, shortcut, description, arg_type, hidden, case_sensitive
+        handler, command, description, arg_type, hidden, case_sensitive
     )
-    for alias in aliases:
-        cmd = alias.lower() if not case_sensitive else alias
-        COMMANDS[cmd] = SpecialCommand(
-            handler,
-            command,
-            shortcut,
-            description,
-            arg_type,
-            case_sensitive=case_sensitive,
-            hidden=True,
-        )
-
 
 @export
 def execute(cur, sql):
@@ -133,19 +114,19 @@ def execute(cur, sql):
 
 
 @special_command(
-    "help", "\\?", "Show this help.", arg_type=NO_QUERY, aliases=("\\?", "?")
+    "help", "Show this help.", arg_type=NO_QUERY
 )
 def show_help():  # All the parameters are ignored.
-    headers = ["Command", "Shortcut", "Description"]
+    headers = ["Command", "Description"]
     result = []
 
     for _, value in sorted(COMMANDS.items()):
         if not value.hidden:
-            result.append((value.command, value.shortcut, value.description))
+            result.append((value.command,value.description))
     return [(None, result, headers, None)]
 
 
-@special_command("exit", "\\q", "Exit.", arg_type=NO_QUERY)
-@special_command("quit", "\\q", "Quit.", arg_type=NO_QUERY)
+@special_command("exit", "Exit.", arg_type=NO_QUERY)
+@special_command("quit", "Quit.", arg_type=NO_QUERY)
 def quit_sqlcli(*_args):
     raise EOFError

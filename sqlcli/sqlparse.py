@@ -100,7 +100,8 @@ class SQLMapping(object):
                 if m_inSection:
                     # 文件配置段中的内容
                     if m_szLine.find('=>') != -1:
-                        m_szMatchRule = [m_szLine[0:m_szLine.find('=>') - 1], m_szLine[m_szLine.find('=>') + 2:]]
+                        m_szMatchRule = [m_szLine[0:m_szLine.find('=>')].strip(),
+                                         m_szLine[m_szLine.find('=>') + 2:].strip()]
                         m_szMatchRules.append(m_szMatchRule)
                     continue
 
@@ -117,7 +118,7 @@ class SQLMapping(object):
 
     def ReplaceSQL(self, p_szSQL, p_Key, p_Value):
         # 首先查找是否有匹配的内容，如果没有，直接返回
-        m_SearchResult = re.search(p_Key, p_szSQL)
+        m_SearchResult = re.search(p_Key, p_szSQL, re.DOTALL)
         if m_SearchResult is None:
             return p_szSQL
         else:
@@ -139,8 +140,7 @@ class SQLMapping(object):
                     # 执行替换函数
                     if m_function_struct[0].upper() == "ENV":
                         m_Value = self.ReplaceMacro_Env(m_function_struct[1:])
-
-        m_szSQL = re.sub(p_Key, m_Value, p_szSQL)
+        m_szSQL = re.sub(p_Key, m_Value, p_szSQL, flags=re.DOTALL)
         return m_szSQL
 
     def RewriteSQL(self, p_szTestScriptFileName, p_szSQL):
@@ -149,18 +149,20 @@ class SQLMapping(object):
             return p_szSQL
 
         # 获得绝对文件名
-        m_TestScriptFileName = os.path.basename(p_szTestScriptFileName)
+        if p_szTestScriptFileName is not None:
+            m_TestScriptFileName = os.path.basename(p_szTestScriptFileName)
+        else:
+            # 用户从Console上启动，没有脚本文件名
+            m_TestScriptFileName = "Console"
 
         # 检查文件名是否匹配
         m_New_SQL = p_szSQL
-        for m_MappingFiles in self.m_SQL_MappingList:  # 所有的SQL Mapping信息
-            m_MappingFile_Contents = self.m_SQL_MappingList[m_MappingFiles]  # 具体的一个SQL Mapping文件
-            for m_Mapping_Contents in m_MappingFile_Contents:  # 具体的一个映射信息
-                if re.match(m_Mapping_Contents[0], m_TestScriptFileName):  # 文件名匹配
-                    for (m_Key, m_Value) in m_Mapping_Contents[1]:  # 内容遍历
-                        m_Search_Result = re.search(m_Key, p_szSQL)  # 匹配了
-                        if m_Search_Result is not None:
-                            m_New_SQL = self.ReplaceSQL(p_szSQL, m_Key, m_Value)
+        for m_MappingFiles in self.m_SQL_MappingList:                           # 所有的SQL Mapping信息
+            m_MappingFile_Contents = self.m_SQL_MappingList[m_MappingFiles]     # 具体的一个SQL Mapping文件
+            for m_Mapping_Contents in m_MappingFile_Contents:                   # 具体的一个映射信息
+                if re.match(m_Mapping_Contents[0], m_TestScriptFileName):       # 文件名匹配
+                    for (m_Key, m_Value) in m_Mapping_Contents[1]:              # 内容遍历
+                        m_New_SQL = self.ReplaceSQL(p_szSQL, m_Key, m_Value)
         return m_New_SQL
 
 
@@ -270,7 +272,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
         if not m_bInMultiLineSQL:  # 没有在多行语句中
             # 这是一个单行语句, 要求单行结束， 属于内部执行，需要去掉其中的注释信息
             if re.match(r'^(\s+)?loaddriver\s|^(\s+)?connect\s|^(\s+)?start\s|^(\s+)?set\s|'
-                        r'^(\s+)?exit(\s+)?$|^(\s+)?quit(\s+)?$',
+                        r'^(\s+)?exit(\s+)?$|^(\s+)?quit(\s+)?$|^(\s+)?loadsqlmap\s',
                         SQLCommands[m_nPos], re.IGNORECASE):
                 m_SQL = SQLCommands[m_nPos].strip()
                 SQLSplitResults.append(m_SQL)

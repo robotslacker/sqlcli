@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
-import logging
 import traceback
 from io import open
 import jaydebeapi
@@ -18,6 +17,7 @@ from .sqlinternal import Create_SeedCacheFile
 from .sqlcliexception import SQLCliException
 from .commandanalyze import register_special_command
 from .commandanalyze import CommandNotFound
+from .sqlparse import SQLMapping
 
 from .__init__ import __version__
 from .sqlparse import SQLAnalyze
@@ -30,9 +30,7 @@ PACKAGE_ROOT = os.path.abspath(os.path.dirname(__file__))
 
 
 class SQLCli(object):
-    default_prompt = "SQL> "
-    max_len_prompt = 45
-
+    # 数据库连接的各种参数
     jar_file = None
     driver_class = None
     db_url = None
@@ -44,12 +42,23 @@ class SQLCli(object):
     db_port = None
     db_service_name = None
     db_conn = None
-    sqlscript = None
-    sqlexecute = None
-    nologo = None
+
+    # SQLCli的初始化参数
     logon = None
-    logfile = None
+    logfilename = None
+    sqlscript = None
     sqlmap = None
+    nologo = None
+
+    # 执行者
+    SQLMappingHandler = None
+    SQLExecuteHandler = None
+
+    # 程序输出日志
+    logfile = None
+
+    # 屏幕控制程序
+    prompt_app = None
 
     def __init__(
             self,
@@ -59,83 +68,79 @@ class SQLCli(object):
             sqlmap=None,
             nologo=None
     ):
-        self.sqlexecute = SQLExecute()
-        if logfilename is not None:
-            self.logfile = open(logfilename, mode="w", encoding="utf-8")
-            self.sqlexecute.logfile = self.logfile
-        self.sqlexecute.sqlscript = sqlscript
+        # 初始化SQLExecute和SQLMap
+        self.SQLExecuteHandler = SQLExecute()
+        self.SQLMappingHandler = SQLMapping()
+
+        # 传递各种参数
         self.sqlscript = sqlscript
+        self.sqlmap = sqlmap
         self.nologo = nologo
         self.logon = logon
-        self.sqlmap = sqlmap
+        self.logfilename = logfilename
 
+        # 设置其他的变量
+        self.SQLExecuteHandler.sqlscript = sqlscript
+        self.SQLExecuteHandler.SQLMappingHandler = self.SQLMappingHandler
+        self.SQLExecuteHandler.logfile = self.logfile
+
+        # 默认的输出格式
         self.formatter = TabularOutputFormatter(format_name='ascii')
         self.formatter.sqlcli = self
         self.syntax_style = 'default'
         self.output_style = None
 
-        # 打开日志
-        self.logger = logging.getLogger(__name__)
-
-        # 处理一些特殊的命令
+        # 加载一些特殊的命令
         self.register_special_commands()
-
-        self.prompt_app = None
 
     def register_special_commands(self):
 
         # 加载数据库驱动
         register_special_command(
             self.load_driver,
-            ".loaddriver",
-            ".loaddriver",
-            "load JDBC driver .",
-            aliases=("loaddriver", "\\l"),
+            command="loaddriver",
+            description="load JDBC driver .",
+            hidden=False
         )
 
         # 加载SQL映射文件
         register_special_command(
             self.load_sqlmap,
-            ".loadsqlmap",
-            ".loadsqlmap",
-            "load SQL Mapping file .",
-            aliases=("loadsqlmap", "\\l"),
+            command="loadsqlmap",
+            description="load SQL Mapping file .",
+            hidden=False
         )
 
         # 连接数据库
         register_special_command(
-            self.connect_db,
-            ".connect",
-            ".connect",
-            "Connect to database .",
-            aliases=("connect", "\\c"),
+            handler=self.connect_db,
+            command="connect",
+            description="Connect to database .",
+            hidden=False
         )
 
         # 从文件中执行脚本
         register_special_command(
             self.execute_from_file,
-            "start",
-            "\\. filename",
-            "Execute commands from file.",
-            aliases=("\\.",),
+            command="start",
+            description="Execute commands from file.",
+            hidden=False
         )
 
         # 设置各种参数选项
         register_special_command(
             self.set_options,
-            "set",
-            "set parameter parameter_value",
-            "set options .",
-            aliases=("set", "\\c"),
+            command="set",
+            description="set options .",
+            hidden=False
         )
 
         # 执行特殊的命令
         register_special_command(
             self.execute_internal_command,
-            "__internal__",
-            "execute internal command.",
-            "execute internal command.",
-            aliases=("__internal__",),
+            command="__internal__",
+            description="execute internal command.",
+            hidden=False
         )
 
     # 加载JDBC驱动文件
@@ -147,21 +152,30 @@ class SQLCli(object):
         else:
             load_parameters = str(arg).split()
             if len(load_parameters) != 2:
-                self.logger.debug('arg = ' + str(load_parameters))
                 raise SQLCliException("Missing required argument, loaddriver [driver file name] [driver class name].")
+            # 首先尝试，绝对路径查找这个文件
+            # 如果没有找到，尝试从脚本所在的路径开始查找
+            m_NewJarFile = None
             if not os.path.exists(str(load_parameters[0])):
-                raise SQLCliException("driver file [" + str(arg) + "] does not exist.")
+                if self.sqlscript is not None:
+                    if os.path.exists(os.path.join(os.path.dirname(self.sqlscript), str(load_parameters[0]))):
+                        m_NewJarFile = os.path.join(os.path.dirname(self.sqlscript), str(load_parameters[0]))
+                else:
+                    # 用户在Console上输入，如果路径信息不全，则放弃
+                    raise SQLCliException("driver file [" + str(arg) + "] does not exist.")
+            else:
+                m_NewJarFile = str(load_parameters[0])
 
             # 如果jar包或者驱动类发生了变化，则当前数据库连接自动失效
             if self.jar_file:
-                if self.jar_file != str(load_parameters[0]):
+                if self.jar_file != m_NewJarFile:
                     self.db_conn = None
-                    self.sqlexecute.set_connection(None)
+                    self.SQLExecuteHandler.set_connection(None)
             if self.driver_class:
                 if self.driver_class != str(load_parameters[1]):
                     self.db_conn = None
-                    self.sqlexecute.set_connection(None)
-            self.jar_file = str(load_parameters[0])
+                    self.SQLExecuteHandler.set_connection(None)
+            self.jar_file = m_NewJarFile
             self.driver_class = str(load_parameters[1])
 
         yield (
@@ -173,9 +187,14 @@ class SQLCli(object):
 
     # 加载数据库SQL映射
     def load_sqlmap(self, arg, **_):
-        # 处理文件名，也可能是多个文件名
-        # 加载文件, 如果是全路径名，直接用，否则从SQLCLI_HOME/data中查找
-        pass
+        self.SQLExecuteHandler.options["SQLREWRITE"] = "ON"
+        self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, arg)
+        yield (
+            None,
+            None,
+            None,
+            'Mapping file loaded.'
+        )
 
     # 连接数据库
     def connect_db(self, arg, **_):
@@ -240,12 +259,12 @@ class SQLCli(object):
             # 用户写法是connect user xxx password xxxx; 密码可能包含引号
             if connect_parameters[0].upper() == "USER" and connect_parameters[2].upper() == "PASSWORD":
                 self.db_username = connect_parameters[1]
-                self.db_password = connect_parameters[3].replace("'","").replace('"',"")
+                self.db_password = connect_parameters[3].replace("'", "").replace('"', "")
                 if not self.db_url:
                     if "SQLCLI_CONNECTION_URL" in os.environ:
                         # 从环境变量里头拼的连接字符串
-                        connect_parameters = [var for var in re.split(r'//|:|@|/', os.environ['SQLCLI_CONNECTION_URL']) if
-                                              var]
+                        connect_parameters = [var for var in re.split(r'//|:|@|/',
+                                                                      os.environ['SQLCLI_CONNECTION_URL']) if var]
                         if len(connect_parameters) == 6:
                             self.db_type = connect_parameters[1]
                             self.db_driver_type = connect_parameters[2]
@@ -294,7 +313,7 @@ class SQLCli(object):
                                                   self.db_host + ":" + self.db_port + "/" + self.db_service_name,
                                                   [self.db_username, self.db_password],
                                                   self.jar_file, )
-            self.sqlexecute.set_connection(self.db_conn)
+            self.SQLExecuteHandler.set_connection(self.db_conn)
         except Exception as e:  # Connecting to a database fail.
             print('traceback.print_exc():\n%s' % traceback.print_exc())
             print('traceback.format_exc():\n%s' % traceback.format_exc())
@@ -324,7 +343,7 @@ class SQLCli(object):
                 query = f.read()
         except IOError as e:
             return [(None, None, None, str(e))]
-        return self.sqlexecute.run(query)
+        return self.SQLExecuteHandler.run(query)
 
     # 设置一些选项
     def set_options(self, arg, **_):
@@ -332,7 +351,7 @@ class SQLCli(object):
             raise Exception("Missing required argument. set parameter parameter_value.")
         elif arg == "":
             m_Result = []
-            for key, value in self.sqlexecute.options.items():
+            for key, value in self.SQLExecuteHandler.options.items():
                 m_Result.append([str(key), str(value)])
             yield (
                 "Current set options: ",
@@ -344,9 +363,18 @@ class SQLCli(object):
             options_parameters = str(arg).split()
             if len(options_parameters) != 2:
                 raise Exception("Missing required argument. set parameter parameter_value.")
+
+            # 处理DEBUG选项
+            if options_parameters[0].upper() == "DEBUG":
+                if options_parameters[1].upper() == 'ON':
+                    os.environ['SQLCLI_DEBUG'] = "1"
+                else:
+                    if 'SQLCLI_DEBUG' in os.environ:
+                        del os.environ['SQLCLI_DEBUG']
+
             # 如果不是已知的选项，则直接抛出到SQL引擎
-            if options_parameters[0].upper() in self.sqlexecute.options:
-                self.sqlexecute.options[options_parameters[0].upper()] = options_parameters[1].upper()
+            if options_parameters[0].upper() in self.SQLExecuteHandler.options:
+                self.SQLExecuteHandler.options[options_parameters[0].upper()] = options_parameters[1].upper()
                 yield (
                     None,
                     None,
@@ -368,7 +396,7 @@ class SQLCli(object):
             Create_file(p_filename=str(matchObj.group(1)),
                         p_formula_str=str(matchObj.group(2)),
                         p_rows=int(matchObj.group(4)),
-                        p_options=self.sqlexecute.options)
+                        p_options=self.SQLExecuteHandler.options)
             yield (
                 None,
                 None,
@@ -391,120 +419,148 @@ class SQLCli(object):
         # 不认识的internal命令
         raise SQLCliException("Unknown internal Command. Please double check.")
 
+    # 逐条处理SQL语句
+    # 如果执行成功，返回true
+    # 如果执行失败，返回false
+    def one_iteration(self, text=None):
+        # 判断传入SQL语句， 如果没有传递，则表示控制台程序，需要用户输入SQL语句
+        if text is None:
+            full_text = None
+            while True:
+                # 用户一行一行的输入SQL语句
+                try:
+                    if full_text is None:
+                        text = self.prompt_app.prompt('SQL> ')
+                    else:
+                        text = self.prompt_app.prompt('   > ')
+                except KeyboardInterrupt:
+                    # KeyboardInterrupt 表示用户输入了CONTROL+C
+                    return True
+                # 拼接SQL语句
+                if full_text is None:
+                    full_text = text
+                else:
+                    full_text = full_text + '\n' + text
+                # 判断SQL语句是否已经结束
+                (ret_bSQLCompleted, ret_SQLSplitResults, ret_SQLSplitResultsWithComments) = SQLAnalyze(full_text)
+                if ret_bSQLCompleted:
+                    # SQL 语句已经结束
+                    break
+            text = full_text
+
+        # 如果文本是空行，直接跳过
+        if not text.strip():
+            return True
+
+        try:
+            # 执行需要的SQL语句
+            result = self.SQLExecuteHandler.run(text)
+
+            # 输出显示结果
+            self.formatter.query = text
+            for title, cur, headers, status in result:
+                # 不控制每行的长度
+                max_width = None
+
+                # title 包含原有语句的SQL信息，如果ECHO打开的话
+                # headers 包含原有语句的列名
+                # cur 是语句的执行结果
+                # output_format 输出格式
+                #   ascii              默认，即表格格式
+                #   vertical           分行显示，每行、每列都分行
+                #   csv                csv格式显示
+                formatted = self.format_output(
+                    title, cur, headers,
+                    self.SQLExecuteHandler.options["OUTPUT_FORMAT"].lower(),
+                    max_width
+                )
+
+                # 输出显示信息
+                try:
+                    self.output(formatted, status)
+                except KeyboardInterrupt:
+                    # 显示过程中用户按下了CTRL+C
+                    pass
+
+            # 返回正确执行的消息
+            return True
+        except EOFError as e:
+            # 当调用了exit或者quit的时候，会受到EOFError，这里直接抛出
+            raise e
+        except SQLCliException as e:
+            # 用户执行的SQL出了错误, 由于SQLExecute已经打印了错误消息，这里直接退出
+            self.output(None, e.message)
+            return False
+        except Exception as e:
+            if "SQLCLI_DEBUG" in os.environ:
+                print('traceback.print_exc():\n%s' % traceback.print_exc())
+                print('traceback.format_exc():\n%s' % traceback.format_exc())
+            self.echo(repr(e), err=True, fg="red")
+            return False
+
     # 主程序
     def run_cli(self):
-        iterations = 0
+        # 打开输出日志, 如果打开失败，就直接退出
+        try:
+            if self.logfilename is not None:
+                self.logfile = open(self.logfilename, mode="w", encoding="utf-8")
+        except IOError as e:
+            if "SQLCLI_DEBUG" in os.environ:
+                print('traceback.print_exc():\n%s' % traceback.print_exc())
+                print('traceback.format_exc():\n%s' % traceback.format_exc())
+            self.echo("Can not open logfile for write [" + self.logfilename + "]", err=True, fg="red")
+            self.echo(repr(e), err=True, fg="red")
+            sys.exit(1)
+
+        # 处理传递的映射文件
+        if self.sqlmap is not None:   # 如果传递的参数，有Mapping，以参数为准，先加载参数中的Mapping文件
+            self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, self.sqlmap)
+        elif "SQLCLI_SQLMAPPING" in os.environ:     # 如果没有参数，则以环境变量中的信息为准
+            self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, os.environ["SQLCLI_SQLMAPPING"])
+        else:  # 任何地方都没有sql mapping信息，设置QUERYREWRITE为OFF
+            self.SQLExecuteHandler.options["SQLREWRITE"] = "OFF"
 
         # 给Page做准备，PAGE显示的默认换页方式.
         if not os.environ.get("LESS"):
             os.environ["LESS"] = "-RXF"
 
+        # 如果参数要求不显示版本，则不再显示版本
         if not self.nologo:
-            print("SQL*Cli Release " + __version__)
-
-        def one_iteration(text=None):
-            # 判断传入SQL语句
-            if text is None:
-                full_text = None
-                while True:
-                    # 用户一行一行的输入SQL语句
-                    try:
-                        if full_text is None:
-                            text = self.prompt_app.prompt('SQL> ')
-                        else:
-                            text = self.prompt_app.prompt('   > ')
-                    except KeyboardInterrupt:
-                        return
-                    # 拼接SQL语句
-                    if full_text is None:
-                        full_text = text
-                    else:
-                        full_text = full_text + '\n' + text
-                    # 判断SQL语句是否已经结束
-                    (ret_bSQLCompleted, ret_SQLSplitResults, ret_SQLSplitResultsWithComments) = SQLAnalyze(full_text)
-                    if ret_bSQLCompleted:
-                        # SQL 语句已经结束
-                        break
-                text = full_text
-
-            # 如果文本是空行，直接跳过
-            if not text.strip():
-                return
-
-            try:
-                res = self.sqlexecute.run(text)
-
-                self.formatter.query = text
-                result_count = 0
-                for title, cur, headers, status in res:
-                    # prompt_app 默认列最长的宽度是119
-                    # max_width = self.prompt_app.output.get_size().columns
-                    max_width = None
-
-                    # title 包含原有语句的SQL信息，如果ECHO打开的话
-                    # headers 包含原有语句的列名
-                    # cur 是语句的执行结果
-                    # output_format 输出格式
-                    #   ascii              默认，即表格格式
-                    #   vertical           分行显示，每行、每列都分行
-                    #   csv                csv格式显示
-                    formatted = self.format_output(
-                        title, cur, headers,
-                        self.sqlexecute.options["OUTPUT_FORMAT"].lower(),
-                        max_width
-                    )
-
-                    try:
-                        if result_count > 0:
-                            self.echo("")
-                        try:
-                            self.output(formatted, status)
-                        except KeyboardInterrupt:
-                            pass
-                    except KeyboardInterrupt:
-                        pass
-
-                    result_count += 1
-            except EOFError as e:
-                raise e
-            except NotImplementedError:
-                self.echo("Not Yet Implemented.", fg="yellow")
-            except Exception as e:
-                print('traceback.print_exc():\n%s' % traceback.print_exc())
-                print('traceback.format_exc():\n%s' % traceback.format_exc())
-                self.echo(str(e), err=True, fg="red")
+            self.echo("SQL*Cli Release " + __version__)
 
         # 如果运行在脚本方式下，不在调用PromptSession
         # 调用PromptSession会导致程序在IDE下无法运行
+        # 对于脚本程序，在执行脚本完成后就会自动退出
         if self.sqlscript is None:
             self.prompt_app = PromptSession()
 
+        # 开始依次处理SQL语句
         try:
             # 如果环境变量中包含了SQLCLI_CONNECTION_JAR_NAME或者SQLCLI_CONNECTION_CLASS_NAME
             # 则直接加载
             if "SQLCLI_CONNECTION_JAR_NAME" in os.environ and \
                     "SQLCLI_CONNECTION_CLASS_NAME" in os.environ:
-                one_iteration('loaddriver ' +
-                              os.environ["SQLCLI_CONNECTION_JAR_NAME"] + ' ' + os.environ[
-                                  "SQLCLI_CONNECTION_CLASS_NAME"])
-                iterations += 1
+                self.one_iteration(
+                    'loaddriver ' +
+                    os.environ["SQLCLI_CONNECTION_JAR_NAME"] + ' ' +
+                    os.environ["SQLCLI_CONNECTION_CLASS_NAME"])
 
             # 如果用户制定了用户名，口令，尝试直接进行数据库连接
             if self.logon:
-                one_iteration("connect " + str(self.logon))
+                if not self.one_iteration("connect " + str(self.logon)):
+                    raise EOFError
 
             # 如果传递的参数中有SQL文件，先执行SQL文件, 执行完成后自动退出
             if self.sqlscript:
-                one_iteration('start ' + self.sqlscript)
-                iterations += 1
-                one_iteration('exit')
-                iterations += 1
+                self.one_iteration('start ' + self.sqlscript)
+                self.one_iteration('exit')
 
             # 循环从控制台读取命令
             while True:
-                one_iteration()
-                iterations += 1
+                if not self.one_iteration():
+                    raise EOFError
         except EOFError:
+            # 用户调用了Exit或者Quit信息
             self.echo("Disconnected.")
 
     def log_output(self, output):
@@ -539,7 +595,7 @@ class SQLCli(object):
             # 打印输出信息
             fits = True
             buf = []
-            output_via_pager = ((self.sqlexecute.options["PAGE"]).upper() == "ON")
+            output_via_pager = ((self.SQLExecuteHandler.options["PAGE"]).upper() == "ON")
             for i, line in enumerate(output, 1):
                 self.log_output(line)       # 输出文件中总是不考虑分页问题
                 if fits or output_via_pager:
