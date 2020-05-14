@@ -191,7 +191,7 @@ class SQLCli(object):
             raise SQLCliException("Please load driver first.")
 
         # 去掉为空的元素
-        connect_parameters = [var for var in re.split(r'//|:|@|/', arg) if var]
+        connect_parameters = [var for var in re.split(r'//|:|@| |/', arg) if var]
         if len(connect_parameters) == 8:
             # 指定了所有的数据库连接参数
             self.db_username = connect_parameters[0]
@@ -236,6 +236,42 @@ class SQLCli(object):
                     # 用户第一次连接，而且没有指定环境变量
                     raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
                                           "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
+        elif len(connect_parameters) == 4:
+            # 用户写法是connect user xxx password xxxx; 密码可能包含引号
+            if connect_parameters[0].upper() == "USER" and connect_parameters[2].upper() == "PASSWORD":
+                self.db_username = connect_parameters[1]
+                self.db_password = connect_parameters[3].replace("'","").replace('"',"")
+                if not self.db_url:
+                    if "SQLCLI_CONNECTION_URL" in os.environ:
+                        # 从环境变量里头拼的连接字符串
+                        connect_parameters = [var for var in re.split(r'//|:|@|/', os.environ['SQLCLI_CONNECTION_URL']) if
+                                              var]
+                        if len(connect_parameters) == 6:
+                            self.db_type = connect_parameters[1]
+                            self.db_driver_type = connect_parameters[2]
+                            self.db_host = connect_parameters[3]
+                            self.db_port = connect_parameters[4]
+                            self.db_service_name = connect_parameters[5]
+                            self.db_url = \
+                                connect_parameters[0] + ':' + connect_parameters[1] + ':' +\
+                                connect_parameters[2] + '://' + connect_parameters[3] + ':' + \
+                                connect_parameters[4] + ':/' + connect_parameters[5]
+                        else:
+                            print("db_type = [" + str(self.db_type) + "]")
+                            print("db_host = [" + str(self.db_host) + "]")
+                            print("db_port = [" + str(self.db_port) + "]")
+                            print("db_service_name = [" + str(self.db_service_name) + "]")
+                            print("db_url = [" + str(self.db_url) + "]")
+                            raise SQLCliException("Unexpeced env SQLCLI_CONNECTION_URL\n." +
+                                                  "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
+                    else:
+                        # 用户第一次连接，而且没有指定环境变量
+                        raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
+                                              "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
+        else:
+            # 不知道的参数写法
+            raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
+                                  "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
 
         # 连接数据库
         try:

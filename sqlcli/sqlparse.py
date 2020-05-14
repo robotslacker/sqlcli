@@ -1,6 +1,167 @@
 # -*- coding: utf-8 -*-
 import re
 import copy
+import os
+import shlex
+
+
+class SQLMapping(object):
+    # MappingList = { Mapping_Name : Mapping_Contents}
+    # Mapping_Contents = [ filename_pattern, match_roles[] ]
+    # match_roles = [ Key, Value]
+    m_SQL_MappingList = {}
+
+    def Load_SQL_Mappings(self, p_szTestScriptFileName, p_szSQLMappings):
+        m_SQL_Mappings = shlex.shlex(p_szSQLMappings)
+        m_SQL_Mappings.whitespace = ','
+        m_SQL_Mappings.quotes = "'"
+        m_SQL_Mappings.whitespace_split = True
+
+        # 如果没有传递脚本名称，则认为是在Console中执行
+        if p_szTestScriptFileName is None:
+            m_szTestScriptFileName = os.path.join(os.getcwd(), "dummy.txt")
+        else:
+            m_szTestScriptFileName = p_szTestScriptFileName
+
+        # 循环处理每一个Mapping信息
+        for m_SQL_MappingFile in list(m_SQL_Mappings):
+            m_SQL_MappingBaseName = None
+            m_SQL_MappingFullName = None
+            if os.path.exists(m_SQL_MappingFile):
+                # 用户提供的是全路径名
+                m_SQL_MappingBaseName = os.path.basename(m_SQL_MappingFile)  # 不包含路径的文件名
+                m_SQL_MappingFullName = m_SQL_MappingFile
+            elif os.path.exists(os.path.join(
+                    os.path.dirname(m_szTestScriptFileName),
+                    m_SQL_MappingFile + ".map")):
+                # 用户提供的是当前目录下的文件
+                m_SQL_MappingBaseName = os.path.basename(m_SQL_MappingFile)  # 不包含路径的文件名
+                m_SQL_MappingFullName = os.path.join(
+                    os.path.dirname(m_szTestScriptFileName),
+                    m_SQL_MappingFile + ".map"
+                )
+            else:
+                # 从系统目录中查找文件
+                if 'SQLCLI_HOME' in os.environ:
+                    if os.path.exists(os.path.join(
+                            os.path.join(os.environ['SQLCLI_HOME'], 'mapping'),
+                            m_SQL_MappingFile + ".map"
+                    )):
+                        m_SQL_MappingBaseName = os.path.basename(m_SQL_MappingFile)  # 不包含路径的文件名
+                        m_SQL_MappingFullName = os.path.join(
+                            os.path.join(os.environ['SQLCLI_HOME'], 'mapping'),
+                            m_SQL_MappingFile + ".map"
+                        )
+            if m_SQL_MappingFullName is None or m_SQL_MappingBaseName is None:
+                # 压根没有找到这个文件
+                if "SQLCLI_DEBUG" in os.environ:
+                    print("SQLCLI-0003::  Mapping file [" + m_SQL_MappingFile + "] not found.")
+                continue
+
+            # 加载配置文件
+            with open(m_SQL_MappingFullName, 'r') as f:
+                m_SQL_Mapping_Contents = f.readlines()
+
+            # 去掉配置文件中的注释信息, 包含空行，单行完全注释，以及文件行内注释的注释部分
+            m_nPos = 0
+            while m_nPos < len(m_SQL_Mapping_Contents):
+                if (m_SQL_Mapping_Contents[m_nPos].startswith('#') and
+                    not m_SQL_Mapping_Contents[m_nPos].startswith('#.')) or \
+                        len(m_SQL_Mapping_Contents[m_nPos]) == 0:
+                    m_SQL_Mapping_Contents.pop(m_nPos)
+                else:
+                    m_nPos = m_nPos + 1
+            for m_nPos in range(0, len(m_SQL_Mapping_Contents)):
+                if m_SQL_Mapping_Contents[m_nPos].find('#') != -1 and \
+                        not m_SQL_Mapping_Contents[m_nPos].startswith('#.'):
+                    m_SQL_Mapping_Contents[m_nPos] = \
+                        m_SQL_Mapping_Contents[m_nPos][0:m_SQL_Mapping_Contents[m_nPos].find('#')]
+
+            # 分段加载配置文件
+            m_inSection = False
+            m_szNamePattern = None
+            m_szMatchRules = []
+            m_szFileMatchRules = []
+            for m_szLine in m_SQL_Mapping_Contents:
+                m_szLine = m_szLine.strip()
+                if not m_inSection and m_szLine.startswith("#.") and m_szLine.endswith(':'):
+                    # 文件注释开始
+                    m_inSection = True
+                    m_szNamePattern = m_szLine[2:-1]  # 去掉开始的的#.以前最后的:
+                    m_szMatchRules = []
+                    continue
+                if m_inSection and m_szLine == "#.":
+                    # 文件注释结束
+                    m_szFileMatchRules.append([m_szNamePattern, m_szMatchRules])
+                    m_szNamePattern = None
+                    m_szMatchRules = []
+                    m_inSection = False
+                    continue
+                if m_inSection:
+                    # 文件配置段中的内容
+                    if m_szLine.find('=>') != -1:
+                        m_szMatchRule = [m_szLine[0:m_szLine.find('=>') - 1], m_szLine[m_szLine.find('=>') + 2:]]
+                        m_szMatchRules.append(m_szMatchRule)
+                    continue
+
+            # 每个文件的配置都加载到MappingList中
+            self.m_SQL_MappingList[m_SQL_MappingBaseName] = m_szFileMatchRules
+
+    @staticmethod
+    def ReplaceMacro_Env(p_arg):
+        m_EnvName = p_arg[0].replace("'", "").replace('"', "").strip()
+        if m_EnvName in os.environ:
+            return os.environ[m_EnvName]
+        else:
+            return ""
+
+    def ReplaceSQL(self, p_szSQL, p_Key, p_Value):
+        # 首先查找是否有匹配的内容，如果没有，直接返回
+        m_SearchResult = re.search(p_Key, p_szSQL)
+        if m_SearchResult is None:
+            return p_szSQL
+        else:
+            # 记录匹配到的内容
+            m_SearchedKey = m_SearchResult.group()
+
+        m_row_struct = re.split('[{}]', p_Value)
+        m_Value = ""
+        if len(m_row_struct) == 1:
+            m_Value = p_Value
+        else:
+            for m_nRowPos in range(0, len(m_row_struct)):
+                if re.search(r'env(.*)', m_row_struct[m_nRowPos], re.IGNORECASE):
+                    m_function_struct = re.split(r'[(,)]', m_row_struct[m_nRowPos])
+                    # 替换本地标识符:1
+                    for m_nPos in range(1, len(m_function_struct)):
+                        if m_function_struct[m_nPos] == ":1":
+                            m_function_struct[m_nPos] = m_SearchedKey
+                    # 执行替换函数
+                    if m_function_struct[0].upper() == "ENV":
+                        m_Value = self.ReplaceMacro_Env(m_function_struct[1:])
+
+        m_szSQL = re.sub(p_Key, m_Value, p_szSQL)
+        return m_szSQL
+
+    def RewriteSQL(self, p_szTestScriptFileName, p_szSQL):
+        # 检查是否存在sql mapping文件
+        if len(self.m_SQL_MappingList) == 0:
+            return p_szSQL
+
+        # 获得绝对文件名
+        m_TestScriptFileName = os.path.basename(p_szTestScriptFileName)
+
+        # 检查文件名是否匹配
+        m_New_SQL = p_szSQL
+        for m_MappingFiles in self.m_SQL_MappingList:  # 所有的SQL Mapping信息
+            m_MappingFile_Contents = self.m_SQL_MappingList[m_MappingFiles]  # 具体的一个SQL Mapping文件
+            for m_Mapping_Contents in m_MappingFile_Contents:  # 具体的一个映射信息
+                if re.match(m_Mapping_Contents[0], m_TestScriptFileName):  # 文件名匹配
+                    for (m_Key, m_Value) in m_Mapping_Contents[1]:  # 内容遍历
+                        m_Search_Result = re.search(m_Key, p_szSQL)  # 匹配了
+                        if m_Search_Result is not None:
+                            m_New_SQL = self.ReplaceSQL(p_szSQL, m_Key, m_Value)
+        return m_New_SQL
 
 
 def SQLFormatWithPrefix(p_szCommentSQLScript):
