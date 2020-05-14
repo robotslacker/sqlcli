@@ -1,0 +1,7 @@
+# mapping file example
+#..*:
+-
+Hello
++
+Bye
+#.

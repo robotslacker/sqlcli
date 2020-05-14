@@ -4,4 +4,4 @@ python setup.py sdist
 python setup.py bdist_wheel --universal
 pip uninstall --yes robotslacker_sqlcli
 python setup.py install
-twine upload dist/*
+REM twine upload dist/*

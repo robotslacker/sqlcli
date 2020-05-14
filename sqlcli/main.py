@@ -49,12 +49,14 @@ class SQLCli(object):
     nologo = None
     logon = None
     logfile = None
+    sqlmap = None
 
     def __init__(
             self,
             logon=None,
             logfilename=None,
             sqlscript=None,
+            sqlmap=None,
             nologo=None
     ):
         self.sqlexecute = SQLExecute()
@@ -65,6 +67,7 @@ class SQLCli(object):
         self.sqlscript = sqlscript
         self.nologo = nologo
         self.logon = logon
+        self.sqlmap = sqlmap
 
         self.formatter = TabularOutputFormatter(format_name='ascii')
         self.formatter.sqlcli = self
@@ -88,6 +91,15 @@ class SQLCli(object):
             ".loaddriver",
             "load JDBC driver .",
             aliases=("loaddriver", "\\l"),
+        )
+
+        # 加载SQL映射文件
+        register_special_command(
+            self.load_sqlmap,
+            ".loadsqlmap",
+            ".loadsqlmap",
+            "load SQL Mapping file .",
+            aliases=("loadsqlmap", "\\l"),
         )
 
         # 连接数据库
@@ -159,6 +171,22 @@ class SQLCli(object):
             'Driver loaded.'
         )
 
+    # 加载数据库SQL映射
+    def load_sqlmap(self, arg, **_):
+        # 处理文件名，也可能是多个文件名
+        # 加载文件, 如果是全路径名，直接用，否则从SQLCLI_HOME/data中查找
+
+        file_pattern, mattch_pattern[src, dest]
+
+        #.file_pattern:                     # 定义是否需要
+        - src1
+        + dest1
+        ===========================
+        - src2
+        + dest2
+        #.
+        pass
+
     # 连接数据库
     def connect_db(self, arg, **_):
         if arg is None:
@@ -226,14 +254,14 @@ class SQLCli(object):
                                                   'jdbc:' + self.db_type + ":" + self.db_driver_type + ":@" +
                                                   self.db_host + ":" + self.db_port + "/" + self.db_service_name,
                                                   [self.db_username, self.db_password],
-                                                  self.jar_file, )
+                                                  [self.jar_file, ])
             elif self.db_type.upper() == "LINKOOPDB":
                 self.db_conn = jaydebeapi.connect(self.driver_class,
                                                   'jdbc:' + self.db_type + ":" + self.db_driver_type + "://" +
                                                   self.db_host + ":" + self.db_port + "/" + self.db_service_name +
                                                   ";query_iterator=1",
                                                   [self.db_username, self.db_password],
-                                                  self.jar_file, )
+                                                  [self.jar_file, ])
             else:
                 self.db_conn = jaydebeapi.connect(self.driver_class,
                                                   'jdbc:' + self.db_type + ":" + self.db_driver_type + "://" +
@@ -574,12 +602,14 @@ class SQLCli(object):
     help="Log every query and its results to a file.",
 )
 @click.option("--execute", type=str, help="Execute SQL script.")
+@click.option("--sqlmap", type=str, help="SQL Mapping file.")
 @click.option("--nologo", is_flag=True, help="Execute with silent mode.")
 def cli(
         version,
         logon,
         logfile,
         execute,
+        sqlmap,
         nologo
 ):
     if version:
@@ -590,6 +620,7 @@ def cli(
         logfilename=logfile,
         logon=logon,
         sqlscript=execute,
+        sqlmap=sqlmap,
         nologo=nologo
     )
 
