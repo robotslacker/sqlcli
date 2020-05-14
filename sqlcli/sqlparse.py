@@ -387,7 +387,10 @@ def SQLAnalyze(p_SQLCommandPlainText):
 
     # 去掉注释信息中的最后一个回车换行符
     for m_nPos in range(0, len(SQLSplitResultsWithComments)):
-        if SQLSplitResultsWithComments[m_nPos][-1:] == '\n':
-            SQLSplitResultsWithComments[m_nPos] = SQLSplitResultsWithComments[m_nPos][:-1]
+        if SQLSplitResultsWithComments[m_nPos] is not None:
+            if SQLSplitResultsWithComments[m_nPos][-1:] == '\n':
+                SQLSplitResultsWithComments[m_nPos] = SQLSplitResultsWithComments[m_nPos][:-1]
+        else:
+            SQLSplitResultsWithComments[m_nPos] = ""
 
     return not m_bInMultiLineSQL, SQLSplitResults, SQLSplitResultsWithComments

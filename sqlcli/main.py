@@ -175,16 +175,6 @@ class SQLCli(object):
     def load_sqlmap(self, arg, **_):
         # 处理文件名，也可能是多个文件名
         # 加载文件, 如果是全路径名，直接用，否则从SQLCLI_HOME/data中查找
-
-        file_pattern, mattch_pattern[src, dest]
-
-        #.file_pattern:                     # 定义是否需要
-        - src1
-        + dest1
-        ===========================
-        - src2
-        + dest2
-        #.
         pass
 
     # 连接数据库
