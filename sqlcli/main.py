@@ -535,7 +535,7 @@ class SQLCli(object):
 
         # 如果参数要求不显示版本，则不再显示版本
         if not self.nologo:
-            self.echo("SQL*Cli Release " + __version__)
+            self.echo("SQLCli Release " + __version__)
 
         # 如果运行在脚本方式下，不在调用PromptSession
         # 调用PromptSession会导致程序在IDE下无法运行
