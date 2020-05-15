@@ -32,19 +32,18 @@ class SQLMapping(object):
         for m_SQL_MappingFile in list(m_SQL_Mappings):
             m_SQL_MappingBaseName = None
             m_SQL_MappingFullName = None
-            if os.path.exists(m_SQL_MappingFile):
+            if os.path.isfile(m_SQL_MappingFile):
                 # 用户提供的是全路径名
                 m_SQL_MappingBaseName = os.path.basename(m_SQL_MappingFile)  # 不包含路径的文件名
-                m_SQL_MappingFullName = m_SQL_MappingFile
-            elif os.path.exists(os.path.join(
+                m_SQL_MappingFullName = os.path.abspath(m_SQL_MappingFile)
+            elif os.path.isfile(os.path.join(
                     os.path.dirname(m_szTestScriptFileName),
                     m_SQL_MappingFile + ".map")):
                 # 用户提供的是当前目录下的文件
-                m_SQL_MappingBaseName = os.path.basename(m_SQL_MappingFile)  # 不包含路径的文件名
-                m_SQL_MappingFullName = os.path.join(
+                 m_SQL_MappingBaseName = os.path.basename(m_SQL_MappingFile)  # 不包含路径的文件名
+                 m_SQL_MappingFullName = os.path.join(
                     os.path.dirname(m_szTestScriptFileName),
-                    m_SQL_MappingFile + ".map"
-                )
+                    m_SQL_MappingFile + ".map")
             else:
                 # 从系统目录中查找文件
                 if 'SQLCLI_HOME' in os.environ:
@@ -64,6 +63,8 @@ class SQLMapping(object):
                 continue
 
             # 加载配置文件
+            if "SQLCLI_DEBUG" in os.environ:
+                print("Loading ... [" + m_SQL_MappingFullName + "]")
             with open(m_SQL_MappingFullName, 'r') as f:
                 m_SQL_Mapping_Contents = f.readlines()
 
@@ -181,13 +182,17 @@ def SQLFormatWithPrefix(p_szCommentSQLScript, p_szOutputPrefix=""):
             del m_CommentSQLLists[-1]
         else:
             break
+
     # 拼接字符串
+    bSQLPrefix = 'SQL> '
     for m_nPos in range(0, len(m_CommentSQLLists)):
         if m_nPos == 0:
-            m_FormattedString = p_szOutputPrefix + 'SQL> ' + m_CommentSQLLists[m_nPos]
+            m_FormattedString = p_szOutputPrefix + bSQLPrefix + m_CommentSQLLists[m_nPos]
         else:
             m_FormattedString = \
-                m_FormattedString + '\n' + p_szOutputPrefix + '   > ' + m_CommentSQLLists[m_nPos]
+                m_FormattedString + '\n' + p_szOutputPrefix + bSQLPrefix + m_CommentSQLLists[m_nPos]
+        if len(m_CommentSQLLists[m_nPos].strip()) != 0:
+            bSQLPrefix = '   > '
     return m_FormattedString
 
 

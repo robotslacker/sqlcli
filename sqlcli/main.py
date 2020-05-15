@@ -512,6 +512,7 @@ class SQLCli(object):
         try:
             if self.logfilename is not None:
                 self.logfile = open(self.logfilename, mode="w", encoding="utf-8")
+                self.SQLExecuteHandler.logfile = self.logfile
         except IOError as e:
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())

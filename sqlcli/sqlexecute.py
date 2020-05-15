@@ -166,7 +166,7 @@ class SQLExecute(object):
                             m_row.append(column)
                     m_row = tuple(m_row)
                     result.append(m_row)
-                    rowcount = rowcount + 1
+            rowcount = rowcount + len(rowset)
             if len(rowset) < m_arraysize:
                 # 已经没有什么可以取的了, 游标结束
                 m_FetchStatus = False
