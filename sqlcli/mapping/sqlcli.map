@@ -1,7 +1,4 @@
 # mapping file example
 #..*:
--
-Hello
-+
-Bye
+((?i)CREATE TABLE .*\))=>\1 engine pallas      # 将在所有的CREATE TABLE语句后面添加engine pallas 字样
 #.

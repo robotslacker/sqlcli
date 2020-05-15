@@ -9,7 +9,7 @@ SQLCli 是一个Python程序，通过jaydebeapi连接数据库的JDBC驱动。
 ***
 ### 安装
 安装的前提有：
-   * 有一个Python 3.6以上的Anacoda环境，其他环境的Python版本在Windows下由于无法降级jpype，所以无法使用
+   * 有一个Python 3.6以上的环境
    * 能够连接到互联网上， 便于下载必要的包
    * 安装JDK8
    * 对于Windows平台，还需要提前安装微软的C++编译器（Jaydebeapi安装过程中需要动态编译jpype）  
@@ -30,7 +30,7 @@ SQLCli 是一个Python程序，通过jaydebeapi连接数据库的JDBC驱动。
 如果你的$PYTHON_HOME/Scripts没有被添加到当前环境的$PATH中，你可能需要输入全路径名  
 ```
 (base) >sqlcli
-SQL*Cli Release 0.0.13
+SQL*Cli Release 0.0.32
 SQL> 
 ```
 如果你这里看到了版本信息，那祝贺你，你的安装成功了
@@ -52,12 +52,12 @@ Options:
 --version 用来显示当前工具的版本号
 ```
 (base) sqlcli --version
-Version: 0.0.13
+Version: 0.0.32
 ```
 --logon  用来输入连接数据的的用户名和口令
 ```
 (base) sqlcli --logon user/pass
-Version: 0.0.13
+Version: 0.0.32
 Driver loaded.
 Database connected.
 SQL>
@@ -83,7 +83,7 @@ user/pass : 数据库连接的用户名和口令
 如果你在随后的命令行里头设置了set ECHO ON，那么记录里头还包括了你所有执行的SQL语句原信息  
 ```
 (base) sqlcli --logon user/pass --logfile test.log
-Version: 0.0.13
+Version: 0.0.32
 Driver loaded.
 Database connected.
 set echo on
@@ -120,7 +120,7 @@ Disconnected.
 select * from test_tab;
 
 (base) sqlcli --logon user/pass --execute test.sql
-Version: 0.0.13
+Version: 0.0.32
 Driver loaded.
 Database connected.
 set echo on
@@ -139,7 +139,7 @@ Disconnected.
 --nologo    这是一个选项，用来控制sqlcli是否会在连接的时候显示当前的程序版本
 ```
 (base) sqlcli 
-SQL*Cli Release 0.0.13
+SQL*Cli Release 0.0.32
 SQL>   
 区别：
 (base) sqlcli --nologo
@@ -150,14 +150,16 @@ SQL>
 在sqlcli命令行里头，可以通过load命令来加载数据库驱动文件。
 ```
 (base) sqlcli 
-SQL*Cli Release 0.0.13
+SQL*Cli Release 0.0.32
 SQL> loaddriver  xxxxx-jdbc-x.x.x.jar   com.xxxx.xxxxxxx.jdbc.JdbcDriver 
 Driver loaded.
 SQL> 
 
 这里具体的写法应查询相应数据库产品的JDBC文档  
-jar包必须放置在sqlcli程序能够访问到的目录下，如果不在当前目录下，这里需要写入相对或者绝对路径，比如: dir1\xxxxx-jdbc-x.x.x.jar  
-  
+loaddrvier 命令的Jar包查找顺序：
+  1. 如果给出的是绝对路径，或者相对用户当前目录的相对目录，那么以这个目录为准
+  2. 如果在上述目录下没有找到文件，则会在脚本目录的相对目录开始查找
+
 再次执行loaddriver命令，则会断开当前的数据库连接，并重新加载新的驱动。load后，下次执行的数据库操作将依赖新的加载包  
 ```
 ***
@@ -165,7 +167,7 @@ jar包必须放置在sqlcli程序能够访问到的目录下，如果不在当�
 在sqlcli命令行里头，可以通过connect命令来连接到具体的数据库
 ```
 (base) sqlcli 
-SQL*Cli Release 0.0.13
+SQL*Cli Release 0.0.32
 SQL> connect user/pass@jdbc:[数据库类型]:[数据库通讯协议]://[数据库主机地址]:[数据库端口号]/[数据库服务名] 
 Database connected.
 SQL> 
@@ -173,14 +175,14 @@ SQL>
 
 如果已经在环境变量中指定了SQLCLI_CONNECTION_URL，连接可以简化为
 (base) sqlcli 
-SQL*Cli Release 0.0.13
+SQL*Cli Release 0.0.32
 SQL> connect user/pass
 Database connected.
 SQL> 
 
 在数据库第一次连接后，第二次以及以后的连接可以不再输入连接字符串，程序会默认使用上一次已经使用过的连接字符串信息，比如：
 (base) sqlcli 
-SQL*Cli Release 0.0.13
+SQL*Cli Release 0.0.32
 SQL> connect user/pass@jdbc:[数据库类型]:[数据库通讯协议]://[数据库主机地址]:[数据库端口号]/[数据库服务名] 
 Database connected.
 SQL> connect user2/pass2
@@ -222,6 +224,21 @@ Mapping file loaded.
         文件定义终止符
 
     每一个MAP文件里，可以循环反复多个这样的类似配置，每一个配置段都会生效
+
+重写SQL的日志显示：
+    被重写后的SQL在日志中有明确的标志信息，比如：
+        SQL> CREATE TABLE T_TEST(
+           > id int,
+           > name varchar(30),
+           > salary int
+           > );
+        REWROTED SQL> Your SQL has been changed to:
+        REWROTED    > CREATE TABLE T_TEST(
+        REWROTED    > id int,
+        REWROTED    > name varchar(30),
+        REWROTED    > salary int
+        REWROTED    > ) engine pallas
+     这里第一段是SQL文件中的原信息，带有REWROTED的信息是被改写后的信息
 
 ```
 

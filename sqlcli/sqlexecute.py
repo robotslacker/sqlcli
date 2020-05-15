@@ -7,6 +7,7 @@ from .commandanalyze import CommandNotFound
 from .sqlcliexception import SQLCliException
 import click
 import time
+import os
 
 _logger = logging.getLogger(__name__)
 
@@ -60,9 +61,11 @@ class SQLExecute(object):
                 if old_sql != sql:
                     if self.options["ECHO"] == 'ON' and self.logfile is not None:
                         # SQL已经发生了改变
-                        click.echo(SQLFormatWithPrefix(sql, '!!!'), file=self.logfile)
+                        click.echo(SQLFormatWithPrefix(
+                            "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
                     if self.sqlscript is not None:
-                        click.secho(SQLFormatWithPrefix(sql, '!!!'))
+                        click.secho(SQLFormatWithPrefix(
+                            "Your SQL has been changed to:\n" + sql, 'REWROTED '))
 
             # 如果是空语句，不在执行
             if len(sql.strip()) == 0:
@@ -100,8 +103,20 @@ class SQLExecute(object):
                 # 执行正常的SQL语句
                 if cur is not None:
                     try:
+                        if "SQLCLI_DEBUG" in os.environ:
+                            print("DEBUG:: Execute SQL > [" + sql + "]")
                         cur.execute(sql)
-                        yield self.get_result(cur)
+                        if "SQLCLI_DEBUG" in os.environ:
+                            print("DEBUG:: Fetch Result> [" + sql + "]")
+
+                        rowcount = 0
+                        while True:
+                            (title, result, headers, status, m_FetchStatus, m_FetchedRows) = \
+                                self.get_result(cur, rowcount)
+                            rowcount = m_FetchedRows
+                            yield title,result,headers,status
+                            if not m_FetchStatus:
+                                break
                     except Exception as e:
                         if (
                                 str(e).find("SQLSyntaxErrorException") != -1 or
@@ -128,9 +143,10 @@ class SQLExecute(object):
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
                     yield None, None, None, 'Running time elapsed: %8.2f Seconds' % (end - start)
 
-    def get_result(self, cursor):
+    def get_result(self, cursor, rowcount):
         """Get the current result's data from the cursor."""
         title = headers = None
+        m_FetchStatus = True
 
         # cursor.description is not None for queries that return result sets,
         # e.g. SELECT.
@@ -138,35 +154,38 @@ class SQLExecute(object):
         if cursor.description is not None:
             headers = [x[0] for x in cursor.description]
             status = "{0} row{1} selected."
-            rowcount = 0
-            while True:
-                m_arraysize = int(self.options["ARRAYSIZE"])
-                rowset = list(cursor.fetchmany(m_arraysize))
-                if self.options['TERMOUT'] != 'OFF':
-                    for row in rowset:
-                        m_row = []
-                        for column in row:
-                            if str(type(column)).find('JDBCClobClient') != -1:
-                                m_row.append(column.getSubString(1, int(self.options["LONG"])))
-                            else:
-                                m_row.append(column)
-                        m_row = tuple(m_row)
-                        result.append(m_row)
-                rowcount = rowcount + len(rowset)
-                if len(rowset) < m_arraysize:
-                    # 已经没有什么可以取的了, 游标结束
-                    break
+            m_arraysize = int(self.options["ARRAYSIZE"])
+            rowset = list(cursor.fetchmany(m_arraysize))
+            if self.options['TERMOUT'] != 'OFF':
+                for row in rowset:
+                    m_row = []
+                    for column in row:
+                        if str(type(column)).find('JDBCClobClient') != -1:
+                            m_row.append(column.getSubString(1, int(self.options["LONG"])))
+                        else:
+                            m_row.append(column)
+                    m_row = tuple(m_row)
+                    result.append(m_row)
+                    rowcount = rowcount + 1
+            if len(rowset) < m_arraysize:
+                # 已经没有什么可以取的了, 游标结束
+                m_FetchStatus = False
+
         else:
-            _logger.debug("No rows in result.")
             status = "{0} row{1} affected"
             rowcount = 0 if cursor.rowcount == -1 else cursor.rowcount
             result = None
+            m_FetchStatus = False
 
-        if self.options['FEEDBACK'] == 'ON':
+        # 只要不是最后一次打印，不再返回status内容
+        if m_FetchStatus:
+            status = None
+
+        if self.options['FEEDBACK'] == 'ON' and status is not None:
             status = status.format(rowcount, "" if rowcount == 1 else "s")
         else:
             status = None
         if self.options['TERMOUT'] == 'OFF':
-            return title, [], headers, status
+            return title, [], headers, status, m_FetchStatus, rowcount
         else:
-            return title, result, headers, status
+            return title, result, headers, status, m_FetchStatus, rowcount

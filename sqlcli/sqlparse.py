@@ -14,7 +14,7 @@ class SQLMapping(object):
     def Load_SQL_Mappings(self, p_szTestScriptFileName, p_szSQLMappings):
         # 如果不带任何参数，或者参数为空，则清空SQLMapping信息
         if p_szSQLMappings is None:
-            m_SQL_MappingList = {}
+            self.m_SQL_MappingList = {}
             return
 
         m_SQL_Mappings = shlex.shlex(p_szSQLMappings)
