@@ -12,6 +12,11 @@ class SQLMapping(object):
     m_SQL_MappingList = {}
 
     def Load_SQL_Mappings(self, p_szTestScriptFileName, p_szSQLMappings):
+        # 如果不带任何参数，或者参数为空，则清空SQLMapping信息
+        if p_szSQLMappings is None:
+            m_SQL_MappingList = {}
+            return
+
         m_SQL_Mappings = shlex.shlex(p_szSQLMappings)
         m_SQL_Mappings.whitespace = ','
         m_SQL_Mappings.quotes = "'"
@@ -166,7 +171,7 @@ class SQLMapping(object):
         return m_New_SQL
 
 
-def SQLFormatWithPrefix(p_szCommentSQLScript):
+def SQLFormatWithPrefix(p_szCommentSQLScript, p_szOutputPrefix=""):
     # 把所有的SQL换行, 第一行加入[SQL >]， 随后加入[   >]
     m_FormattedString = None
     m_CommentSQLLists = p_szCommentSQLScript.split('\n')
@@ -179,10 +184,10 @@ def SQLFormatWithPrefix(p_szCommentSQLScript):
     # 拼接字符串
     for m_nPos in range(0, len(m_CommentSQLLists)):
         if m_nPos == 0:
-            m_FormattedString = 'SQL> ' + m_CommentSQLLists[m_nPos]
+            m_FormattedString = p_szOutputPrefix + 'SQL> ' + m_CommentSQLLists[m_nPos]
         else:
             m_FormattedString = \
-                m_FormattedString + '\n' + '   > ' + m_CommentSQLLists[m_nPos]
+                m_FormattedString + '\n' + p_szOutputPrefix + '   > ' + m_CommentSQLLists[m_nPos]
     return m_FormattedString
 
 
@@ -369,7 +374,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 continue
 
             # 如果本行每行没有包含任何关键字信息，则直接返回
-            strRegexPattern = r'^(\s+)?CREATE(\s+)?|^(\s+)?SELECT(\s+)?|^(\s+)?UPDATE(\s+)?|' \
+            strRegexPattern = r'^(\s+)?CREATE(\s+)?|^(\s+)?(\()?SELECT(\s+)?|^(\s+)?UPDATE(\s+)?|' \
                               r'^(\s+)?DELETE(\s+)?|^(\s+)?INSERT(\s+)?|^(\s+)?__INTERNAL__(\s+)?|' \
                               r'^(\s+)?DROP(\s+)?|^(\s+)?REPLACE(\s+)?|^(\s+)?LOAD(\s+)?|' \
                               r'^(\s+)?MERGE(\s+)?'

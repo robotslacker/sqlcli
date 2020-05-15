@@ -60,11 +60,9 @@ class SQLExecute(object):
                 if old_sql != sql:
                     if self.options["ECHO"] == 'ON' and self.logfile is not None:
                         # SQL已经发生了改变
-                        click.echo('---> SQL OVERWROTE:\n' +
-                                   SQLFormatWithPrefix(sql), file=self.logfile)
+                        click.echo(SQLFormatWithPrefix(sql, '!!!'), file=self.logfile)
                     if self.sqlscript is not None:
-                        click.secho('---> SQL OVERWROTE:\n' +
-                                    SQLFormatWithPrefix(sql))
+                        click.secho(SQLFormatWithPrefix(sql, '!!!'))
 
             # 如果是空语句，不在执行
             if len(sql.strip()) == 0:

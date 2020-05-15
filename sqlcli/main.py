@@ -66,7 +66,8 @@ class SQLCli(object):
             logfilename=None,
             sqlscript=None,
             sqlmap=None,
-            nologo=None
+            nologo=None,
+            breakwitherror=False
     ):
         # 初始化SQLExecute和SQLMap
         self.SQLExecuteHandler = SQLExecute()
@@ -92,6 +93,10 @@ class SQLCli(object):
 
         # 加载一些特殊的命令
         self.register_special_commands()
+
+        # 设置WHENEVER_SQLERROR
+        if breakwitherror:
+            self.SQLExecuteHandler.options["WHENEVER_SQLERROR"] = "EXIT"
 
     def register_special_commands(self):
 
@@ -500,6 +505,9 @@ class SQLCli(object):
 
     # 主程序
     def run_cli(self):
+        # 程序运行的结果
+        m_runCli_Result = True
+
         # 打开输出日志, 如果打开失败，就直接退出
         try:
             if self.logfilename is not None:
@@ -510,7 +518,7 @@ class SQLCli(object):
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
             self.echo("Can not open logfile for write [" + self.logfilename + "]", err=True, fg="red")
             self.echo(repr(e), err=True, fg="red")
-            sys.exit(1)
+            return False
 
         # 处理传递的映射文件
         if self.sqlmap is not None:   # 如果传递的参数，有Mapping，以参数为准，先加载参数中的Mapping文件
@@ -548,20 +556,25 @@ class SQLCli(object):
             # 如果用户制定了用户名，口令，尝试直接进行数据库连接
             if self.logon:
                 if not self.one_iteration("connect " + str(self.logon)):
+                    m_runCli_Result = False
                     raise EOFError
 
             # 如果传递的参数中有SQL文件，先执行SQL文件, 执行完成后自动退出
             if self.sqlscript:
-                self.one_iteration('start ' + self.sqlscript)
+                if not self.one_iteration('start ' + self.sqlscript):
+                    m_runCli_Result = False
+                    raise EOFError
                 self.one_iteration('exit')
 
             # 循环从控制台读取命令
             while True:
                 if not self.one_iteration():
+                    m_runCli_Result = False
                     raise EOFError
         except EOFError:
             # 用户调用了Exit或者Quit信息
             self.echo("Disconnected.")
+            return m_runCli_Result
 
     def log_output(self, output):
         if self.logfile:
