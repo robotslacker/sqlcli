@@ -5,6 +5,7 @@ import traceback
 from io import open
 import jaydebeapi
 import re
+import time
 
 from cli_helpers.tabular_output import TabularOutputFormatter
 from cli_helpers.tabular_output import preprocessors
@@ -124,11 +125,27 @@ class SQLCli(object):
             hidden=False
         )
 
+        # 断开连接数据库
+        register_special_command(
+            handler=self.disconnect_db,
+            command="disconnect",
+            description="Disconnect database .",
+            hidden=False
+        )
+
         # 从文件中执行脚本
         register_special_command(
             self.execute_from_file,
             command="start",
             description="Execute commands from file.",
+            hidden=False
+        )
+
+        # sleep一段时间
+        register_special_command(
+            self.sleep,
+            command="sleep",
+            description="Sleep some time (seconds)",
             hidden=False
         )
 
@@ -337,6 +354,38 @@ class SQLCli(object):
             None,
             'Database connected.'
         )
+
+    # 断开数据库连接
+    def disconnect_db(self, arg, **_):
+        if arg:
+            return [(None, None, None, "unnecessary parameter")]
+        if self.db_conn:
+            self.db_conn.close()
+        self.db_conn = None
+        self.SQLExecuteHandler.conn = None
+        yield (
+            None,
+            None,
+            None,
+            'Database disconnected.'
+        )
+
+    # 休息一段时间
+    @staticmethod
+    def sleep(arg, **_):
+        if not arg:
+            message = "Missing required argument, sleep [seconds]."
+            return [(None, None, None, message)]
+        try:
+            m_Sleep_Time = int(arg)
+            if m_Sleep_Time <= 0:
+                message = "Parameter must be a valid number, sleep [seconds]."
+                return [(None, None, None, message)]
+        except ValueError:
+            message = "Parameter must be a number, sleep [seconds]."
+            return [(None, None, None, message)]
+        time.sleep(m_Sleep_Time)
+        return [(None, None, None, None)]
 
     # 从文件中执行SQL
     def execute_from_file(self, arg, **_):

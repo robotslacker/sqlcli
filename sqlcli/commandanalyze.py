@@ -87,6 +87,7 @@ def register_special_command(
         handler, command, description, arg_type, hidden, case_sensitive
     )
 
+
 @export
 def execute(cur, sql):
     """Execute a special command and return the results. If the special command
@@ -122,7 +123,7 @@ def show_help():  # All the parameters are ignored.
 
     for _, value in sorted(COMMANDS.items()):
         if not value.hidden:
-            result.append((value.command,value.description))
+            result.append((value.command, value.description))
     return [(None, result, headers, None)]
 
 

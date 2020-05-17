@@ -76,6 +76,8 @@ class SQLExecute(object):
                 sql.startswith("loaddriver")
                 or sql.startswith("loadsqlmap")
                 or sql.startswith("connect")
+                or sql.startswith("disconnect")
+                or sql.startswith("sleep")
                 or sql.startswith("start")
                 or sql.startswith("__internal__")
                 or sql.startswith("help")
