@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+import threading
 import traceback
 from io import open
 import jaydebeapi
+import jpype
 import re
 import time
+from multiprocessing import Process, Manager
 
 from cli_helpers.tabular_output import TabularOutputFormatter
 from cli_helpers.tabular_output import preprocessors
@@ -61,6 +64,27 @@ class SQLCli(object):
     # 屏幕控制程序
     prompt_app = None
 
+    # 目前程序运行的当前SQL
+    m_Current_RunningSQL = None
+    m_Current_RunningStarted = None
+
+    # 目前程序的终止状态
+    m_Current_RunningStatus = None
+
+    # 程序停止标志
+    m_Stop_Flag = False
+
+    # 后台进程队列
+    # JOB#, Script_Name, Status, Current_SQL, SQL_Started, Conn, LogFile
+    m_BackGround_Jobs = None
+    m_Max_JobID = 0            # 当前的最大JOBID
+
+    # 屏幕输出
+    NoConsole = False
+
+    # 性能分析日志输出
+    m_SQLPerf = None
+
     def __init__(
             self,
             logon=None,
@@ -68,7 +92,10 @@ class SQLCli(object):
             sqlscript=None,
             sqlmap=None,
             nologo=None,
-            breakwitherror=False
+            breakwitherror=False,
+            sqlperf=None,
+            noconsole=False,
+            WorkerName=None
     ):
         # 初始化SQLExecute和SQLMap
         self.SQLExecuteHandler = SQLExecute()
@@ -80,11 +107,16 @@ class SQLCli(object):
         self.nologo = nologo
         self.logon = logon
         self.logfilename = logfilename
+        self.NoConsole = noconsole
+        self.m_SQLPerf = sqlperf
 
         # 设置其他的变量
         self.SQLExecuteHandler.sqlscript = sqlscript
         self.SQLExecuteHandler.SQLMappingHandler = self.SQLMappingHandler
         self.SQLExecuteHandler.logfile = self.logfile
+        self.SQLExecuteHandler.NoConsole = self.NoConsole
+        self.SQLExecuteHandler.SQLPerfFile = self.m_SQLPerf
+        self.SQLExecuteHandler.m_Worker_Name = WorkerName
 
         # 默认的输出格式
         self.formatter = TabularOutputFormatter(format_name='ascii')
@@ -157,6 +189,46 @@ class SQLCli(object):
             hidden=False
         )
 
+        # 提交后台SQL任务
+        register_special_command(
+            self.submit_job,
+            command="Submitjob",
+            description="Submit Jobs",
+            hidden=False
+        )
+
+        # 开始运行后台SQL任务
+        register_special_command(
+            self.startjob,
+            command="StartJob",
+            description="Start Jobs",
+            hidden=False
+        )
+
+        # 平和关闭后台SQL任务
+        register_special_command(
+            self.shutdown_job,
+            command="shutdownjob",
+            description="Shutdown Jobs",
+            hidden=False
+        )
+
+        # 强制关闭后台SQL任务
+        register_special_command(
+            self.abort_job,
+            command="abortjob",
+            description="Abort Jobs",
+            hidden=False
+        )
+
+        # 查看各种信息
+        register_special_command(
+            self.show_job,
+            command="showjob",
+            description="show informations",
+            hidden=False
+        )
+
         # 执行特殊的命令
         register_special_command(
             self.execute_internal_command,
@@ -164,6 +236,59 @@ class SQLCli(object):
             description="execute internal command.",
             hidden=False
         )
+
+        # 退出当前应用程序
+        register_special_command(
+            self.exit,
+            command="exit",
+            description="Exit program.",
+            hidden=False
+        )
+
+    # 设置停止标志。 在程序Sleep的时候，如果收到Stop标志，就会停止程序继续运行
+    def Set_StopFlag(self):
+        self.m_Stop_Flag = True
+
+    # 退出当前应用程序
+    def exit(self, arg, **_):
+        if arg is not None and len(arg) != 0:
+            raise SQLCliException("Unnecessary parameter. Use exit.")
+
+        # 没有后台作业
+        if self.m_BackGround_Jobs is None:
+            raise EOFError
+
+        # 如果运行在脚本模式下，则一直等待子进程退出后再退出
+        if self.sqlscript is not None:
+            while True:
+                m_ExitStauts = True
+                # 如果后面还有需要的作业完成没有完成，拒绝退出应用程序
+                for m_BackGround_Job in self.m_BackGround_Jobs:
+                    if m_BackGround_Job["EndTime"] is None and m_BackGround_Job["StartedTime"] is not None:
+                        m_ExitStauts = False
+                        break
+                if m_ExitStauts:
+                    # 所有子进程都已经退出了
+                    break
+                time.sleep(3)
+
+        # 检查是否所有进程都已经退出
+        m_ExitStauts = True
+        # 如果后面还有需要的作业完成没有完成，拒绝退出应用程序
+        for m_BackGround_Job in self.m_BackGround_Jobs:
+            if m_BackGround_Job["EndTime"] is None and m_BackGround_Job["StartedTime"] is not None:
+                m_ExitStauts = False
+                break
+
+        # 正常退出程序
+        if m_ExitStauts:
+            raise EOFError
+        else:
+            yield (
+                None,
+                None,
+                None,
+                "Please wait all background process complete.")
 
     # 加载JDBC驱动文件
     def load_driver(self, arg, **_):
@@ -177,14 +302,15 @@ class SQLCli(object):
                 raise SQLCliException("Missing required argument, loaddriver [driver file name] [driver class name].")
             # 首先尝试，绝对路径查找这个文件
             # 如果没有找到，尝试从脚本所在的路径开始查找
-            m_NewJarFile = None
             if not os.path.exists(str(load_parameters[0])):
                 if self.sqlscript is not None:
                     if os.path.exists(os.path.join(os.path.dirname(self.sqlscript), str(load_parameters[0]))):
                         m_NewJarFile = os.path.join(os.path.dirname(self.sqlscript), str(load_parameters[0]))
+                    else:
+                        raise SQLCliException("driver file [" + str(load_parameters[0]) + "] does not exist.")
                 else:
                     # 用户在Console上输入，如果路径信息不全，则放弃
-                    raise SQLCliException("driver file [" + str(arg) + "] does not exist.")
+                    raise SQLCliException("driver file [" + str(load_parameters[0]) + "] does not exist.")
             else:
                 m_NewJarFile = str(load_parameters[0])
 
@@ -211,12 +337,316 @@ class SQLCli(object):
     def load_sqlmap(self, arg, **_):
         self.SQLExecuteHandler.options["SQLREWRITE"] = "ON"
         self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, arg)
+        self.sqlmap = arg
         yield (
             None,
             None,
             None,
             'Mapping file loaded.'
         )
+
+    # 显示当前正在执行的JOB
+    def show_job(self, arg, **_):
+        if arg is None or len(str(arg).strip()) == 0:
+            raise SQLCliException("Missing required argument. showjobs [all|job#].")
+        m_Parameters = str(arg).split()
+
+        if m_Parameters[0].upper() == "ALL":
+            # show jobs
+            m_Result = []
+            for m_BackGround_Job in self.m_BackGround_Jobs:
+                m_Result.append(
+                    [
+                        str(m_BackGround_Job["JOB#"]),
+                        m_BackGround_Job["ScriptBaseName"],
+                        m_BackGround_Job["Status"],
+                        m_BackGround_Job["StartedTime"],
+                        m_BackGround_Job["EndTime"],
+                    ]
+                )
+            yield (
+                None,
+                m_Result,
+                ["JOB#", "ScriptBaseName", "Status", "Started", "End"],
+                "Total " + str(self.m_Max_JobID) + " Jobs.")
+            return
+
+        if m_Parameters[0].upper().isnumeric():
+            m_Job_ID = int(m_Parameters[0].upper())
+        else:
+            raise SQLCliException("Argument error. showjob [job#].")
+        # 遍历JOB，找到需要的那条信息
+        m_Result = ""
+        for m_BackGround_Job in self.m_BackGround_Jobs:
+            if int(m_BackGround_Job["JOB#"]) == m_Job_ID:
+                if m_BackGround_Job["Current_SQL"] is None:
+                    m_Current_SQL = "[None]"
+                else:
+                    m_Current_SQL = "\n" + str(m_BackGround_Job["Current_SQL"]) + "\n"
+                m_Result = "Job Describe [" + str(m_Job_ID) + "]\n" + \
+                           "  ScriptBaseName = [" + m_BackGround_Job["ScriptBaseName"] + "]\n" + \
+                           "  ScriptFullName = [" + m_BackGround_Job["ScriptFullName"] + "]\n" + \
+                           "  Status = [" + m_BackGround_Job["Status"] + "]\n" + \
+                           "  StartedTime = [" + str(m_BackGround_Job["StartedTime"]) + "]\n" + \
+                           "  EndTime = [" + str(m_BackGround_Job["EndTime"]) + "]\n" + \
+                           "  Current_SQL = " + m_Current_SQL
+            else:
+                continue
+        yield (
+            None,
+            None,
+            None,
+            m_Result)
+        return
+
+    # 单独的进程运行指定的一个JOB
+    @staticmethod
+    def runJob(p_args, p_Job):
+        def runJobInThread(p_SQLCli):
+            p_SQLCli.run_cli()
+
+        m_JobID = str(p_args["JOB#"])
+        m_nPos = 0            # 标记当前需要完成的Job
+        m_CurrentJob = None
+        for m_nPos in range(0, len(p_Job)):
+            if str(p_Job[m_nPos]["JOB#"]) == m_JobID:
+                m_CurrentJob = p_Job[m_nPos]
+                break
+
+        # 标记JOB开始时间
+        m_CurrentJob["StartedTime"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
+        m_CurrentJob["Status"] = "RUNNING"
+        p_Job[m_nPos] = m_CurrentJob
+
+        # 启动Worker线程
+        # 默认的logfilename和当前文件的logfile文件目录一致
+        # 如果运行在终端模式下，则在当前目录下生成日志文件
+        if p_args["logfilename"] is not None:
+            m_logfilename = os.path.join(
+                os.path.dirname(p_args["logfilename"]),
+                m_CurrentJob["ScriptBaseName"].split('.')[0] + "_" + m_JobID + ".log")
+        else:
+            m_logfilename = m_CurrentJob["ScriptBaseName"].split('.')[0] + "_" + m_JobID + ".log"
+        m_SQLCli = SQLCli(
+            sqlscript=m_CurrentJob["ScriptFullName"],
+            logon=p_args["logon"],
+            logfilename=m_logfilename,
+            sqlmap=p_args["sqlmap"],
+            nologo=p_args["nologo"],
+            breakwitherror=p_args["breakwitherror"],
+            noconsole=True,
+            sqlperf=p_args["sqlperf"],
+            WorkerName=m_JobID
+        )
+        m_WorkerThread = threading.Thread(target=runJobInThread, args=(m_SQLCli,))
+        m_WorkerThread.start()
+
+        # 循环检查Worker的状态
+        m_OldCurrentSQL = ""
+        while m_WorkerThread.is_alive():
+            # 如果要求程序停止，则设置停止标志
+            if p_Job[m_nPos]["Status"] == "WAITINGFOR_STOP":
+                m_SQLCli.Set_StopFlag()
+                m_CurrentJob["Status"] = "STOPPING"
+                p_Job[m_nPos] = m_CurrentJob
+            # 如果要求强制关闭程序，则直接关闭Connection
+            if p_Job[m_nPos]["Status"] == "WAITINGFOR_ABORT":
+                m_SQLCli.db_conn.close()
+                m_CurrentJob["Status"] = "ABORTING"
+                p_Job[m_nPos] = m_CurrentJob
+            # 更新Current_SQL
+            m_CurrentSQL = m_SQLCli.m_Current_RunningSQL
+            if m_OldCurrentSQL != m_CurrentSQL:
+                m_CurrentJob["Current_SQL"] = m_CurrentSQL
+                m_OldCurrentSQL = m_CurrentSQL
+                p_Job[m_nPos] = m_CurrentJob
+            # 3秒后再检查
+            time.sleep(3)
+        m_CurrentJob["EndTime"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
+        m_CurrentJob["Status"] = "STOPPED"
+        p_Job[m_nPos] = m_CurrentJob
+
+    # 启动后台SQL任务
+    def startjob(self, arg, **_):
+        if arg is None or len(str(arg).strip()) == 0:
+            raise SQLCliException("Missing required argument. startjob [job#|all].")
+
+        # 如果参数中有all信息，启动全部的JOB，否则启动输入的JOB信息
+        m_JobLists = []
+        m_Parameters = str(arg).split()
+        for m_Parameter in m_Parameters:
+            if m_Parameter.upper() == 'ALL':
+                m_JobLists.clear()
+                for m_BackGround_Job in self.m_BackGround_Jobs:
+                    m_JobLists.append(m_BackGround_Job)
+                break
+            else:
+                for m_BackGround_Job in self.m_BackGround_Jobs:
+                    if str(m_BackGround_Job["JOB#"]) == str(m_Parameter):
+                        m_JobLists.append(m_BackGround_Job)
+
+        # 启动JOB
+        for m_Job in m_JobLists:
+            m_args = {"JOB#": m_Job["JOB#"], "logon": self.logon, "sqlmap": self.sqlmap, "nologo": self.nologo,
+                      "breakwitherror": (self.SQLExecuteHandler.options["WHENEVER_SQLERROR"] == "EXIT"),
+                      "logfilename": self.logfilename, "sqlperf": self.m_SQLPerf}
+            m_Process = Process(target=self.runJob, args=(m_args, self.m_BackGround_Jobs))
+            m_Process.start()
+
+        yield (
+            None,
+            None,
+            None,
+            str(len(m_JobLists)) + " Jobs Started.")
+
+    # 提交到后台执行SQL
+    def submit_job(self, arg, **_):
+        if arg is None or len(str(arg).strip()) == 0:
+            raise SQLCliException(
+                "Missing required argument, SubmitJob <Script Name 1> <Script Name 2> ... <Copies> .")
+        m_ScriptLists = str(arg).split()
+
+        # 如果最后一个数字是一个数字，则认为最后一个参数的内容是Copies，即执行的份数, 默认是只执行一次
+        m_Execute_Copies = 1
+        if m_ScriptLists[-1].isnumeric():
+            m_Execute_Copies = int(m_ScriptLists[-1])
+            m_ScriptLists = m_ScriptLists[0:-1]
+
+        # 检查脚本是否存在，如果存在，记录全路径名，随后放到列表中
+        for m_Script in m_ScriptLists:
+            # 命令里头的是全路径名，或者是基于当前目录的相对文件名
+            if os.path.isfile(m_Script):
+                m_SQL_ScriptBaseName = os.path.basename(m_Script)
+                m_SQL_ScriptFullName = os.path.abspath(m_Script)
+            else:
+                # 从脚本所在的目录开始查找
+                if self.sqlscript is None:
+                    # 并非在脚本模式下
+                    raise SQLCliException(
+                        "File [" + m_Script + "] does not exist! Submit failed.")
+                if os.path.isfile(os.path.join(os.path.dirname(self.sqlscript), m_Script)):
+                    m_SQL_ScriptBaseName = os.path.basename(os.path.join(os.path.dirname(self.sqlscript), m_Script))
+                    m_SQL_ScriptFullName = os.path.abspath(os.path.join(os.path.dirname(self.sqlscript), m_Script))
+                else:
+                    raise SQLCliException(
+                        "File [" + m_Script + "] does not exist! Submit failed.")
+
+            if self.m_BackGround_Jobs is None:
+                self.m_BackGround_Jobs = Manager().list()
+
+            # 给所有的Job增加一个编号，随后放入到数组中
+            for m_nPos in range(0, m_Execute_Copies):
+                self.m_Max_JobID = self.m_Max_JobID + 1
+                self.m_BackGround_Jobs.append(
+                    {
+                        "JOB#": self.m_Max_JobID,
+                        "ScriptBaseName": m_SQL_ScriptBaseName,
+                        "ScriptFullName": m_SQL_ScriptFullName,
+                        "Current_SQL": None,
+                        "StartedTime": None,
+                        "Status": "Not Started",
+                        "EndTime": None,
+                        "Logfile": None
+                    }
+                )
+        yield (
+            None,
+            None,
+            None,
+            str(len(m_ScriptLists) * m_Execute_Copies) + " Jobs Submittted."
+        )
+
+    # 平和关闭正在运行的进程
+    def shutdown_job(self, arg, **_):
+        if arg is None or len(str(arg).strip()) == 0:
+            raise SQLCliException("Missing required argument. shutdownjob [all|job job_id].")
+        m_Parameters = str(arg).split()
+        m_nCount = 0
+        if m_Parameters[0].upper() == "ALL":
+            for m_nPos in range(0, len(self.m_BackGround_Jobs)):
+                # 所有RUNNING状态的程序，都标记为WAITINGFOR_STOP
+                if self.m_BackGround_Jobs[m_nPos]["Status"] == "RUNNING":
+                    m_BackGroup_Job = self.m_BackGround_Jobs[m_nPos]
+                    m_BackGroup_Job["Status"] = "WAITINGFOR_STOP"
+                    self.m_BackGround_Jobs[m_nPos] = m_BackGroup_Job
+                    m_nCount = m_nCount + 1
+            yield (
+                None,
+                None,
+                None,
+                "Total " + str(m_nCount) + " Jobs will shutdown.")
+            return
+        # 如果不是hsutdownjob all，第一个参数必须是整数的JOB#
+        if m_Parameters[0].upper().isnumeric():
+            m_Job_ID = int(m_Parameters[0].upper())
+        else:
+            raise SQLCliException("Argument error. shutdownjob [job#].")
+        # 遍历JOB，找到需要的那条信息
+        m_Result = False
+        for m_nPos in range(0, len(self.m_BackGround_Jobs)):
+            if int(self.m_BackGround_Jobs[m_nPos]["JOB#"]) == m_Job_ID:
+                if str(self.m_BackGround_Jobs[m_nPos]["Status"]) == "RUNNING":
+                    m_BackGroup_Job = self.m_BackGround_Jobs[m_nPos]
+                    m_BackGroup_Job["Status"] = "WAITINGFOR_STOP"
+                    self.m_BackGround_Jobs[m_nPos] = m_BackGroup_Job
+                    m_Result = True
+                break
+        if m_Result:
+            yield (
+                None,
+                None,
+                None,
+                "Job " + str(m_Job_ID) + " will shutdown.")
+        else:
+            yield (
+                None,
+                None,
+                None,
+                "Job " + str(m_Job_ID) + " does not exist or does not need shutdown.")
+
+    # 强制关闭正在运行的进程
+    def abort_job(self, arg, **_):
+        if arg is None or len(str(arg).strip()) == 0:
+            raise SQLCliException("Missing required argument. abortjob [all|job job_id].")
+        m_Parameters = str(arg).split()
+        m_nCount = 0
+        if m_Parameters[0].upper() == "ALL":
+            for m_BackGround_Job in self.m_BackGround_Jobs:
+                # 所有RUNNING状态的程序，都标记为WAITINGFOR_STOP
+                if str(m_BackGround_Job["STATUS"]) == "RUNNING":
+                    m_BackGround_Job["STATUS"] = "WAITINGFOR_ABORT"
+                    m_nCount = m_nCount + 1
+            yield (
+                None,
+                None,
+                None,
+                "Total " + str(m_nCount) + " Jobs will shutdown.")
+            return
+        # 如果不是abortjob all，第一个参数必须是整数的JOB#
+        if m_Parameters[0].upper().isnumeric():
+            m_Job_ID = int(m_Parameters[0].upper())
+        else:
+            raise SQLCliException("Argument error. shutdown job [job#].")
+        # 遍历JOB，找到需要的那条信息
+        m_Result = False
+        for m_BackGround_Job in self.m_BackGround_Jobs:
+            if int(m_BackGround_Job["JOB#"]) == m_Job_ID:
+                if str(m_BackGround_Job["STATUS"]) == "RUNNING":
+                    m_BackGround_Job["STATUS"] = "WAITINGFOR_ABORT"
+                    m_Result = True
+                break
+        if m_Result:
+            yield (
+                None,
+                None,
+                None,
+                "Job " + str(m_Job_ID) + " will abort.")
+        else:
+            yield (
+                None,
+                None,
+                None,
+                "Job " + str(m_Job_ID) + " does not exist or does not need abort.")
 
     # 连接数据库
     def connect_db(self, arg, **_):
@@ -316,6 +746,13 @@ class SQLCli(object):
 
         # 连接数据库
         try:
+            # https://github.com/jpype-project/jpype/issues/290
+            # jpype bug, when run jpype in multithread
+            if jpype.isJVMStarted() and not jpype.isThreadAttachedToJVM():
+                jpype.attachThreadToJVM()
+                jpype.java.lang.Thread.currentThread().setContextClassLoader(
+                    jpype.java.lang.ClassLoader.getSystemClassLoader())
+
             if self.db_type.upper() == "ORACLE":
                 self.db_conn = jaydebeapi.connect(self.driver_class,
                                                   'jdbc:' + self.db_type + ":" + self.db_driver_type + ":@" +
@@ -337,15 +774,16 @@ class SQLCli(object):
                                                   self.jar_file, )
             self.SQLExecuteHandler.set_connection(self.db_conn)
         except Exception as e:  # Connecting to a database fail.
-            print('traceback.print_exc():\n%s' % traceback.print_exc())
-            print('traceback.format_exc():\n%s' % traceback.format_exc())
-            print("db_type = [" + str(self.db_type) + "]")
-            print("db_host = [" + str(self.db_host) + "]")
-            print("db_port = [" + str(self.db_port) + "]")
-            print("db_service_name = [" + str(self.db_service_name) + "]")
-            print("db_url = [" + str(self.db_url) + "]")
-            print("jar_file = [" + str(self.jar_file) + "]")
-            print("driver_class = [" + str(self.driver_class) + "]")
+            if "SQLCLI_DEBUG" in os.environ:
+                print('traceback.print_exc():\n%s' % traceback.print_exc())
+                print('traceback.format_exc():\n%s' % traceback.format_exc())
+                print("db_type = [" + str(self.db_type) + "]")
+                print("db_host = [" + str(self.db_host) + "]")
+                print("db_port = [" + str(self.db_port) + "]")
+                print("db_service_name = [" + str(self.db_service_name) + "]")
+                print("db_url = [" + str(self.db_url) + "]")
+                print("jar_file = [" + str(self.jar_file) + "]")
+                print("driver_class = [" + str(self.driver_class) + "]")
             raise SQLCliException(repr(e))
 
         yield (
@@ -371,20 +809,24 @@ class SQLCli(object):
         )
 
     # 休息一段时间
-    @staticmethod
-    def sleep(arg, **_):
+    def sleep(self, arg, **_):
         if not arg:
             message = "Missing required argument, sleep [seconds]."
             return [(None, None, None, message)]
         try:
+            # 每次最多休息3秒钟，随后检查一下运行状态
             m_Sleep_Time = int(arg)
             if m_Sleep_Time <= 0:
                 message = "Parameter must be a valid number, sleep [seconds]."
                 return [(None, None, None, message)]
+            for m_nPos in range(0, int(arg)//3):
+                if self.m_Stop_Flag:
+                    raise EOFError
+                time.sleep(3)
+            time.sleep(int(arg) % 3)
         except ValueError:
             message = "Parameter must be a number, sleep [seconds]."
             return [(None, None, None, message)]
-        time.sleep(m_Sleep_Time)
         return [(None, None, None, None)]
 
     # 从文件中执行SQL
@@ -415,7 +857,7 @@ class SQLCli(object):
             )
         else:
             options_parameters = str(arg).split()
-            if len(options_parameters) != 2:
+            if len(options_parameters) == 1:
                 raise Exception("Missing required argument. set parameter parameter_value.")
 
             # 处理DEBUG选项
@@ -478,6 +920,7 @@ class SQLCli(object):
     # 如果执行失败，返回false
     def one_iteration(self, text=None):
         # 判断传入SQL语句， 如果没有传递，则表示控制台程序，需要用户输入SQL语句
+
         if text is None:
             full_text = None
             while True:
@@ -507,7 +950,9 @@ class SQLCli(object):
             return True
 
         try:
-            # 执行需要的SQL语句
+            # 执行需要的SQL语句, 并记录当前运行脚本以及开始时间
+            self.m_Current_RunningSQL = text
+            self.m_Current_RunningStarted = time.time()
             result = self.SQLExecuteHandler.run(text)
 
             # 输出显示结果
@@ -551,6 +996,9 @@ class SQLCli(object):
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
             self.echo(repr(e), err=True, fg="red")
             return False
+        finally:
+            self.m_Current_RunningSQL = None
+            self.m_Current_RunningStarted = None
 
     # 主程序
     def run_cli(self):
@@ -631,23 +1079,11 @@ class SQLCli(object):
             click.echo(output, file=self.logfile)
 
     def echo(self, s, **kwargs):
-        """Print a message to stdout.
-
-        All keyword arguments are passed to click.echo().
-
-        """
         self.log_output(s)
-        click.secho(s, **kwargs)
+        if not self.NoConsole:
+            click.secho(s, **kwargs)
 
     def output(self, output, status=None):
-        """
-        Output text to stdout or a pager command.
-
-        The status text is not outputted to pager or files.
-
-        The message will be written to the output file, if enabled.
-
-        """
         if output:
             # size    记录了 每页输出最大行数，以及行的宽度。  Size(rows=30, columns=119)
             # margin  记录了每页需要留下多少边界行，如状态显示信息等 （2 或者 3）
@@ -661,30 +1097,33 @@ class SQLCli(object):
             output_via_pager = ((self.SQLExecuteHandler.options["PAGE"]).upper() == "ON")
             for i, line in enumerate(output, 1):
                 self.log_output(line)       # 输出文件中总是不考虑分页问题
-                if fits or output_via_pager:
-                    # buffering
-                    buf.append(line)
-                    if len(line) > m_size_columns or i > (m_size_rows - margin):
-                        # 如果行超过页要求，或者行内容过长，且没有分页要求的话，直接显示
-                        fits = False
-                        if not output_via_pager:
-                            # doesn't fit, flush buffer
-                            for bufline in buf:
-                                click.secho(bufline)
-                            buf = []
-                else:
-                    click.secho(line)
+                if not self.NoConsole:
+                    if fits or output_via_pager:
+                        # buffering
+                        buf.append(line)
+                        if len(line) > m_size_columns or i > (m_size_rows - margin):
+                            # 如果行超过页要求，或者行内容过长，且没有分页要求的话，直接显示
+                            fits = False
+                            if not output_via_pager:
+                                # doesn't fit, flush buffer
+                                for bufline in buf:
+                                    click.secho(bufline)
+                                buf = []
+                    else:
+                        click.secho(line)
 
             if buf:
-                if output_via_pager:
-                    click.echo_via_pager("\n".join(buf))
-                else:
-                    for line in buf:
-                        click.secho(line)
+                if not self.NoConsole:
+                    if output_via_pager:
+                        click.echo_via_pager("\n".join(buf))
+                    else:
+                        for line in buf:
+                            click.secho(line)
 
         if status:
             self.log_output(status)
-            click.secho(status)
+            if not self.NoConsole:
+                click.secho(status)
 
     def format_output(self, title, cur, headers, p_format_name, max_width=None):
         output = []
@@ -749,13 +1188,15 @@ class SQLCli(object):
 @click.option("--execute", type=str, help="Execute SQL script.")
 @click.option("--sqlmap", type=str, help="SQL Mapping file.")
 @click.option("--nologo", is_flag=True, help="Execute with silent mode.")
+@click.option("--sqlperf", type=str, help="SQL performance Log.")
 def cli(
         version,
         logon,
         logfile,
         execute,
         sqlmap,
-        nologo
+        nologo,
+        sqlperf
 ):
     if version:
         print("Version:", __version__)
@@ -766,7 +1207,9 @@ def cli(
         logon=logon,
         sqlscript=execute,
         sqlmap=sqlmap,
-        nologo=nologo
+        nologo=nologo,
+        sqlperf=sqlperf,
+        WorkerName="MAIN"
     )
 
     # 运行主程序

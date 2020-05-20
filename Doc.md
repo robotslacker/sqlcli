@@ -190,6 +190,15 @@ Database connected.
 SQL> 
 
 ```
+#### 断开数据库连接
+```
+(base) sqlcli 
+SQL*Cli Release 0.0.32
+SQL> connect user/pass@jdbc:[数据库类型]:[数据库通讯协议]://[数据库主机地址]:[数据库端口号]/[数据库服务名] 
+Database connected.
+SQL> disconnect
+Database disconnected.
+```
 ***
 #### 加载SQL重写配置文件
 在sqlcli命令行里头，可以通过loadsqlmap命令来加载SQL重写配置文件

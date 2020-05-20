@@ -40,8 +40,8 @@ class SQLMapping(object):
                     os.path.dirname(m_szTestScriptFileName),
                     m_SQL_MappingFile + ".map")):
                 # 用户提供的是当前目录下的文件
-                 m_SQL_MappingBaseName = os.path.basename(m_SQL_MappingFile)  # 不包含路径的文件名
-                 m_SQL_MappingFullName = os.path.join(
+                m_SQL_MappingBaseName = os.path.basename(m_SQL_MappingFile)  # 不包含路径的文件名
+                m_SQL_MappingFullName = os.path.join(
                     os.path.dirname(m_szTestScriptFileName),
                     m_SQL_MappingFile + ".map")
             else:
@@ -162,13 +162,14 @@ class SQLMapping(object):
             m_TestScriptFileName = "Console"
 
         # 检查文件名是否匹配
+        # 如果一个字符串在多个匹配规则中出现，可能被多次匹配。后一次匹配的依据是前一次匹配的结果
         m_New_SQL = p_szSQL
         for m_MappingFiles in self.m_SQL_MappingList:                           # 所有的SQL Mapping信息
             m_MappingFile_Contents = self.m_SQL_MappingList[m_MappingFiles]     # 具体的一个SQL Mapping文件
             for m_Mapping_Contents in m_MappingFile_Contents:                   # 具体的一个映射信息
                 if re.match(m_Mapping_Contents[0], m_TestScriptFileName):       # 文件名匹配
                     for (m_Key, m_Value) in m_Mapping_Contents[1]:              # 内容遍历
-                        m_New_SQL = self.ReplaceSQL(p_szSQL, m_Key, m_Value)
+                        m_New_SQL = self.ReplaceSQL(m_New_SQL, m_Key, m_Value)
         return m_New_SQL
 
 

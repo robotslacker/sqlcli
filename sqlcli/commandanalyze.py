@@ -127,7 +127,6 @@ def show_help():  # All the parameters are ignored.
     return [(None, result, headers, None)]
 
 
-@special_command("exit", "Exit.", arg_type=NO_QUERY)
 @special_command("quit", "Quit.", arg_type=NO_QUERY)
 def quit_sqlcli(*_args):
     raise EOFError

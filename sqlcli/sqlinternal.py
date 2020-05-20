@@ -171,6 +171,15 @@ def random_date(p_arg):
 def random_from_seed(p_arg):
     m_SeedName = str(p_arg[0])
     m_nMaxLength = int(p_arg[1])
+    if m_SeedName.upper().endswith('s'):
+        # 随机字符串，不支持超过100位的字符串
+        if m_nMaxLength > 100:
+            m_nMaxLength = 100
+    if m_SeedName.upper().endswith('n'):
+        # 随机数字，不支持超过20位的数字
+        if m_nMaxLength > 20:
+            m_nMaxLength = 20
+
     if m_SeedName in seed_cache:
         n = len(seed_cache[m_SeedName])
         if n == 0:
