@@ -47,6 +47,7 @@ Options:
   --logfile TEXT  Log every query and its results to a file.
   --execute TEXT  Execute SQL script.
   --nologo        Execute with silent mode.
+  --sqlperf TEXT  SQL performance Log.
   --help          Show this message and exit.
 ```  
 --version 用来显示当前工具的版本号
@@ -145,7 +146,48 @@ SQL>
 (base) sqlcli --nologo
 SQL>
 ```
+--sqlperf  输出SQL运行日志  
+这里的运行日志不是指程序的logfile，而是用CSV文件记录的SQL日志，  
+这些日志将作为后续对SQL运行行为的一种分析  
+运行日志共包括如下信息：  
+1、StartedTime  SQL运行开始时间，格式是：%Y-%m-%d %H:%M:%S  
+2、elapsed      SQL运行的消耗时间，这里的单位是毫秒  
+3、SQL          运行的SQL，在这个运行日志中，并不会打印SQL全文，而是只打印SQL的前40个字符  
+4、SQLStatus    SQL运行结果，0表示运行正常结束，1表示运行错误  
+5、ErrorMessage 错误日志，在SQLStatus为1的时候才有意义  
+6、thread_name  工作线程名，对于主程序，这里显示的是MAIN  
+说明：上述信息都有逗号分隔，其中SQL用双引号来包括。
+
 ***
+#### 在SQLCli里面查看当前支持的命令
+```
+(base) sqlcli 
+SQL*Cli Release 0.0.32
+SQL> help
++--------------+-----------------------------+
+| Command      | Description                 |
++--------------+-----------------------------+
+| __internal__ | execute internal command.   |
+| abortjob     | Abort Jobs                  |
+| connect      | Connect to database .       |
+| disconnect   | Disconnect database .       |
+| exit         | Exit program.               |
+| help         | Show this help.             |
+| loaddriver   | load JDBC driver .          |
+| loadsqlmap   | load SQL Mapping file .     |
+| quit         | Quit.                       |
+| set          | set options .               |
+| showjob      | show informations           |
+| shutdownjob  | Shutdown Jobs               |
+| sleep        | Sleep some time (seconds)   |
+| start        | Execute commands from file. |
+| StartJob     | Start Jobs                  |
+| Submitjob    | Submit Jobs                 |
++--------------+-----------------------------+
+这里显示的是所有除了标准SQL语句外，可以被执行的各种命令开头。
+标准的SQL语句并没有在这里显示出来，你可以直接在控制行内或者脚本里头执行SQL脚本。
+```
+
 #### 加载数据库驱动
 在sqlcli命令行里头，可以通过load命令来加载数据库驱动文件。
 ```
@@ -200,6 +242,16 @@ SQL> disconnect
 Database disconnected.
 ```
 ***
+#### 让程序休息一会
+```
+(base) sqlcli 
+SQL*Cli Release 0.0.32
+SQL> sleep 10
+SQL> disconnect
+Database disconnected.
+这里的10指的是10秒，通过这个命令可以让程序暂停10秒钟。
+Sleep的做法主要用在一些定期循环反复脚本的执行上
+```
 #### 加载SQL重写配置文件
 在sqlcli命令行里头，可以通过loadsqlmap命令来加载SQL重写配置文件
 ```
@@ -316,10 +368,30 @@ Mapping file loaded.
 
 ```  
 ***
-#### 执行特殊的内部语句
-   SQLCli支持的特殊语句包括两种：
-   * 显示或行为控制语句  
-   通过在SQLCli命令行里头执行set命令可以控制显示的格式以及变化SQLCli执行的行为。
+#### 设置程序的运行选项
+通过SET命令，我们可以改变SQLCli的一些行为或者显示选项。
+```
+   SQL> set
+     Current set options: 
+    +-------------------+----------+
+    | option            | value    |
+    +-------------------+----------+
+    | WHENEVER_SQLERROR | CONTINUE |
+    | PAGE              | OFF      |
+    | OUTPUT_FORMAT     | ASCII    |
+    | ECHO              | ON       |
+    | LONG              | 20       |
+    | KAFKA_SERVERS     | None     |
+    | TIMING            | OFF      |
+    | TERMOUT           | ON       |
+    | FEEDBACK          | ON       |
+    | ARRAYSIZE         | 10000    |
+    | SQLREWRITE        | OFF      |
+    | DEBUG             | OFF      |
+    +-------------------+----------+
+  没有任何参数的set将会列出程序所有的配置情况。
+
+```
    
    目前支持的控制参数有：  
 1.&emsp; ECHO    SQL回显标志， 默认为OFF，即SQL内容在LOG中不回显
@@ -449,10 +521,10 @@ Mapping file loaded.
        2 rows selected.
 
 ```
-   * 内部的其他操作  
-   这里指的内部语句是说不需要后台SQL引擎完成，而是通过在SQLCli程序中扩展代码来支持的语句。目前支持的扩展语句有：
+#### 执行特殊的内部语句
+   这里指的内部语句是说不需要后台SQL引擎完成，而是通过在SQLCli程序中扩展代码来支持的语句。  
+   目前支持的扩展语句有：
 ```
-
    __internal__ CREATE SEEDDATAFILE;
    这个程序将在$SQLCLI_HOME下创建若干seed文件，用来后续的随机函数
    若不创建这个文件，则random_from_seed会抛出异常
@@ -505,15 +577,105 @@ Mapping file loaded.
 ```
 ***    
 #### 退出
-你可以使用exit或者quit来退出命令行程序，这里exit和quit的效果是完全一样的
+你可以使用exit来退出命令行程序，或者在脚本中使用Exit来退出正在执行的脚本
 ```
 SQL> exit
 Disconnected.
-或者
-SQL> quit
-Disconnected.
 ```
+注意： 如果当前有后台任务正在运行，EXIT并不能立刻完成。  
+1： 控制台应用：EXIT将不会退出，而是会提示你需要等待后台进程完成工作  
+2： 脚本应用：  EXIT不会直接退出，而是会等待后台进程完成工作后再退出  
 ***
+### 程序的并发和后台执行
+SQLCli被设计为支持并发执行脚本，支持后台执行脚本。
+#### 如果提交脚本到后台任务
+在很多时候，我们需要SQLCli来帮我们来运行数据库脚本，但是又不想等待脚本的运行结束。
+我们可以通过SubmitJob的方式来将我们的脚本提交到后台
+```
+SQL> submitjob task_1.sql 3
+3 Jobs Submittted.
+task_1.sql：  计划后台执行的脚本。这里你可以输入全路径名，也可以输入当前脚本的相对文件名。
+3         ：  同时运行的份数，这个参数可以被忽略，如果被忽略，那么同时运行的份数是1
+注意： SubmitJob并不会真的开始运行你提交的脚本，他只是一个记录，如果要启动他，需要用后面提到的startjob
+注意： 你当前SQL会话中的连接信息、SQL重写信息、版本显示的设置、运行日志的信息都被会子SQL继承。
+      你可以选择在task_1.sql中重写覆盖这些信息，但起默认信息来自于主程序的设置。
+SQLCli会为每一个后台任务编一个不重复的JOBID，具体的JOBID可以通过showjob来查看。
+对于前面的这个例子，启动份数是3，则在ShowJOBS里头能看见3个不同的JOBID
+```
+#### 如何查看后台任务脚本的运行情况
+通过showjob可以查看我们之前提交情况，脚本的运行情况，运行的开始时间，运行的结束时间，当前正在运行的SQL等。
+```
+SQL> showjob all
++------+----------------+-------------+---------+--------+
+| JOB# | ScriptBaseName | Status      | Started | End    |
++------+----------------+-------------+---------+--------+
+| 1    | task_1.sql     | Not Started | <null>  | <null> |
+| 2    | task_1.sql     | Not Started | <null>  | <null> |
+| 3    | task_1.sql     | Not Started | <null>  | <null> |
++------+----------------+-------------+---------+--------+
+Total 3 Jobs.
+这里可以看到目前3个脚本已经提交，但是都还没有开始运行
+
+SQL> showjob 1                                                                                                                                               
+Job Describe [1]
+  ScriptBaseName = [xxx.sql]
+  ScriptFullName = [/Users/xxxxx/task_1.sql]
+  Status = [Not Started]
+  StartedTime = [None]
+  EndTime = [None]
+  Current_SQL = [None]
+这里可以看到具体对于JOB编号为1的任务的详细情况
+```
+  
+#### 如何启动后台任务脚本
+通过startJob的方式，我可以启动全部的后台任务或者只启动部分后台任务
+```
+SQL> startjob all
+3 Jobs Started.
+这里会将你之前提交的所有后台脚本都一次性的启动起来
+SQL> startjob 1
+1 Jobs Started.
+这里只会启动JOBID为1的后台任务
+SQL> showjob all                                                                                                                                             
++------+----------------+-------------+---------------------+---------------------+
+| JOB# | ScriptBaseName | Status      | Started             | End                 |
++------+----------------+-------------+---------------------+---------------------+
+| 1    | task_1.sql     | RUNNING     | 2020-05-21 11:40:55 | <null>              |
+| 2    | task_1.sql     | Not Started | <null>              | <null>              |
+| 3    | task_1.sql     | Not Started | <null>              | <null>              |
++------+----------------+-------------+---------------------+---------------------+
+Total 3 Jobs.
+再次通过showjob来查看信息，可以注意到编号为1的任务已经启动
+```
+#### 如何停止后台任务脚本
+在脚本运行过程中，你可以用shutdownjob来停止某个某个任务或者全部任务，
+```
+SQL> shutdownjob all
+3 Jobs will shutdown.
+这里会将当前运行的所有后台脚本都停止下来
+SQL> shutdownjob 1
+Job 1 will shutdown.
+注意： shutdownjob并不会真的终止你当前正在运行的SQL！！！
+      只有在子任务完成当前SQL后，shutdownjob才能完成。
+      这个意思是说，如果你有一个比较大的长SQL作业，shutdownjob并不能很快的终止任务运行。
+```
+#### 如何强行停止后台任务脚本
+在脚本运行过程中，你可以用abortjob来强行停止某个某个任务或者全部任务，
+```
+SQL> abortjob all
+3 Jobs will terminate.
+这里会将当前运行的所有后台脚本都强制停止下来
+SQL> abortjob 1
+Job 1 will terminate.
+注意： abortjob并不会真的杀掉你的子进程，但是会强制断开子进程的数据库连接！！！
+      这个意思是说，如果子进程正在运行一个SQL，SQL运行会报错退出
+      如果你有一个比较大的长SQL作业，abortjob并不能很快的终止任务运行，但相对来说，比shutdownjob要快的多。
+```
+#### 后台执行脚本在主程序退出时候的影响
+如果当前有后台程序运行：  
+1： 控制台应用：EXIT将不会退出，而是会提示你需要等待后台进程完成工作  
+2： 脚本应用：  EXIT不会直接退出，而是会等待后台进程完成工作后再退出  
+
 ### 程序员必读部分
 ```
 ---------- sqlcli
