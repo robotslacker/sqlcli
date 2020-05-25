@@ -19,8 +19,12 @@ class SQLExecute(object):
     NoConsole = False                   # 屏幕输出Console，如果为True, 不再输出屏幕信息
     m_Worker_Name = None                # 为每个SQLExecute实例起一个名字，便于统计分析
 
-    # 进程锁
-    m_Locker = Lock()
+    # 进程锁, 用来在输出perf文件的时候控制并发写文件
+    m_PerfFileLocker = Lock()
+
+    # 进程终止标志
+    m_Shutdown_Flag = False             # 在程序的每个语句，Sleep间歇中都会判断这个标志
+    m_Abort_Flag = False                # 应用被强行终止，可能会有SQL错误
 
     # SQLPerf文件
     SQLPerfFile = None
@@ -253,24 +257,24 @@ class SQLExecute(object):
             return
 
         # 多进程，多线程写入，考虑锁冲突
-        self.m_Locker.acquire()
+        self.m_PerfFileLocker.acquire()
         if self.SQLPerfFileHandle is None:
             if self.m_Worker_Name.upper() == "MAIN":
                 self.SQLPerfFileHandle = open(self.SQLPerfFile, "w", encoding="utf-8")
-                self.SQLPerfFileHandle.write("Started,elapsed,SQLPrefix,SQLStatus,ErrorMessage,thread_name\n")
+                self.SQLPerfFileHandle.write("Started\telapsed\tSQLPrefix\tSQLStatus\tErrorMessage\tthread_name\n")
                 self.SQLPerfFileHandle.close()
         # 打开Perf文件
         self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
 
         # 写入内容信息
         self.SQLPerfFileHandle.write(
-            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p_SQLResult["StartedTime"])) + "," +
-            "%8.2f" % p_SQLResult["elapsed"] + "," +
-            '"' + str(p_SQLResult["SQL"][0:40]).replace("\n", "").replace('"', '\\"') + '",' +
-            str(p_SQLResult["SQLStatus"]) + "," +
-            str(p_SQLResult["ErrorMessage"]) + "," +
-            str(p_SQLResult["thread_name"] + "\n")
+            "'" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p_SQLResult["StartedTime"])) + "'\t" +
+            "%8.2f" % p_SQLResult["elapsed"] + "\t" +
+            "'" + str(p_SQLResult["SQL"][0:40]).replace("\n", " ").replace("\t", "    ") + "'\t" +
+            str(p_SQLResult["SQLStatus"]) + "\t" +
+            "'" + str(p_SQLResult["ErrorMessage"]) + "'\t" +
+            "'" + str(p_SQLResult["thread_name"] + "'" + "\n")
         )
         self.SQLPerfFileHandle.flush()
         self.SQLPerfFileHandle.close()
-        self.m_Locker.release()
+        self.m_PerfFileLocker.release()
