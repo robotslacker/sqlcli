@@ -434,7 +434,6 @@ class SQLCli(object):
                 time.sleep(3)
                 continue
 
-
     # 显示当前正在执行的JOB
     def show_job(self, arg, **_):
         if arg is None or len(str(arg).strip()) == 0:
@@ -737,7 +736,7 @@ class SQLCli(object):
 
         # 记录到任务列表中
         if self.m_BackGround_Jobs is None:
-            self.m_BackGround_Jobs = Manager().list()
+            self.m_BackGround_Jobs = list(Manager().list())
 
         # 给所有的Job增加一个编号，随后放入到数组中
         for m_nPos in range(0, m_Execute_Copies):
@@ -1290,7 +1289,7 @@ class SQLCli(object):
     # 逐条处理SQL语句
     # 如果执行成功，返回true
     # 如果执行失败，返回false
-    def one_iteration(self, text=None):
+    def DoSQL(self, text=None):
         # 如果程序被要求退出，则立即退出，不再执行任何SQL
         if self.m_Shutdown_Flag or self.m_Abort_Flag:
             raise EOFError
@@ -1329,7 +1328,6 @@ class SQLCli(object):
             self.m_Current_RunningSQL = text
             self.m_Current_RunningStarted = time.time()
             result = self.SQLExecuteHandler.run(text)
-
             # 输出显示结果
             self.formatter.query = text
             for title, cur, headers, status in result:
@@ -1364,7 +1362,8 @@ class SQLCli(object):
         except SQLCliException as e:
             # 用户执行的SQL出了错误, 由于SQLExecute已经打印了错误消息，这里直接退出
             self.output(None, e.message)
-            return False
+            if self.SQLExecuteHandler.options["WHENEVER_SQLERROR"] == "EXIT":
+                raise e
         except Exception as e:
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())
@@ -1415,7 +1414,7 @@ class SQLCli(object):
         # 如果运行在脚本方式下，不在调用PromptSession
         # 调用PromptSession会导致程序在IDE下无法运行
         # 对于脚本程序，在执行脚本完成后就会自动退出
-        if self.sqlscript is None:
+        if self.sqlscript is None and not self.NoConsole:
             self.prompt_app = PromptSession()
 
         # 开始依次处理SQL语句
@@ -1424,31 +1423,32 @@ class SQLCli(object):
             # 则直接加载
             if "SQLCLI_CONNECTION_JAR_NAME" in os.environ and \
                     "SQLCLI_CONNECTION_CLASS_NAME" in os.environ:
-                self.one_iteration(
+                self.DoSQL(
                     'loaddriver ' +
                     os.environ["SQLCLI_CONNECTION_JAR_NAME"] + ' ' +
                     os.environ["SQLCLI_CONNECTION_CLASS_NAME"])
 
             # 如果用户制定了用户名，口令，尝试直接进行数据库连接
             if self.logon:
-                if not self.one_iteration("connect " + str(self.logon)):
+                if not self.DoSQL("connect " + str(self.logon)):
                     m_runCli_Result = False
                     raise EOFError
 
             # 如果传递的参数中有SQL文件，先执行SQL文件, 执行完成后自动退出
             if self.sqlscript:
-                if not self.one_iteration('start ' + self.sqlscript):
+                if not self.DoSQL('start ' + self.sqlscript):
                     m_runCli_Result = False
                     raise EOFError
-                self.one_iteration('exit')
+                self.DoSQL('exit')
 
             # 循环从控制台读取命令
-            while True:
-                if not self.one_iteration():
-                    m_runCli_Result = False
-                    raise EOFError
-        except EOFError:
-            # 用户调用了Exit或者Quit信息
+            if not self.NoConsole:
+                while True:
+                    if not self.DoSQL():
+                        m_runCli_Result = False
+                        raise EOFError
+        except (SQLCliException, EOFError):
+            # SQLCliException只有在被设置了WHENEVER_SQLERROR为EXIT的时候，才会被捕获到
             self.echo("Disconnected.")
             return m_runCli_Result
 
