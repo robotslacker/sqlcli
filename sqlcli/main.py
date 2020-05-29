@@ -35,11 +35,11 @@ PACKAGE_ROOT = os.path.abspath(os.path.dirname(__file__))
 # 进程锁, 用来控制对BackGround_Jobs的修改
 LOCK_JOBCATALOG = Lock()
 
-
 class SQLCli(object):
-    # 数据库连接的各种参数
+    # 数据库Jar包 [[abs_file, full_file], ]
     jar_file = None
-    driver_class = None
+
+    # 数据库连接的各种参数
     db_url = None
     db_username = None
     db_password = None
@@ -318,39 +318,43 @@ class SQLCli(object):
 
     # 加载JDBC驱动文件
     def load_driver(self, arg, **_):
-        if arg is None:
-            raise SQLCliException("Missing required argument, load [driver file name] [driver class name].")
-        elif arg == "":
-            raise SQLCliException("Missing required argument, load [driver file name] [driver class name].")
+        if arg is None or len(str(arg)) == 0:
+            raise SQLCliException("Missing required argument, load [driver file name].")
         else:
             load_parameters = str(arg).split()
-            if len(load_parameters) != 2:
-                raise SQLCliException("Missing required argument, loaddriver [driver file name] [driver class name].")
             # 首先尝试，绝对路径查找这个文件
             # 如果没有找到，尝试从脚本所在的路径开始查找
             if not os.path.exists(str(load_parameters[0])):
                 if self.sqlscript is not None:
                     if os.path.exists(os.path.join(os.path.dirname(self.sqlscript), str(load_parameters[0]))):
-                        m_NewJarFile = os.path.join(os.path.dirname(self.sqlscript), str(load_parameters[0]))
+                        m_JarFullFileName = os.path.join(os.path.dirname(self.sqlscript), str(load_parameters[0]))
+                        m_JarBaseFileName = os.path.basename(m_JarFullFileName)
                     else:
                         raise SQLCliException("driver file [" + str(load_parameters[0]) + "] does not exist.")
                 else:
                     # 用户在Console上输入，如果路径信息不全，则放弃
                     raise SQLCliException("driver file [" + str(load_parameters[0]) + "] does not exist.")
             else:
-                m_NewJarFile = str(load_parameters[0])
+                m_JarFullFileName = os.path.abspath(str(load_parameters[0]))
+                m_JarBaseFileName = os.path.basename(m_JarFullFileName)
 
-            # 如果jar包或者驱动类发生了变化，则当前数据库连接自动失效
+            # 将jar包信息添加到self.jar_file中
             if self.jar_file:
-                if self.jar_file != m_NewJarFile:
-                    self.db_conn = None
-                    self.SQLExecuteHandler.set_connection(None)
-            if self.driver_class:
-                if self.driver_class != str(load_parameters[1]):
-                    self.db_conn = None
-                    self.SQLExecuteHandler.set_connection(None)
-            self.jar_file = m_NewJarFile
-            self.driver_class = str(load_parameters[1])
+                bExitOldConfig = False
+                for m_nPos in range(0, len(self.jar_file)):
+                    if self.jar_file[m_nPos]["JarName"] == m_JarBaseFileName:
+                        m_Jar_Config = self.jar_file[m_nPos]
+                        m_Jar_Config["FullName"] = m_JarFullFileName
+                        self.jar_file[m_nPos] = m_Jar_Config
+                        bExitOldConfig = True
+                        break
+                if not bExitOldConfig:
+                    m_Jar_Config = {"JarName": m_JarBaseFileName, "FullName": m_JarFullFileName}
+                    self.jar_file.append(m_Jar_Config)
+            else:
+                self.jar_file = []
+                m_Jar_Config = {"JarName": m_JarBaseFileName, "FullName": m_JarFullFileName}
+                self.jar_file.append(m_Jar_Config)
 
         yield (
             None,
@@ -1122,25 +1126,39 @@ class SQLCli(object):
                 jpype.java.lang.Thread.currentThread().setContextClassLoader(
                     jpype.java.lang.ClassLoader.getSystemClassLoader())
 
+            # 拼接所有的Jar包， jaydebeapi将根据class的名字加载指定的文件
+            m_JarList = []
+            for m_Jar_Config in self.jar_file:
+                m_JarList.append(m_Jar_Config["FullName"])
+
             if self.db_type.upper() == "ORACLE":
-                self.db_conn = jaydebeapi.connect(self.driver_class,
+                self.db_conn = jaydebeapi.connect("oracle.jdbc.driver.OracleDriver",
                                                   'jdbc:' + self.db_type + ":" + self.db_driver_type + ":@" +
                                                   self.db_host + ":" + self.db_port + "/" + self.db_service_name,
                                                   [self.db_username, self.db_password],
-                                                  [self.jar_file, ])
+                                                  m_JarList)
             elif self.db_type.upper() == "LINKOOPDB":
-                self.db_conn = jaydebeapi.connect(self.driver_class,
-                                                  'jdbc:' + self.db_type + ":" + self.db_driver_type + "://" +
+                self.db_conn = jaydebeapi.connect("com.datapps.linkoopdb.jdbc.JdbcDriver",
+                                                  "jdbc:linkoopdb:" + self.db_driver_type + "://" +
                                                   self.db_host + ":" + self.db_port + "/" + self.db_service_name +
                                                   ";query_iterator=1",
                                                   [self.db_username, self.db_password],
-                                                  [self.jar_file, ])
-            else:
-                self.db_conn = jaydebeapi.connect(self.driver_class,
-                                                  'jdbc:' + self.db_type + ":" + self.db_driver_type + "://" +
+                                                  m_JarList)
+            elif self.db_type.upper() == "MYSQL":
+                self.db_conn = jaydebeapi.connect("com.mysql.cj.jdbc.Driver",
+                                                  "jdbc:mysql://" +
                                                   self.db_host + ":" + self.db_port + "/" + self.db_service_name,
                                                   [self.db_username, self.db_password],
-                                                  self.jar_file, )
+                                                  m_JarList)
+            elif self.db_type.upper() == "POSTGRESQL":
+                self.db_conn = jaydebeapi.connect("org.postgresql.Driver",
+                                                  "jdbc:postgresql://" +
+                                                  self.db_host + ":" + self.db_port + "/" + self.db_service_name,
+                                                  [self.db_username, self.db_password],
+                                                  m_JarList)
+            else:
+                raise SQLCliException("Unknown driver. " + self.db_type.upper() + " Exit ")
+
             self.SQLExecuteHandler.set_connection(self.db_conn)
         except Exception as e:  # Connecting to a database fail.
             if "SQLCLI_DEBUG" in os.environ:
@@ -1152,7 +1170,6 @@ class SQLCli(object):
                 print("db_service_name = [" + str(self.db_service_name) + "]")
                 print("db_url = [" + str(self.db_url) + "]")
                 print("jar_file = [" + str(self.jar_file) + "]")
-                print("driver_class = [" + str(self.driver_class) + "]")
             raise SQLCliException(repr(e))
 
         yield (
@@ -1210,7 +1227,8 @@ class SQLCli(object):
                 query = f.read()
         except IOError as e:
             return [(None, None, None, str(e))]
-        return self.SQLExecuteHandler.run(query)
+
+        return self.SQLExecuteHandler.run(query, os.path.expanduser(arg))
 
     # 设置一些选项
     def set_options(self, arg, **_):
@@ -1395,6 +1413,19 @@ class SQLCli(object):
             self.echo(repr(e), err=True, fg="red")
             return False
 
+        # 加载已经被隐式包含的数据库驱动，文件放置在SQLCli\jlib下
+        m_jlib_directory = os.path.join(os.path.dirname(__file__), "jlib")
+        if os.path.isdir(m_jlib_directory):
+            list_file = os.listdir(m_jlib_directory)
+            for i in range(0, len(list_file)):
+                if list_file[i].endswith(".jar"):
+                    m_JarFullFileName = os.path.join(m_jlib_directory, list_file[i])
+                    m_JarBaseFileName = os.path.basename(m_JarFullFileName)
+                    if self.jar_file is None:
+                        self.jar_file = []
+                    m_Jar_Config = {"JarName": m_JarBaseFileName, "FullName": m_JarFullFileName}
+                    self.jar_file.append(m_Jar_Config)
+
         # 处理传递的映射文件
         if self.sqlmap is not None:   # 如果传递的参数，有Mapping，以参数为准，先加载参数中的Mapping文件
             self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, self.sqlmap)
@@ -1419,14 +1450,10 @@ class SQLCli(object):
 
         # 开始依次处理SQL语句
         try:
-            # 如果环境变量中包含了SQLCLI_CONNECTION_JAR_NAME或者SQLCLI_CONNECTION_CLASS_NAME
+            # 如果环境变量中包含了SQLCLI_CONNECTION_JAR_NAME
             # 则直接加载
-            if "SQLCLI_CONNECTION_JAR_NAME" in os.environ and \
-                    "SQLCLI_CONNECTION_CLASS_NAME" in os.environ:
-                self.DoSQL(
-                    'loaddriver ' +
-                    os.environ["SQLCLI_CONNECTION_JAR_NAME"] + ' ' +
-                    os.environ["SQLCLI_CONNECTION_CLASS_NAME"])
+            if "SQLCLI_CONNECTION_JAR_NAME" in os.environ:
+                self.DoSQL('loaddriver ' + os.environ["SQLCLI_CONNECTION_JAR_NAME"])
 
             # 如果用户制定了用户名，口令，尝试直接进行数据库连接
             if self.logon:

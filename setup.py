@@ -46,7 +46,7 @@ setup(
 
     zip_safe = False,
     packages=['sqlcli'],
-    package_data={'sqlcli': []},
+    package_data={'sqlcli': ['jlib/*']},
 
     entry_points={
         "console_scripts": ["sqlcli = sqlcli.main:cli"],

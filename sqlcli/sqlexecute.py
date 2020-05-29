@@ -42,7 +42,7 @@ class SQLExecute(object):
     def set_connection(self, p_conn):
         self.conn = p_conn
 
-    def run(self, statement):
+    def run(self, statement, p_sqlscript=None):
         """Execute the sql in the database and return the results. The results
         are a list of tuples. Each tuple has 4 values
         (title, rows, headers, status).
@@ -67,20 +67,20 @@ class SQLExecute(object):
                 click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.logfile)
 
             # 如果运行在脚本模式下，需要在控制台回显SQL
-            if self.sqlscript is not None:
+            if p_sqlscript is not None:
                 if not self.NoConsole:
                     click.secho(SQLFormatWithPrefix(m_CommentSQL))
 
             # 如果打开了回显，并且指定了输出文件，且SQL被改写过，输出改写后的SQL
             if self.options["SQLREWRITE"] == 'ON':
                 old_sql = sql
-                sql = self.SQLMappingHandler.RewriteSQL(self.sqlscript, old_sql)
+                sql = self.SQLMappingHandler.RewriteSQL(p_sqlscript, old_sql)
                 if old_sql != sql:
                     if self.options["ECHO"] == 'ON' and self.logfile is not None:
                         # SQL已经发生了改变
                         click.echo(SQLFormatWithPrefix(
                             "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
-                    if self.sqlscript is not None:
+                    if p_sqlscript is not None:
                         if not self.NoConsole:
                             click.secho(SQLFormatWithPrefix(
                                 "Your SQL has been changed to:\n" + sql, 'REWROTED '))
