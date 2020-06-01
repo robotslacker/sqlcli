@@ -79,14 +79,6 @@ user/pass : 数据库连接的用户名和口令
 这里的必要信息包括：
 环境变量：  SQLCLI_CONNECTION_URL  
     参数格式是： jdbc:[数据库类型]:[数据库通讯协议]://[数据库主机地址]:[数据库端口号]/[数据库服务名]  
-环境变量：  SQLCLI_CONNECTION_JAR_NAME  
-    参数格式是： xxxxx-jdbc-x.x.x.jar
-    这是程序连接数据库需要用到的Jar包，具体的写法应查询相应数据库产品的JDBC文档。
-    对于一个特定的数据库有一个特定的写法，但是后面x.x.x代表的版本信息可能会有所不同。
-    jar包必须放置在sqlcli程序能够访问到的目录下，如果不在当前目录下，这里需要写入相对或者绝对路径，比如: dir1\xxxxx-jdbc-x.x.x.jar
-环境变量：  SQLCLI_CONNECTION_CLASS_NAME  
-    参数格式是：  com.xxxx.xxxxxxx.jdbc.JdbcDriver  
-    这是一个类名，具体的写法应查询相应数据库产品的JDBC文档。通常对于一种特定的数据库有一个特定的写法
 ```
 --logfile   用来记录本次命令行操作的所有过程信息  
 这里的操作过程信息包含你随后在命令行里头的所有输出信息。  
