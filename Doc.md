@@ -2,6 +2,15 @@
 
 SQLCli 是一个命令行工具， 用来连接数据库，通过交互或者批处理的方式来执行SQL语句。  
 SQLCli 是一个Python程序，通过jaydebeapi连接数据库的JDBC驱动。
+
+SQLCli 目前可以支持的数据库有：  
+   Oracle  
+   MySQL  
+   PostgreSQL  
+   SQLServer  
+   TeraData  
+   LinkoopDB  
+   其他符合标准JDBC规范的数据库  
 ***
 ### 谁需要用这个文档
 
@@ -200,6 +209,11 @@ SQL> help
 ```
 
 #### 加载数据库驱动
+仅在如下情况下，需要加载数据库驱动：  
+* 你需要测试的数据库不是我们已经内嵌支持的数据库  
+  内嵌支持的数据库有：SQLServer,Oracle,MySQL,PostgreSQL,TeraData  
+* 你需要为你的程序使用更新的jdbc驱动程序  
+
 在sqlcli命令行里头，可以通过load命令来加载数据库驱动文件。
 ```
 (base) sqlcli 
@@ -213,7 +227,7 @@ loaddrvier 命令的Jar包查找顺序：
   1. 如果给出的是绝对路径，或者相对用户当前目录的相对目录，那么以这个目录为准
   2. 如果在上述目录下没有找到文件，则会在脚本目录的相对目录开始查找
 
-再次执行loaddriver命令，则会断开当前的数据库连接，并重新加载新的驱动。load后，下次执行的数据库操作将依赖新的加载包  
+如果有多个Jar包需要加载，你可能需要多次执行loadriver  
 ```
 ***
 #### 连接数据库
@@ -242,7 +256,21 @@ SQL> connect user2/pass2
 Database connected.
 SQL> 
 
+常见数据库的连接方式示例：
+ORACLE:
+    connect username/password@jdbc:oracle:tcp://IP:Port/Service_Name
+LinkoopDB:
+    connect username/password@jdbc:linkoopdb:tcp://IP:Port/Service_Name
+MYSQL:
+    connect username/password@jdbc:mysql:tcp://IP:Port/Service_Name
+PostgreSQL：
+    connect username/password@jdbc:postgresql:tcp://IP:Port/Service_Name
+SQLServer：
+    connect username/password@jdbc:sqlserver:tcp://IP:Port/DatabaseName
+TeraData：
+    connect username/password@jdbc:teradata:tcp://IP:/DatabaseName
 ```
+
 #### 断开数据库连接
 ```
 (base) sqlcli 

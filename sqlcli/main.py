@@ -35,6 +35,7 @@ PACKAGE_ROOT = os.path.abspath(os.path.dirname(__file__))
 # 进程锁, 用来控制对BackGround_Jobs的修改
 LOCK_JOBCATALOG = Lock()
 
+
 class SQLCli(object):
     # 数据库Jar包 [[abs_file, full_file], ]
     jar_file = None
@@ -319,9 +320,13 @@ class SQLCli(object):
     # 加载JDBC驱动文件
     def load_driver(self, arg, **_):
         if arg is None or len(str(arg)) == 0:
-            raise SQLCliException("Missing required argument, load [driver file name].")
+            raise SQLCliException("Missing required argument, load [driver file name] [driver class name].")
         else:
             load_parameters = str(arg).split()
+            m_DriverClassName = None
+            m_DatabaseType = None
+            if len(load_parameters) > 1:
+                m_DriverClassName = str(load_parameters[1]).strip()
             # 首先尝试，绝对路径查找这个文件
             # 如果没有找到，尝试从脚本所在的路径开始查找
             if not os.path.exists(str(load_parameters[0])):
@@ -337,6 +342,22 @@ class SQLCli(object):
             else:
                 m_JarFullFileName = os.path.abspath(str(load_parameters[0]))
                 m_JarBaseFileName = os.path.basename(m_JarFullFileName)
+                if m_JarBaseFileName.startswith("linkoopdb"):
+                    m_DatabaseType = "linkoopdb"
+                elif m_JarBaseFileName.startswith("mysql"):
+                    m_DatabaseType = "mysql"
+                elif m_JarBaseFileName.startswith("postgresql"):
+                    m_DatabaseType = "postgresql"
+                elif m_JarBaseFileName.startswith("sqljdbc"):
+                    m_DatabaseType = "sqlserver"
+                elif m_JarBaseFileName.startswith("ojdbc"):
+                    m_DatabaseType = "oracle"
+                elif m_JarBaseFileName.startswith("terajdbc"):
+                    m_DatabaseType = "teradata"
+                elif m_JarBaseFileName.startswith("tdgssconfig"):
+                    m_DatabaseType = "teradata-gss"
+                else:
+                    m_DatabaseType = "UNKNOWN"
 
             # 将jar包信息添加到self.jar_file中
             if self.jar_file:
@@ -349,11 +370,17 @@ class SQLCli(object):
                         bExitOldConfig = True
                         break
                 if not bExitOldConfig:
-                    m_Jar_Config = {"JarName": m_JarBaseFileName, "FullName": m_JarFullFileName}
+                    m_Jar_Config = {"JarName": m_JarBaseFileName,
+                                    "FullName": m_JarFullFileName,
+                                    "ClassName": m_DriverClassName,
+                                    "Database": m_DatabaseType}
                     self.jar_file.append(m_Jar_Config)
             else:
                 self.jar_file = []
-                m_Jar_Config = {"JarName": m_JarBaseFileName, "FullName": m_JarFullFileName}
+                m_Jar_Config = {"JarName": m_JarBaseFileName,
+                                "FullName": m_JarFullFileName,
+                                "ClassName": m_DriverClassName,
+                                "Database": m_DatabaseType}
                 self.jar_file.append(m_Jar_Config)
 
         yield (
@@ -1035,7 +1062,8 @@ class SQLCli(object):
             raise SQLCliException("Please load driver first.")
 
         # 去掉为空的元素
-        connect_parameters = [var for var in re.split(r'//|:|@| |/', arg) if var]
+        # connect_parameters = [var for var in re.split(r'//|:|@| |/', arg) if var]
+        connect_parameters = re.split(r'://|:|@|/', arg)
         if len(connect_parameters) == 8:
             # 指定了所有的数据库连接参数
             self.db_username = connect_parameters[0]
@@ -1133,13 +1161,13 @@ class SQLCli(object):
 
             if self.db_type.upper() == "ORACLE":
                 self.db_conn = jaydebeapi.connect("oracle.jdbc.driver.OracleDriver",
-                                                  'jdbc:' + self.db_type + ":" + self.db_driver_type + ":@" +
+                                                  "jdbc:oracle:thin:@" +
                                                   self.db_host + ":" + self.db_port + "/" + self.db_service_name,
                                                   [self.db_username, self.db_password],
                                                   m_JarList)
             elif self.db_type.upper() == "LINKOOPDB":
                 self.db_conn = jaydebeapi.connect("com.datapps.linkoopdb.jdbc.JdbcDriver",
-                                                  "jdbc:linkoopdb:" + self.db_driver_type + "://" +
+                                                  "jdbc:linkoopdb:tcp://" +
                                                   self.db_host + ":" + self.db_port + "/" + self.db_service_name +
                                                   ";query_iterator=1",
                                                   [self.db_username, self.db_password],
@@ -1154,6 +1182,22 @@ class SQLCli(object):
                 self.db_conn = jaydebeapi.connect("org.postgresql.Driver",
                                                   "jdbc:postgresql://" +
                                                   self.db_host + ":" + self.db_port + "/" + self.db_service_name,
+                                                  [self.db_username, self.db_password],
+                                                  m_JarList)
+            elif self.db_type.upper() == "SQLSERVER":
+                self.db_conn = jaydebeapi.connect("com.microsoft.sqlserver.jdbc.SQLServerDriver",
+                                                  "jdbc:sqlserver://" +
+                                                  self.db_host + ":" + self.db_port + ";" +
+                                                  "databasename=" + self.db_service_name,
+                                                  [self.db_username, self.db_password],
+                                                  m_JarList)
+            elif self.db_type.upper() == "TERADATA":
+                self.db_conn = jaydebeapi.connect("com.teradata.jdbc.TeraDriver",
+                                                  "jdbc:teradata://" +
+                                                  self.db_host +
+                                                  "/CLIENT_CHARSET=UTF8,CHARSET=UTF8," +
+                                                  "TMODE=TERA,LOB_SUPPORT=ON,COLUMN_NAME=ON,MAYBENULL=ON," +
+                                                  "database=" + self.db_service_name,
                                                   [self.db_username, self.db_password],
                                                   m_JarList)
             else:
@@ -1423,7 +1467,26 @@ class SQLCli(object):
                     m_JarBaseFileName = os.path.basename(m_JarFullFileName)
                     if self.jar_file is None:
                         self.jar_file = []
-                    m_Jar_Config = {"JarName": m_JarBaseFileName, "FullName": m_JarFullFileName}
+                    if m_JarBaseFileName.startswith("linkoopdb"):
+                        m_DatabaseType = "linkoopdb"
+                    elif m_JarBaseFileName.startswith("mysql"):
+                        m_DatabaseType = "mysql"
+                    elif m_JarBaseFileName.startswith("postgresql"):
+                        m_DatabaseType = "postgresql"
+                    elif m_JarBaseFileName.startswith("sqljdbc"):
+                        m_DatabaseType = "sqlserver"
+                    elif m_JarBaseFileName.startswith("ojdbc"):
+                        m_DatabaseType = "oracle"
+                    elif m_JarBaseFileName.startswith("terajdbc"):
+                        m_DatabaseType = "teradata"
+                    elif m_JarBaseFileName.startswith("tdgssconfig"):
+                        m_DatabaseType = "teradata-gss"
+                    else:
+                        m_DatabaseType = "UNKNOWN"
+                    m_Jar_Config = {"JarName": m_JarBaseFileName,
+                                    "ClassName": None,
+                                    "FullName": m_JarFullFileName,
+                                    "Database": m_DatabaseType}
                     self.jar_file.append(m_Jar_Config)
 
         # 处理传递的映射文件
