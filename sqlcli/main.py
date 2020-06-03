@@ -23,7 +23,6 @@ from .sqlcliexception import SQLCliException
 from .commandanalyze import register_special_command
 from .commandanalyze import CommandNotFound
 from .sqlparse import SQLMapping
-
 from .__init__ import __version__
 from .sqlparse import SQLAnalyze
 

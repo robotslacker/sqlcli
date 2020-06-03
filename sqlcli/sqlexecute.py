@@ -124,7 +124,8 @@ class SQLExecute(object):
                     except Exception as e:
                         if (
                                 str(e).find("SQLSyntaxErrorException") != -1 or
-                                str(e).find("SQLException") != -1
+                                str(e).find("SQLException") != -1 or
+                                str(e).find("SQLDataException") != -1
                         ):
                             # SQL 语法错误
                             if self.options["WHENEVER_SQLERROR"] == "EXIT":
