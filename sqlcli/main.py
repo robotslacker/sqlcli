@@ -84,7 +84,8 @@ class SQLCli(object):
     m_Max_JobID = 0            # 当前的最大JOBID
 
     # 屏幕输出
-    NoConsole = False
+    Console = None
+    HeadlessMode = False       # 没有显示输出，即不需要回显，用于子进程的显示
 
     # 性能分析日志输出
     m_SQLPerf = None
@@ -98,7 +99,8 @@ class SQLCli(object):
             nologo=None,
             breakwitherror=False,
             sqlperf=None,
-            noconsole=False,
+            Console=sys.stdout,
+            HeadlessMode=False,
             WorkerName=None
     ):
         # 初始化SQLExecute和SQLMap
@@ -111,14 +113,18 @@ class SQLCli(object):
         self.nologo = nologo
         self.logon = logon
         self.logfilename = logfilename
-        self.NoConsole = noconsole
+        self.Console = Console
+        self.HeadlessMode = HeadlessMode
         self.m_SQLPerf = sqlperf
+        if HeadlessMode:
+            HeadLessConsole = open(os.devnull, "w")
+            self.Console = HeadLessConsole
 
         # 设置其他的变量
         self.SQLExecuteHandler.sqlscript = sqlscript
         self.SQLExecuteHandler.SQLMappingHandler = self.SQLMappingHandler
         self.SQLExecuteHandler.logfile = self.logfile
-        self.SQLExecuteHandler.NoConsole = self.NoConsole
+        self.SQLExecuteHandler.Console = self.Console
         self.SQLExecuteHandler.SQLPerfFile = self.m_SQLPerf
         self.SQLExecuteHandler.m_Worker_Name = WorkerName
 
@@ -575,6 +581,7 @@ class SQLCli(object):
             else:
                 m_logfilename = \
                     m_CurrentJob["ScriptBaseName"].split('.')[0] + "_" + m_JobID + "-" + str(m_CurrentLoop) + ".log"
+            HeadLessConsole = open(os.devnull, "w")
             m_SQLCli = SQLCli(
                 sqlscript=m_CurrentJob["ScriptFullName"],
                 logon=p_args["logon"],
@@ -582,7 +589,8 @@ class SQLCli(object):
                 sqlmap=p_args["sqlmap"],
                 nologo=p_args["nologo"],
                 breakwitherror=p_args["breakwitherror"],
-                noconsole=True,
+                Console=HeadLessConsole,
+                HeadlessMode=True,
                 sqlperf=p_args["sqlperf"],
                 WorkerName=m_JobID
             )
@@ -1507,7 +1515,7 @@ class SQLCli(object):
         # 如果运行在脚本方式下，不在调用PromptSession
         # 调用PromptSession会导致程序在IDE下无法运行
         # 对于脚本程序，在执行脚本完成后就会自动退出
-        if self.sqlscript is None and not self.NoConsole:
+        if self.sqlscript is None and not self.HeadlessMode:
             self.prompt_app = PromptSession()
 
         # 开始依次处理SQL语句
@@ -1531,11 +1539,10 @@ class SQLCli(object):
                 self.DoSQL('exit')
 
             # 循环从控制台读取命令
-            if not self.NoConsole:
-                while True:
-                    if not self.DoSQL():
-                        m_runCli_Result = False
-                        raise EOFError
+            while True:
+                if not self.DoSQL():
+                    m_runCli_Result = False
+                    raise EOFError
         except (SQLCliException, EOFError):
             # SQLCliException只有在被设置了WHENEVER_SQLERROR为EXIT的时候，才会被捕获到
             self.echo("Disconnected.")
@@ -1547,8 +1554,7 @@ class SQLCli(object):
 
     def echo(self, s, **kwargs):
         self.log_output(s)
-        if not self.NoConsole:
-            click.secho(s, **kwargs)
+        click.secho(s, **kwargs, file=self.Console)
 
     def output(self, output, status=None):
         if output:
@@ -1564,33 +1570,30 @@ class SQLCli(object):
             output_via_pager = ((self.SQLExecuteHandler.options["PAGE"]).upper() == "ON")
             for i, line in enumerate(output, 1):
                 self.log_output(line)       # 输出文件中总是不考虑分页问题
-                if not self.NoConsole:
-                    if fits or output_via_pager:
-                        # buffering
-                        buf.append(line)
-                        if len(line) > m_size_columns or i > (m_size_rows - margin):
-                            # 如果行超过页要求，或者行内容过长，且没有分页要求的话，直接显示
-                            fits = False
-                            if not output_via_pager:
-                                # doesn't fit, flush buffer
-                                for bufline in buf:
-                                    click.secho(bufline)
-                                buf = []
-                    else:
-                        click.secho(line)
+                if fits or output_via_pager:
+                    # buffering
+                    buf.append(line)
+                    if len(line) > m_size_columns or i > (m_size_rows - margin):
+                        # 如果行超过页要求，或者行内容过长，且没有分页要求的话，直接显示
+                        fits = False
+                        if not output_via_pager:
+                            # doesn't fit, flush buffer
+                            for bufline in buf:
+                                click.secho(bufline, file=self.Console)
+                            buf = []
+                else:
+                    click.secho(line)
 
             if buf:
-                if not self.NoConsole:
-                    if output_via_pager:
-                        click.echo_via_pager("\n".join(buf))
-                    else:
-                        for line in buf:
-                            click.secho(line)
+                if output_via_pager:
+                    click.echo_via_pager("\n".join(buf))
+                else:
+                    for line in buf:
+                        click.secho(line, file=self.Console)
 
         if status:
             self.log_output(status)
-            if not self.NoConsole:
-                click.secho(status)
+            click.secho(status, file=self.Console)
 
     def format_output(self, title, cur, headers, p_format_name, max_width=None):
         output = []

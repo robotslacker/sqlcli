@@ -6,6 +6,7 @@ from .commandanalyze import CommandNotFound
 from .sqlcliexception import SQLCliException
 import click
 import time
+from time import strftime, localtime
 from multiprocessing import Lock
 
 
@@ -16,7 +17,7 @@ class SQLExecute(object):
     sqlscript = None                    # 需要执行的SQL脚本
     SQLMappingHandler = None            # SQL重写处理
     m_Current_RunningSQL = None         # 目前程序运行的当前SQL
-    NoConsole = False                   # 屏幕输出Console，如果为True, 不再输出屏幕信息
+    Console = False                     # 屏幕输出Console
     m_Worker_Name = None                # 为每个SQLExecute实例起一个名字，便于统计分析
 
     # 进程锁, 用来在输出perf文件的时候控制并发写文件
@@ -33,8 +34,8 @@ class SQLExecute(object):
     def __init__(self):
         # 设置一些默认的参数
         self.options = {"WHENEVER_SQLERROR": "CONTINUE", "PAGE": "OFF", "OUTPUT_FORMAT": "ASCII", "ECHO": "ON",
-                        "LONG": 20, 'KAFKA_SERVERS': None, 'TIMING': 'OFF', 'TERMOUT': 'ON', 'FEEDBACK': 'ON',
-                        "ARRAYSIZE": 10000, 'SQLREWRITE': 'ON', "DEBUG": 'OFF'}
+                        "LONG": 20, 'KAFKA_SERVERS': None, 'TIMING': 'OFF', 'TIME': 'OFF', 'TERMOUT': 'ON',
+                        'FEEDBACK': 'ON', "ARRAYSIZE": 10000, 'SQLREWRITE': 'ON', "DEBUG": 'OFF'}
 
     def set_logfile(self, p_logfile):
         self.logfile = p_logfile
@@ -68,8 +69,7 @@ class SQLExecute(object):
 
             # 如果运行在脚本模式下，需要在控制台回显SQL
             if p_sqlscript is not None:
-                if not self.NoConsole:
-                    click.secho(SQLFormatWithPrefix(m_CommentSQL))
+                click.secho(SQLFormatWithPrefix(m_CommentSQL), file=self.Console)
 
             # 如果打开了回显，并且指定了输出文件，且SQL被改写过，输出改写后的SQL
             if self.options["SQLREWRITE"] == 'ON':
@@ -81,9 +81,8 @@ class SQLExecute(object):
                         click.echo(SQLFormatWithPrefix(
                             "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
                     if p_sqlscript is not None:
-                        if not self.NoConsole:
-                            click.secho(SQLFormatWithPrefix(
-                                "Your SQL has been changed to:\n" + sql, 'REWROTED '))
+                        click.secho(SQLFormatWithPrefix(
+                            "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
 
             # 如果是空语句，不在执行
             if len(sql.strip()) == 0:
@@ -192,7 +191,10 @@ class SQLExecute(object):
             # 如果需要，打印语句执行时间
             if self.options['TIMING'] == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
-                    yield None, None, None, 'Running time elapsed: %8.2f Seconds' % (end - start)
+                    yield None, None, None, 'Running time elapsed: %9.2f Seconds' % (end - start)
+            if self.options['TIME'] == 'ON':
+                if sql.strip().upper() not in ('EXIT', 'QUIT'):
+                    yield None, None, None, 'Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime())
 
     def get_Current_RunningSQL(self):
         return self.m_Current_RunningSQL
