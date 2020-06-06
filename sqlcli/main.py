@@ -84,8 +84,9 @@ class SQLCli(object):
     m_Max_JobID = 0            # 当前的最大JOBID
 
     # 屏幕输出
-    Console = None
+    Console = None             # 程序的控制台显示
     HeadlessMode = False       # 没有显示输出，即不需要回显，用于子进程的显示
+    logger = None              # 程序的输出日志
 
     # 性能分析日志输出
     m_SQLPerf = None
@@ -101,7 +102,8 @@ class SQLCli(object):
             sqlperf=None,
             Console=sys.stdout,
             HeadlessMode=False,
-            WorkerName=None
+            WorkerName=None,
+            logger=None
     ):
         # 初始化SQLExecute和SQLMap
         self.SQLExecuteHandler = SQLExecute()
@@ -119,6 +121,7 @@ class SQLCli(object):
         if HeadlessMode:
             HeadLessConsole = open(os.devnull, "w")
             self.Console = HeadLessConsole
+        self.logger = logger
 
         # 设置其他的变量
         self.SQLExecuteHandler.sqlscript = sqlscript
@@ -1533,7 +1536,9 @@ class SQLCli(object):
 
             # 如果传递的参数中有SQL文件，先执行SQL文件, 执行完成后自动退出
             if self.sqlscript:
-                if not self.DoSQL('start ' + self.sqlscript):
+                try:
+                    self.DoSQL('start ' + self.sqlscript)
+                except (SQLCliException):
                     m_runCli_Result = False
                     raise EOFError
                 self.DoSQL('exit')
@@ -1553,7 +1558,10 @@ class SQLCli(object):
             click.echo(output, file=self.logfile)
 
     def echo(self, s, **kwargs):
-        self.log_output(s)
+        if self.logfile:
+            click.echo(s, file=self.logfile)
+        if self.logger is not None:
+            self.logger.info(s)
         click.secho(s, **kwargs, file=self.Console)
 
     def output(self, output, status=None):
@@ -1569,7 +1577,6 @@ class SQLCli(object):
             buf = []
             output_via_pager = ((self.SQLExecuteHandler.options["PAGE"]).upper() == "ON")
             for i, line in enumerate(output, 1):
-                self.log_output(line)       # 输出文件中总是不考虑分页问题
                 if fits or output_via_pager:
                     # buffering
                     buf.append(line)
@@ -1579,21 +1586,20 @@ class SQLCli(object):
                         if not output_via_pager:
                             # doesn't fit, flush buffer
                             for bufline in buf:
-                                click.secho(bufline, file=self.Console)
+                                self.echo(bufline)
                             buf = []
                 else:
-                    click.secho(line)
+                    self.echo(line)
 
             if buf:
                 if output_via_pager:
                     click.echo_via_pager("\n".join(buf))
                 else:
                     for line in buf:
-                        click.secho(line, file=self.Console)
+                        self.echo(line)
 
         if status:
-            self.log_output(status)
-            click.secho(status, file=self.Console)
+            self.echo(status)
 
     def format_output(self, title, cur, headers, p_format_name, max_width=None):
         output = []

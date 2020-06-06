@@ -32,6 +32,11 @@ class SQLMapping(object):
         for m_SQL_MappingFile in list(m_SQL_Mappings):
             m_SQL_MappingBaseName = None
             m_SQL_MappingFullName = None
+
+            # 如果以.map结尾，去掉最后的.map
+            if m_SQL_MappingFile.endswith(".map"):
+                m_SQL_MappingFile = m_SQL_MappingFile[0: len(m_SQL_MappingFile)-4]
+
             if os.path.isfile(m_SQL_MappingFile):
                 # 用户提供的是全路径名
                 m_SQL_MappingBaseName = os.path.basename(m_SQL_MappingFile)  # 不包含路径的文件名
