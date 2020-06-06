@@ -1538,7 +1538,7 @@ class SQLCli(object):
             if self.sqlscript:
                 try:
                     self.DoSQL('start ' + self.sqlscript)
-                except (SQLCliException):
+                except SQLCliException:
                     m_runCli_Result = False
                     raise EOFError
                 self.DoSQL('exit')
