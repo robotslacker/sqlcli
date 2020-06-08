@@ -11,6 +11,8 @@ class SQLMapping(object):
     # match_roles = [ Key, Value]
     m_SQL_MappingList = {}
 
+    Console = None       # 控制台信息，用来打印日志内容
+
     def Load_SQL_Mappings(self, p_szTestScriptFileName, p_szSQLMappings):
         # 如果不带任何参数，或者参数为空，则清空SQLMapping信息
         if p_szSQLMappings is None:
@@ -33,14 +35,17 @@ class SQLMapping(object):
             m_SQL_MappingBaseName = None
             m_SQL_MappingFullName = None
 
-            # 如果以.map结尾，去掉最后的.map
-            if m_SQL_MappingFile.endswith(".map"):
-                m_SQL_MappingFile = m_SQL_MappingFile[0: len(m_SQL_MappingFile)-4]
-
             if os.path.isfile(m_SQL_MappingFile):
                 # 用户提供的是全路径名
                 m_SQL_MappingBaseName = os.path.basename(m_SQL_MappingFile)  # 不包含路径的文件名
                 m_SQL_MappingFullName = os.path.abspath(m_SQL_MappingFile)
+            elif os.path.isfile(os.path.join(
+                    os.path.dirname(m_szTestScriptFileName),
+                    m_SQL_MappingFile)):
+                # 用户提供的是当前目录下的文件
+                m_SQL_MappingBaseName = os.path.basename(m_SQL_MappingFile)  # 不包含路径的文件名
+                m_SQL_MappingFullName = os.path.join(
+                    os.path.dirname(m_szTestScriptFileName),m_SQL_MappingFile)
             elif os.path.isfile(os.path.join(
                     os.path.dirname(m_szTestScriptFileName),
                     m_SQL_MappingFile + ".map")):
@@ -129,7 +134,12 @@ class SQLMapping(object):
 
     def ReplaceSQL(self, p_szSQL, p_Key, p_Value):
         # 首先查找是否有匹配的内容，如果没有，直接返回
-        m_SearchResult = re.search(p_Key, p_szSQL, re.DOTALL)
+        try:
+            m_SearchResult = re.search(p_Key, p_szSQL, re.DOTALL)
+        except re.error as ex:
+            print("[WARNING] Invalid regex pattern. [" + str(p_Key) + "]  " + repr(ex), file=self.Console)
+            return p_szSQL
+
         if m_SearchResult is None:
             return p_szSQL
         else:
@@ -150,7 +160,12 @@ class SQLMapping(object):
                             m_function_struct[m_nPos] = m_SearchedKey
                     # 执行替换函数
                     if m_function_struct[0].upper() == "ENV":
-                        m_Value = self.ReplaceMacro_Env(m_function_struct[1:])
+                        if len(m_function_struct) <= 1:
+                            print("[WARNING] Invalid env macro, use env(). [" + str(p_Key) + "=>" + str(p_Value) + "]",
+                                  file=self.Console)
+                            m_Value = ""
+                        else:
+                            m_Value = self.ReplaceMacro_Env(m_function_struct[1:])
         m_szSQL = re.sub(p_Key, m_Value, p_szSQL, flags=re.DOTALL)
         return m_szSQL
 

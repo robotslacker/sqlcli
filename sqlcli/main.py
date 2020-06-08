@@ -130,6 +130,7 @@ class SQLCli(object):
         self.SQLExecuteHandler.Console = self.Console
         self.SQLExecuteHandler.SQLPerfFile = self.m_SQLPerf
         self.SQLExecuteHandler.m_Worker_Name = WorkerName
+        self.SQLMappingHandler.Console = self.Console
 
         # 默认的输出格式
         self.formatter = TabularOutputFormatter(format_name='ascii')
@@ -1515,8 +1516,8 @@ class SQLCli(object):
         if not self.nologo:
             self.echo("SQLCli Release " + __version__)
 
-        # 如果运行在脚本方式下，不在调用PromptSession
-        # 调用PromptSession会导致程序在IDE下无法运行
+        # 如果运行在脚本方式下，不在调用PromptSession, 调用PromptSession会导致程序在IDE下无法运行
+        # 运行在无终端的模式下，也不会调用PromptSession, 调用PromptSession会导致程序出现Console错误
         # 对于脚本程序，在执行脚本完成后就会自动退出
         if self.sqlscript is None and not self.HeadlessMode:
             self.prompt_app = PromptSession()
