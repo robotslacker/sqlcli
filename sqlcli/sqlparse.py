@@ -403,7 +403,8 @@ def SQLAnalyze(p_SQLCommandPlainText):
             strRegexPattern = r'^(\s+)?CREATE(\s+)?|^(\s+)?(\()?SELECT(\s+)?|^(\s+)?UPDATE(\s+)?|' \
                               r'^(\s+)?DELETE(\s+)?|^(\s+)?INSERT(\s+)?|^(\s+)?__INTERNAL__(\s+)?|' \
                               r'^(\s+)?DROP(\s+)?|^(\s+)?REPLACE(\s+)?|^(\s+)?LOAD(\s+)?|' \
-                              r'^(\s+)?MERGE(\s+)?'
+                              r'^(\s+)?MERGE(\s+)?|^(\s+)?DECLARE(\s+)?|^(\s+)?BEGIN(\s+)?|' \
+                              r'^(\s+)?ALTER(\s+)?'
             if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE):
                 SQLSplitResults.append(SQLCommands[m_nPos])
                 SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
@@ -439,8 +440,12 @@ def SQLAnalyze(p_SQLCommandPlainText):
             m_NewSQL = SQLCommands[m_nPos]
             m_NewSQLWithComments = SQLCommandsWithComments[m_nPos][m_NewSQLWithCommentsLastPos:]
             if re.match(r'(.*);(\s+)?$', SQLCommands[m_nPos]):  # 本行以；结尾
-                strRegexPattern = r'^((\s+)?CREATE(\s+)|^(\s+)?REPLACE(\s+))(.*)?(FUNCTION|PROCEDURE)'
-                if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE):
+                strRegexPattern = \
+                    r'^((\s+)?CREATE(\s+)|^(\s+)?REPLACE(\s+))(.*)?(FUNCTION|PROCEDURE)'
+                strRegexPattern2 = \
+                    r'^(\s+)?DECLARE(\s+)|^(\s+)?BEGIN(\s+)'
+                if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE) and \
+                        not re.match(strRegexPattern2, SQLCommands[m_nPos], re.IGNORECASE):
                     # 这不是一个存储过程，本行可以结束了
                     SQLSplitResults.append(SQLCommands[m_nPos])
                     SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
@@ -528,8 +533,12 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 # 工作在多行语句中，查找;结尾的内容
                 if re.match(r'(.*);(\s+)?$', SQLCommands[m_nPos]):  # 本行以；结尾
                     # 查找这个多行语句是否就是一个存储过程
-                    strRegexPattern = r'(^(\s+)?CREATE|^(\s+)?DROP|^(\s+)?REPLACE)(.*)?\s+(FUNCTION|PROCEDURE)(.*)?'
-                    if not re.match(strRegexPattern, m_NewSQL, re.IGNORECASE):
+                    strRegexPattern = \
+                        r'^((\s+)?CREATE(\s+)|^(\s+)?REPLACE(\s+))(.*)?(FUNCTION|PROCEDURE)'
+                    strRegexPattern2 = \
+                        r'^(\s+)?DECLARE(\s+)|^(\s+)?BEGIN(\s+)'
+                    if not re.match(strRegexPattern, m_NewSQL, re.IGNORECASE) and \
+                            not re.match(strRegexPattern2, m_NewSQL, re.IGNORECASE):
                         # 这不是一个存储过程，遇到了；本行可以结束了
                         SQLSplitResults.append(m_NewSQL)
                         SQLSplitResultsWithComments.append(m_NewSQLWithComments)
@@ -576,7 +585,10 @@ def SQLAnalyze(p_SQLCommandPlainText):
 
     # 去掉SQL语句中的最后一个； ORACLE数据库不支持带有；的语句
     for m_nPos in range(0, len(SQLSplitResults)):
-        if SQLSplitResults[m_nPos][-1:] == ';':
+        # 去掉行尾的空格
+        SQLSplitResults[m_nPos] = SQLSplitResults[m_nPos].rstrip()
+        # 去掉行尾的最后一个分号, “但是如果是END；结尾的，最后的；不能去掉”
+        if SQLSplitResults[m_nPos][-1:] == ';' and not SQLSplitResults[m_nPos].endswith("END;"):
             SQLSplitResults[m_nPos] = SQLSplitResults[m_nPos][:-1]
 
     # 去掉注释信息中的最后一个回车换行符

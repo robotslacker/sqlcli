@@ -61,9 +61,6 @@ class SQLCli(object):
     SQLMappingHandler = None
     SQLExecuteHandler = None
 
-    # 程序输出日志
-    logfile = None
-
     # 屏幕控制程序
     prompt_app = None
 
@@ -85,6 +82,7 @@ class SQLCli(object):
 
     # 屏幕输出
     Console = None             # 程序的控制台显示
+    logfile = None             # 程序输出日志文件
     HeadlessMode = False       # 没有显示输出，即不需要回显，用于子进程的显示
     logger = None              # 程序的输出日志
 
