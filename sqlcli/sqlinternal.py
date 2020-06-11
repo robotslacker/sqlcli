@@ -6,6 +6,7 @@ from kafka import KafkaProducer
 from .sqlcliexception import SQLCliException
 import datetime
 import random
+from hdfs.client import Client
 
 # 缓存seed文件，来加速后面的随机函数random_from_seed工作
 seed_cache = {"10s": [], "100s": [], "1Ks": [], "10Ks": [], "100Ks": [], "10n": [], "100n": [], "1Kn": [], "10Kn": []}
@@ -250,7 +251,7 @@ def identity(p_arg):
 
 
 def parse_formula_str(p_formula_str):
-    m_row_struct = re.split('[{}]', p_formula_str.replace('\n', '').replace('\r', ''))
+    m_row_struct = re.split('[{}]', p_formula_str)
 
     for m_nRowPos in range(0, len(m_row_struct)):
         if re.search('random_ascii_lowercase|random_ascii_uppercase|random_ascii_letters' +
@@ -316,53 +317,74 @@ def Create_file(p_filename, p_formula_str, p_rows, p_options):
         m_producer = None
         m_topicname = None
         m_output = None
+        m_HDFS_Handler = None
+        m_filename = None
 
         if p_filename.startswith('mem://'):
             m_fs = fs.open_fs('mem://')
-            m_filename = p_filename[6:]
+            m_filename = p_filename[len('mem://'):]
             m_output = m_fs.open(m_filename, 'w')
         elif p_filename.startswith('file://'):
             m_fs = fs.open_fs('./')
-            m_filename = p_filename[7:]
-            m_output = m_fs.open(m_filename, 'w')
-        elif p_filename.startswith('tar://'):
-            m_fs = fs.open_fs(p_filename + ".tar", create=True)
-            m_filename = p_filename[6:]
-            m_output = m_fs.open(m_filename, 'w')
-        elif p_filename.startswith('zip://'):
-            m_fs = fs.open_fs(p_filename + ".zip",  create=True)
-            m_filename = p_filename[6:]
+            m_filename = p_filename[len('file://'):]
             m_output = m_fs.open(m_filename, 'w')
         elif p_filename.startswith('kafka://'):
-            if p_options["KAFKA_SERVERS"] is None or len(p_options["KAFKA_SERVERS"].strip() == 0):
+            if p_options["KAFKA_SERVERS"] is None or len(p_options["KAFKA_SERVERS"].strip()) == 0:
                 raise SQLCliException("Please set KAFKA_SERVERS first")
             m_producer = KafkaProducer(bootstrap_servers=p_options["KAFKA_SERVERS"])
-            m_topicname = p_filename[8:]
+            m_topicname = p_filename[len('kafka://'):]
+        elif p_filename.startswith('hdfs://'):
+            if p_options["HDFS_WEBFSURL"] is None or len(p_options["HDFS_WEBFSURL"].strip()) == 0:
+                raise SQLCliException("Please set HDFS_WEBFSURL first")
+            if p_options["HDFS_WEBFSROOT"] is None or len(p_options["HDFS_WEBFSROOT"].strip()) == 0:
+                raise SQLCliException("Please set HDFS_WEBFSROOT first")
+            m_filefullname = p_filename[len('hdfs://'):]
+            m_filename = os.path.basename(m_filefullname)
+            m_pathname = os.path.join(p_options["HDFS_WEBFSROOT"], os.path.dirname(m_filefullname))
+            m_HDFS_Handler = Client(p_options["HDFS_WEBFSURL"],
+                                    m_pathname,
+                                    proxy=None, session=None)
         else:
             raise SQLCliException("Unknown file format.")
 
         m_row_struct = parse_formula_str(p_formula_str)
         buf = []
-        for i in range(0, p_rows):
-            if p_filename.startswith('kafka://'):
+        if p_filename.startswith('hdfs://'):            # 处理HDFS文件写入
+            with m_HDFS_Handler.write(m_filename, encoding='utf-8') as m_output:
+                for i in range(0, p_rows):
+                    m_output.write(get_final_string(m_row_struct))
+        elif p_filename.startswith('kafka://'):        # 处理Kafka数据写入
+            for i in range(0, p_rows):
                 m_producer.send(m_topicname, get_final_string(m_row_struct).encode())
-            else:
+            m_producer.flush()
+        else:                                          # 处理普通文件写入
+            for i in range(0, p_rows):
                 buf.append(get_final_string(m_row_struct) + '\n')
-                if len(buf) == 100000:                 # 为了提高IO效率，每10W条写入文件一次
+                if len(buf) == 100000:  # 为了提高IO效率，每10W条写入文件一次
                     m_output.writelines(buf)
                     buf = []
-
-        # 写入最后一部分
-        if not p_filename.startswith('kafka://'):
             if len(buf) != 0:
                 m_output.writelines(buf)
-
-        if p_filename.startswith('kafka://'):
-            m_producer.flush()
-        else:
             m_output.close()
     except SQLCliException as e:
         raise SQLCliException(e.message)
     except Exception as e:
         raise SQLCliException(repr(e))
     return
+
+def Convert_file(p_srcfilename, p_dstfilename):
+    '''
+    mem to fs
+    mem to hdfs
+    fs to hdfs
+    fs to memoryview
+
+    mem to fs
+    fs to mem
+
+    hdfs to mem
+    mem to hdfs
+
+    hdfs to fs
+    '''
+    pass

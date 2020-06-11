@@ -18,6 +18,7 @@ import click
 from prompt_toolkit.shortcuts import PromptSession
 from .sqlexecute import SQLExecute
 from .sqlinternal import Create_file
+from .sqlinternal import Convert_file
 from .sqlinternal import Create_SeedCacheFile
 from .sqlcliexception import SQLCliException
 from .commandanalyze import register_special_command
@@ -36,7 +37,6 @@ LOCK_JOBCATALOG = Lock()
 
 
 class SQLCli(object):
-    # 数据库Jar包 [[abs_file, full_file], ]
     jar_file = None
 
     # 数据库连接的各种参数
@@ -49,6 +49,7 @@ class SQLCli(object):
     db_port = None
     db_service_name = None
     db_conn = None
+    db_saved_conn = {}              # 数据库Session备份
 
     # SQLCli的初始化参数
     logon = None
@@ -166,6 +167,14 @@ class SQLCli(object):
             handler=self.connect_db,
             command="connect",
             description="Connect to database .",
+            hidden=False
+        )
+
+        # 连接数据库
+        register_special_command(
+            handler=self.session_manage,
+            command="session",
+            description="Manage connect sessions.",
             hidden=False
         )
 
@@ -1059,11 +1068,7 @@ class SQLCli(object):
 
     # 连接数据库
     def connect_db(self, arg, **_):
-        if arg is None:
-            raise SQLCliException(
-                "Missing required argument\n." + "connect [user name]/[password]@" +
-                "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
-        elif arg == "":
+        if arg is None or len(str(arg)) == 0:
             raise SQLCliException(
                 "Missing required argument\n." + "connect [user name]/[password]@" +
                 "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
@@ -1247,6 +1252,51 @@ class SQLCli(object):
             'Database disconnected.'
         )
 
+    # 数据库会话管理
+    def session_manage(self, arg, **_):
+        if arg is None or len(str(arg)) == 0:
+            raise SQLCliException(
+                "Missing required argument: " + "Session save/restore [session name]")
+        m_Parameters = str(arg).split()
+
+        if len(m_Parameters) == 1 and m_Parameters[0] == 'show':
+            m_Result = []
+            for m_Session_Name,m_Connection in self.db_saved_conn.items():
+                m_Result.append([str(m_Session_Name), str(m_Connection[1]), str(m_Connection[2])])
+            yield (
+                "Saved Sessions",
+                m_Result,
+                ["Sesssion Name", "User Name", "URL"],
+                ""
+            )
+            return
+
+        # 要求两个参数 save/restore [session_name]
+        if len(m_Parameters) != 2:
+            raise SQLCliException(
+                "Wrong argument : " + "Session save/restore [session name]")
+
+        if m_Parameters[0] == 'save':
+            if self.db_conn is None:
+                raise SQLCliException(
+                    "Please connect session first before save.")
+            m_Session_Name = m_Parameters[1]
+            self.db_saved_conn[m_Session_Name] = [self.db_conn, self.db_username, self.db_url]
+        elif m_Parameters[0] == 'restore':
+            m_Session_Name = m_Parameters[1]
+            if m_Session_Name in self.db_saved_conn:
+                self.db_conn = self.db_saved_conn[m_Session_Name][0]
+                self.db_username = self.db_saved_conn[m_Session_Name][1]
+                self.db_url = self.db_saved_conn[m_Session_Name][2]
+                self.SQLExecuteHandler.set_connection(self.db_conn)
+            else:
+                raise SQLCliException(
+                    "Session [" + m_Session_Name + "] does not exist. Please save it first.")
+        else:
+            raise SQLCliException(
+                "Wrong argument : " + "Session save/restore [session name]")
+        return [(None, None, None, "Session Operate Successful.")]
+
     # 休息一段时间, 如果收到SHUTDOWN或者ABORT符号的时候，立刻终止SLEEP
     def sleep(self, arg, **_):
         if not arg:
@@ -1323,16 +1373,14 @@ class SQLCli(object):
 
     # 执行特殊的命令
     def execute_internal_command(self, arg, **_):
-        # 去掉回车换行符，以及末尾的空格
-        strSQL = str(arg).replace('\r', '').replace('\n', '').strip()
-
-        # 创建数据文件
+        # 创建数据文件, 根据末尾的rows来决定创建的行数
+        # 此时，SQL语句中的回车换行符没有意义
         matchObj = re.match(r"create\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+([1-9]\d*)(\s+)?(;)?$",
-                            strSQL, re.IGNORECASE)
+                            arg, re.IGNORECASE|re.DOTALL)
         if matchObj:
             # create file command  将根据格式要求创建需要的文件
-            Create_file(p_filename=str(matchObj.group(1)),
-                        p_formula_str=str(matchObj.group(2)),
+            Create_file(p_filename=str(matchObj.group(1)).replace('\r', '').replace('\n', ''),
+                        p_formula_str=str(matchObj.group(2).replace('\r', '').replace('\n', '').strip()),
                         p_rows=int(matchObj.group(4)),
                         p_options=self.SQLExecuteHandler.options)
             yield (
@@ -1342,9 +1390,39 @@ class SQLCli(object):
                 str(matchObj.group(4)) + ' rows created Successful.')
             return
 
+        #  创建数据文件
+        matchObj = re.match(r"create\s+file\s+(.*?)\((.*)\)(\s+)?(;)?$",
+                            arg, re.IGNORECASE|re.DOTALL)
+        if matchObj:
+            # create file command  将根据格式要求创建需要的文件
+            Create_file(p_filename=str(matchObj.group(1)).replace('\r', '').replace('\n', ''),
+                        p_formula_str=str(matchObj.group(2)),
+                        p_rows=1,
+                        p_options=self.SQLExecuteHandler.options)
+            yield (
+                None,
+                None,
+                None,
+                'file created Successful.')
+            return
+
+        #  在不同的文件中进行相互转换
+        matchObj = re.match(r"create\s+file\s+(.*?)\s+from\s+(.*?)(\s+)?(;)?$",
+                            arg, re.IGNORECASE|re.DOTALL)
+        if matchObj:
+            # 在不同的文件中相互转换
+            Convert_file(p_srcfilename=str(matchObj.group(1)),
+                         p_dstfilename=str(matchObj.group(2)))
+            yield (
+                None,
+                None,
+                None,
+                'file converted Successful.')
+            return
+
         # 创建随机数Seed的缓存文件
         matchObj = re.match(r"create\s+seeddatafile(\s+)?;$",
-                            strSQL, re.IGNORECASE)
+                            arg, re.IGNORECASE|re.DOTALL)
         if matchObj:
             Create_SeedCacheFile()
             yield (

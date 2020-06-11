@@ -36,8 +36,9 @@ class SQLExecute(object):
     def __init__(self):
         # 设置一些默认的参数
         self.options = {"WHENEVER_SQLERROR": "CONTINUE", "PAGE": "OFF", "OUTPUT_FORMAT": "ASCII", "ECHO": "ON",
-                        "LONG": 20, 'KAFKA_SERVERS': None, 'TIMING': 'OFF', 'TIME': 'OFF', 'TERMOUT': 'ON',
-                        'FEEDBACK': 'ON', "ARRAYSIZE": 10000, 'SQLREWRITE': 'ON', "DEBUG": 'OFF'}
+                        "LONG": 20, 'TIMING': 'OFF', 'TIME': 'OFF', 'TERMOUT': 'ON',
+                        'FEEDBACK': 'ON', "ARRAYSIZE": 10000, 'SQLREWRITE': 'ON', "DEBUG": 'OFF',
+                        'HDFS_WEBFSURL': None, 'HDFS_WEBFSROOT': "/", 'KAFKA_SERVERS': None, }
 
     def set_logfile(self, p_logfile):
         self.logfile = p_logfile
