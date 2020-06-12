@@ -274,6 +274,39 @@ SQL> disconnect
 Database disconnected.
 ```
 ***
+
+#### 会话的切换和保存
+```
+(base) sqlcli 
+SQL*Cli Release 0.0.32
+SQL> connect user/pass@jdbc:[数据库类型]:[数据库通讯协议]://[数据库主机地址]:[数据库端口号]/[数据库服务名] 
+Database connected.
+SQL> session save sesssion1
+Session saved.
+# 这里会把当前会话信息保存到名字为session1的上下文中，session1为用户自定义的名字
+SQL> connect user/pass@jdbc:[数据库类型]:[数据库通讯协议]://[数据库主机地址]:[数据库端口号]/[数据库服务名]
+Database connected.
+# 连接到第一个会话
+SQL> session save sesssion2
+Session saved.
+# 这里会把当前会话信息保存到名字为session2的上下文中，session2为用户自定义的名字
+SQL> session show
++---------------+-----------+-----------------------------------------------+
+| Sesssion Name | User Name | URL                                           |
++---------------+-----------+-----------------------------------------------+
+| session1      | xxxxx     | jdbc:xxxxx:xxx://xxx.xxx.xxx.xxx/xxxx         |
+| session2      | yyyyy     | jdbc:yyyy:xxx://xxx.xxx.xxx.xxx/yyyyy         |         
++---------------+-----------+-----------------------------------------------+
+# 显示当前保存的所有会话信息
+SQL> session restore sesssion1
+Session stored.
+# 这里将恢复当前数据库连接为之前的会话1
+SQL> session restore sesssion2
+Session stored.
+# 这里将恢复当前数据库连接为之前的会话2
+```
+***
+
 #### 让程序休息一会
 ```
 (base) sqlcli 
@@ -562,10 +595,14 @@ Mapping file loaded.
    若不创建这个文件，则random_from_seed会抛出异常
    对于一个环境只需要执行一次这样的操作，以后的每次随机数操作并不需要重复进行这个操作。
 
-   __internal__ CREATE FILE '[mem://xxx]|[file://xxx]|[zip://xxx]|[tar://xxx]|[kafka://xxx]'
+   __internal__ CREATE FILE '[mem://xxx]|[file://xxx]|[kafka://xxx]|[hdfs://xxx]'
    (
-     这里输入一个文本，文本中可以包含宏代码来表示特殊信息. 
-     这里可以换行，但是换行符会在处理过程中被去掉
+     如果参数中提供了ROWS：
+         这里将把括号内内容理解为一行内容，其中的换行符在处理过程中被去掉
+         相关信息将被完成宏替换后，重复ROWS行数后构成一个文件
+     如果参数没有提供了ROWS：
+         这里将把括号内内容理解为多行内容
+         相关信息将被完成宏替换后构成一个文件
    ) ROWS [number of rows];
    
    这里语句的开头：  __internal__ 是必须的内容，固定写法
@@ -587,12 +624,14 @@ Mapping file loaded.
      {random_timestamp(start, end)}             表示一个随机的时间戳， 时间区间为 start到end，日期格式为%Y-%M-%D %H:%M%S
      {random_boolean())                         表示一个随机的Boolean，可能为0，也可能为1
 
+    __internal__ CREATE FILE '[mem://xxx]|[file://xxx]|[hdfs://xxx]' FROM '[mem://xxx]|[file://xxx]|[hdfs://xxx]'
+    这里将完成一个文件复制。 
+
    文件格式：
      mem://xxx            会在内存中创建这个文件，一旦退出sqlcli，相关信息将会丢失
      file://xxx           会在本地文件系统中创建这个文件，其中xxx为文件名称信息
-     zip://xxx            会在本地文件系统中创建一个ZIP压缩文件，其中xxx为文件名称信息
-     tar://xxx            会在本地文件系统中创建一个TAR压缩文件，其中xxx为文件名称信息
      kafka://xxx          会连接Kafka服务器，将生成的字符串发送过去，其中xxx为需要发送的TOPIC内容
+     hdfs://xxx           会连接HDFS服务器，将生成的字符串发送过去，其中xxx为需要发送的TOPIC内容
    注意：
      如果需要发送数据到kafka, 必须提前设置kafka服务器的地址, 设置的方法是：
      SQL>  set KAFKA_SERVERS [kafka Server地址]:[kafka 端口号]
@@ -602,10 +641,24 @@ Mapping file loaded.
    SQL> __internal__ CREATE FILE file://abc.txt
       > (
       > {identity(10)},'{random_ascii_letters(5)}','{random_ascii_lowercase(3)}'
-      > ) ROWS 2;
+      > ) ROWS 3;
     会在当前的文件目录下创建一个名字为abc.txt的文本文件，其中的内容为：
     10,'vxbMd','jsr'
     11,'SSiAa','vtg'
+    12,'SSdaa','cfg'
+
+   SQL> __internal__ CREATE FILE file://abc.txt
+      > (
+      > {identity(10)},'{random_ascii_letters(5)}','{random_ascii_lowercase(3)}'
+      > {identity(10)},'{random_ascii_letters(5)}','{random_ascii_lowercase(3)}'
+      > );
+    会在当前的文件目录下创建一个名字为abc.txt的文本文件，其中的内容为：
+    10,'vxbMd','jsr'
+    11,'SSiAa','vtg'
+
+   SQL> __internal__ CREATE FILE file://abc.txt FROM hdfs://def.txt
+   会从HDFS上下载一个文件def.txt, 并保存到本地文件系统的abc.txt中
+
 ```
 ***    
 #### 退出

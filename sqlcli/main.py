@@ -1263,12 +1263,20 @@ class SQLCli(object):
             m_Result = []
             for m_Session_Name, m_Connection in self.db_saved_conn.items():
                 m_Result.append([str(m_Session_Name), str(m_Connection[1]), str(m_Connection[2])])
-            yield (
-                "Saved Sessions",
-                m_Result,
-                ["Sesssion Name", "User Name", "URL"],
-                ""
-            )
+            if len(m_Result) == 0:
+                yield (
+                    None,
+                    None,
+                    None,
+                    "No saved sesssions."
+                )
+            else:
+                yield (
+                    "Saved Sessions",
+                    m_Result,
+                    ["Sesssion Name", "User Name", "URL"],
+                    "Total " + str(len(m_Result)) + " saved sesssions."
+                )
             return
 
         # 要求两个参数 save/restore [session_name]
@@ -1295,7 +1303,11 @@ class SQLCli(object):
         else:
             raise SQLCliException(
                 "Wrong argument : " + "Session save/restore [session name]")
-        return [(None, None, None, "Session Operate Successful.")]
+        if m_Parameters[0] == 'save':
+            yield None, None, None, "Session saved Successful."
+        if m_Parameters[0] == 'restore':
+            yield None, None, None, "Session restored Successful."
+        return
 
     # 休息一段时间, 如果收到SHUTDOWN或者ABORT符号的时候，立刻终止SLEEP
     def sleep(self, arg, **_):
