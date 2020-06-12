@@ -441,7 +441,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
             m_NewSQLWithComments = SQLCommandsWithComments[m_nPos][m_NewSQLWithCommentsLastPos:]
             if re.match(r'(.*);(\s+)?$', SQLCommands[m_nPos]):  # 本行以；结尾
                 strRegexPattern = \
-                    r'^((\s+)?CREATE(\s+)|^(\s+)?REPLACE(\s+))(.*)?(FUNCTION|PROCEDURE)'
+                    r'^((\s+)?CREATE(\s+)|^(\s+)?REPLACE(\s+))((\s+)?(OR)?(\s+)?(REPLACE)?(\s+)?)?(FUNCTION|PROCEDURE)'
                 strRegexPattern2 = \
                     r'^(\s+)?DECLARE(\s+)|^(\s+)?BEGIN(\s+)'
                 if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE) and \
@@ -534,7 +534,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 if re.match(r'(.*);(\s+)?$', SQLCommands[m_nPos]):  # 本行以；结尾
                     # 查找这个多行语句是否就是一个存储过程
                     strRegexPattern = \
-                        r'^((\s+)?CREATE(\s+)|^(\s+)?REPLACE(\s+))(.*)?(FUNCTION|PROCEDURE)'
+                        r'^((\s+)?CREATE(\s+)|^(\s+)?REPLACE(\s+))((\s+)?(OR)?(\s+)?(REPLACE)?(\s+)?)?(FUNCTION|PROCEDURE)'
                     strRegexPattern2 = \
                         r'^(\s+)?DECLARE(\s+)|^(\s+)?BEGIN(\s+)'
                     if not re.match(strRegexPattern, m_NewSQL, re.IGNORECASE) and \

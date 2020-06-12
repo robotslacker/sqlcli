@@ -1261,7 +1261,7 @@ class SQLCli(object):
 
         if len(m_Parameters) == 1 and m_Parameters[0] == 'show':
             m_Result = []
-            for m_Session_Name,m_Connection in self.db_saved_conn.items():
+            for m_Session_Name, m_Connection in self.db_saved_conn.items():
                 m_Result.append([str(m_Session_Name), str(m_Connection[1]), str(m_Connection[2])])
             yield (
                 "Saved Sessions",
@@ -1376,7 +1376,7 @@ class SQLCli(object):
         # 创建数据文件, 根据末尾的rows来决定创建的行数
         # 此时，SQL语句中的回车换行符没有意义
         matchObj = re.match(r"create\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+([1-9]\d*)(\s+)?(;)?$",
-                            arg, re.IGNORECASE|re.DOTALL)
+                            arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             # create file command  将根据格式要求创建需要的文件
             Create_file(p_filename=str(matchObj.group(1)).replace('\r', '').replace('\n', ''),
@@ -1392,7 +1392,7 @@ class SQLCli(object):
 
         #  创建数据文件
         matchObj = re.match(r"create\s+file\s+(.*?)\((.*)\)(\s+)?(;)?$",
-                            arg, re.IGNORECASE|re.DOTALL)
+                            arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             # create file command  将根据格式要求创建需要的文件
             Create_file(p_filename=str(matchObj.group(1)).replace('\r', '').replace('\n', ''),
@@ -1408,11 +1408,12 @@ class SQLCli(object):
 
         #  在不同的文件中进行相互转换
         matchObj = re.match(r"create\s+file\s+(.*?)\s+from\s+(.*?)(\s+)?(;)?$",
-                            arg, re.IGNORECASE|re.DOTALL)
+                            arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             # 在不同的文件中相互转换
-            Convert_file(p_srcfilename=str(matchObj.group(1)),
-                         p_dstfilename=str(matchObj.group(2)))
+            Convert_file(p_srcfilename=str(matchObj.group(2)),
+                         p_dstfilename=str(matchObj.group(1)),
+                         p_options=self.SQLExecuteHandler.options)
             yield (
                 None,
                 None,
@@ -1422,7 +1423,7 @@ class SQLCli(object):
 
         # 创建随机数Seed的缓存文件
         matchObj = re.match(r"create\s+seeddatafile(\s+)?;$",
-                            arg, re.IGNORECASE|re.DOTALL)
+                            arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             Create_SeedCacheFile()
             yield (

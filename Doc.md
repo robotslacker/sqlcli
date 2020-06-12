@@ -28,7 +28,8 @@ SQLCli 目前可以支持的数据库有：
      yum install -y gcc-c++ gcc  
      在jaydebeapi 1.1.1的版本下，发现jpype必须进行降级，否则无法使用  
      pip install --upgrade jpype1==0.6.3 --user
-
+   * 对于MAC平台，直接安装
+   
 安装命令：
 ```
    pip install -U robotslacker-sqlcli
@@ -329,7 +330,7 @@ Mapping file loaded.
         REWROTED    > id int,
         REWROTED    > name varchar(30),
         REWROTED    > salary int
-        REWROTED    > ) engine pallas
+        REWROTED    > ) engine xxxx;
      这里第一段是SQL文件中的原信息，带有REWROTED的信息是被改写后的信息
 
 ```
@@ -340,7 +341,7 @@ Mapping file loaded.
   SQL语句块是指用来创建存储过程、SQL函数等较长的SQL语句  
   SQL语句块的判断依据是：
 ```
-     CREATE | REPLACE ******   FUNCTION|PROCEDURE ****
+     CREATE | REPLACE ******   FUNCTION|PROCEDURE **** | DECLARE ****
 ```
 &emsp; SQL语句块的结束符为【/】，且【/】必须出现在具体一行语句的开头  比如：
 ```
@@ -357,7 +358,7 @@ Mapping file loaded.
    多行SQL语句是指不能在一行内写完，需要分成多行来写的SQL语句。  
    多行SQL语句的判断依据是： 语句用如下内容作为关键字开头
 ```
-    CREATE | SELECT | UPDATE | DELETE | INSERT | __INTERNAL__ | DROP | REPLACE
+    CREATE | SELECT | UPDATE | DELETE | INSERT | __INTERNAL__ | DROP | REPLACE | ALTER
 
 ```
 &emsp; 多行SQL结束符为分号【 ；】 比如：
