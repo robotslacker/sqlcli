@@ -1706,16 +1706,6 @@ class SQLCli(object):
             output = itertools.chain(output, [title])
 
         if cur:
-            # 列的数据类型，如果不存在，按照None来处理
-            column_types = None
-            if hasattr(cur, "description"):
-                def get_col_type(col):
-                    # col_type = FIELD_TYPES.get(col[1], text_type)
-                    # return col_type if type(col_type) is type else text_type
-                    return str
-
-                column_types = [get_col_type(col) for col in cur.description]
-
             if max_width is not None:
                 cur = list(cur)
 
@@ -1723,7 +1713,7 @@ class SQLCli(object):
                 cur,
                 headers,
                 format_name=p_format_name,
-                column_types=column_types,
+                column_types=None,
                 **output_kwargs
             )
             if isinstance(formatted, str):

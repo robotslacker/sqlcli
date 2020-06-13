@@ -36,9 +36,10 @@ class SQLExecute(object):
     def __init__(self):
         # 设置一些默认的参数
         self.options = {"WHENEVER_SQLERROR": "CONTINUE", "PAGE": "OFF", "OUTPUT_FORMAT": "ASCII", "ECHO": "ON",
-                        "LONG": 20, 'TIMING': 'OFF', 'TIME': 'OFF', 'TERMOUT': 'ON',
+                        'TIMING': 'OFF', 'TIME': 'OFF', 'TERMOUT': 'ON',
                         'FEEDBACK': 'ON', "ARRAYSIZE": 10000, 'SQLREWRITE': 'ON', "DEBUG": 'OFF',
-                        'HDFS_WEBFSURL': None, 'HDFS_WEBFSROOT': "/", 'KAFKA_SERVERS': None, }
+                        'HDFS_WEBFSURL': None, 'HDFS_WEBFSROOT': "/", 'KAFKA_SERVERS': None,
+                        "CLOB_LONG": 20, 'FLOAT_FORMAT': '%.7g', 'DOUBLE_FORMAT': '%0.10g'}
 
     def set_logfile(self, p_logfile):
         self.logfile = p_logfile
@@ -129,7 +130,8 @@ class SQLExecute(object):
                         if (
                                 str(e).find("SQLSyntaxErrorException") != -1 or
                                 str(e).find("SQLException") != -1 or
-                                str(e).find("SQLDataException") != -1
+                                str(e).find("SQLDataException") != -1 or
+                                str(e).find('time data') != -1
                         ):
                             # SQL 语法错误
                             if self.options["WHENEVER_SQLERROR"] == "EXIT":
@@ -222,7 +224,11 @@ class SQLExecute(object):
                     m_row = []
                     for column in row:
                         if str(type(column)).find('JDBCClobClient') != -1:
-                            m_row.append(column.getSubString(1, int(self.options["LONG"])))
+                            m_row.append(column.getSubString(1, int(self.options["CLOB_LONG"])))
+                        elif str(type(column)).find("Float") != -1:
+                            m_row.append(self.options["FLOAT_FORMAT"] % column)
+                        elif str(type(column)).find("Double") != -1:
+                            m_row.append(self.options["DOUBLE_FORMAT"] % column)
                         else:
                             m_row.append(column)
                     m_row = tuple(m_row)
