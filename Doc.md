@@ -445,7 +445,7 @@ Mapping file loaded.
     | PAGE              | OFF      |
     | OUTPUT_FORMAT     | ASCII    |
     | ECHO              | ON       |
-    | LONG              | 20       |
+    | LOB_LENGTH              | 20       |
     | KAFKA_SERVERS     | None     |
     | TIMING            | OFF      |
     | TERMOUT           | ON       |
@@ -529,23 +529,24 @@ Mapping file loaded.
         2 rows selected.
 ```
 
-4.&emsp; LONG      控制LOB字段的输出长度，默认是20  
-&emsp; &emsp; 由于LOB字段中的文本长度可能会比较长，所以默认不会显示出所有的LOB内容到当前输出中，而是最大长度显示LONG值所代表的长度  
+4.&emsp; LOB_LENGTH      控制LOB字段的输出长度，默认是20  
+&emsp; &emsp; 由于LOB字段中的文本长度可能会比较长，所以默认不会显示出所有的LOB内容到当前输出中，而是最大长度显示LOB_LENGTH值所代表的长度对于超过默认显示长度的，将在输出内容后面添加...省略号来表示   
+&emsp; &emsp; 对于BLOB类型，输出默认为16进制格式。对于超过默认显示长度的，将在输出内容后面添加...省略号来表示 
 ```       
-        SQL> set long 300     # CLOB将会显示前300个字符
+        SQL> set LOB_LENGTH 300     # CLOB将会显示前300个字符
         例子，执行一个CLOB字段查询,CLOB中的信息为ABCDEFGHIJKLMNOPQRSTUVWXYZ
-        SQL> set long 5
+        SQL> set LOB_LENGTH 5
         SQL> SELECT CLOB1 FROM TEST_TAB;
         SQL> ===========
         SQL> =  CLOB1 ==
         SQL> ===========
         SQL>       ABCDE
         SQL> 1 rows selected.
-        SQL> set long 15
+        SQL> set LOB_LENGTH 15
         SQL> =====================
         SQL> =        CLOB1      =
         SQL> =====================
-        SQL>       ABCDEFGHIJKLMNO
+        SQL>    ABCDEFGHIJKLMNO...
         SQL> 1 rows selected.
 ```
 

@@ -39,7 +39,7 @@ class SQLExecute(object):
                         'TIMING': 'OFF', 'TIME': 'OFF', 'TERMOUT': 'ON',
                         'FEEDBACK': 'ON', "ARRAYSIZE": 10000, 'SQLREWRITE': 'ON', "DEBUG": 'OFF',
                         'KAFKA_SERVERS': None,
-                        "CLOB_LONG": 20, 'FLOAT_FORMAT': '%.7g', 'DOUBLE_FORMAT': '%0.10g'}
+                        "LOB_LENGTH": 20, 'FLOAT_FORMAT': '%.7g', 'DOUBLE_FORMAT': '%0.10g'}
 
     def set_logfile(self, p_logfile):
         self.logfile = p_logfile
@@ -131,6 +131,7 @@ class SQLExecute(object):
                                 str(e).find("SQLSyntaxErrorException") != -1 or
                                 str(e).find("SQLException") != -1 or
                                 str(e).find("SQLDataException") != -1 or
+                                str(e).find("SQLTransactionRollbackException") != -1 or
                                 str(e).find('time data') != -1
                         ):
                             # SQL 语法错误
@@ -224,7 +225,20 @@ class SQLExecute(object):
                     m_row = []
                     for column in row:
                         if str(type(column)).find('JDBCClobClient') != -1:
-                            m_row.append(column.getSubString(1, int(self.options["CLOB_LONG"])))
+                            m_Length = column.length()
+                            m_ColumnValue = column.getSubString(1, int(self.options["LOB_LENGTH"]))
+                            if m_Length > int(self.options["LOB_LENGTH"]):
+                                m_ColumnValue = m_ColumnValue + "..."
+                            m_row.append(m_ColumnValue)
+                        elif str(type(column)).find('JDBCBlobClient') != -1:
+                            # 对于二进制数据，用16进制数来显示
+                            # 2: 意思是去掉Hex前面的0x字样
+                            m_Length = column.length()
+                            m_ColumnValue = "".join([hex(int(i))[2:]
+                                                     for i in column.getBytes(1, int(self.options["LOB_LENGTH"]))])
+                            if m_Length > int(self.options["LOB_LENGTH"]):
+                                m_ColumnValue = m_ColumnValue + "..."
+                            m_row.append(m_ColumnValue)
                         elif str(type(column)).find("Float") != -1:
                             m_row.append(self.options["FLOAT_FORMAT"] % column)
                         elif str(type(column)).find("Double") != -1:
