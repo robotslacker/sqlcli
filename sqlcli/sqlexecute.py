@@ -38,7 +38,7 @@ class SQLExecute(object):
         self.options = {"WHENEVER_SQLERROR": "CONTINUE", "PAGE": "OFF", "OUTPUT_FORMAT": "ASCII", "ECHO": "ON",
                         'TIMING': 'OFF', 'TIME': 'OFF', 'TERMOUT': 'ON',
                         'FEEDBACK': 'ON', "ARRAYSIZE": 10000, 'SQLREWRITE': 'ON', "DEBUG": 'OFF',
-                        'HDFS_WEBFSURL': None, 'HDFS_WEBFSROOT': "/", 'KAFKA_SERVERS': None,
+                        'KAFKA_SERVERS': None,
                         "CLOB_LONG": 20, 'FLOAT_FORMAT': '%.7g', 'DOUBLE_FORMAT': '%0.10g'}
 
     def set_logfile(self, p_logfile):
@@ -68,7 +68,7 @@ class SQLExecute(object):
             m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]
 
             # 如果打开了回显，并且指定了输出文件，则在输出文件里显示SQL语句
-            if self.options["ECHO"] == 'ON' and len(m_CommentSQL.strip()) != 0 and self.logfile is not None:
+            if self.options["ECHO"].upper() == 'ON' and len(m_CommentSQL.strip()) != 0 and self.logfile is not None:
                 click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.logfile)
 
             # 如果运行在脚本模式下，需要在控制台回显SQL
@@ -76,11 +76,11 @@ class SQLExecute(object):
                 click.secho(SQLFormatWithPrefix(m_CommentSQL), file=self.Console)
 
             # 如果打开了回显，并且指定了输出文件，且SQL被改写过，输出改写后的SQL
-            if self.options["SQLREWRITE"] == 'ON':
+            if self.options["SQLREWRITE"].upper() == 'ON':
                 old_sql = sql
                 sql = self.SQLMappingHandler.RewriteSQL(p_sqlscript, old_sql)
                 if old_sql != sql:
-                    if self.options["ECHO"] == 'ON' and self.logfile is not None:
+                    if self.options["ECHO"].upper() == 'ON' and self.logfile is not None:
                         # SQL已经发生了改变
                         click.echo(SQLFormatWithPrefix(
                             "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
@@ -196,10 +196,10 @@ class SQLExecute(object):
             self.m_Current_RunningSQL = None
 
             # 如果需要，打印语句执行时间
-            if self.options['TIMING'] == 'ON':
+            if self.options['TIMING'].upper() == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
                     yield None, None, None, 'Running time elapsed: %9.2f Seconds' % (end - start)
-            if self.options['TIME'] == 'ON':
+            if self.options['TIME'].upper() == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
                     yield None, None, None, 'Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime())
 
@@ -223,12 +223,19 @@ class SQLExecute(object):
                 for row in rowset:
                     m_row = []
                     for column in row:
+                        print("CONTENT2 = [" + column + "]")
                         if str(type(column)).find('JDBCClobClient') != -1:
                             m_row.append(column.getSubString(1, int(self.options["CLOB_LONG"])))
                         elif str(type(column)).find("Float") != -1:
                             m_row.append(self.options["FLOAT_FORMAT"] % column)
                         elif str(type(column)).find("Double") != -1:
                             m_row.append(self.options["DOUBLE_FORMAT"] % column)
+                        elif str(type(column)).find('str') != -1:
+                            # 对于二进制数据，其末尾用0x00表示，这里进行截断
+                            m_0x00Start = column.find(chr(0))
+                            if m_0x00Start != -1:
+                                column = column[0:m_0x00Start]
+                            m_row.append(column)
                         else:
                             m_row.append(column)
                     m_row = tuple(m_row)
@@ -248,11 +255,11 @@ class SQLExecute(object):
         if m_FetchStatus:
             status = None
 
-        if self.options['FEEDBACK'] == 'ON' and status is not None:
+        if self.options['FEEDBACK'].upper() == 'ON' and status is not None:
             status = status.format(rowcount, "" if rowcount == 1 else "s")
         else:
             status = None
-        if self.options['TERMOUT'] == 'OFF':
+        if self.options['TERMOUT'].upper() == 'OFF':
             return title, [], headers, status, m_FetchStatus, rowcount
         else:
             return title, result, headers, status, m_FetchStatus, rowcount

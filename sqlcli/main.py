@@ -10,6 +10,7 @@ import re
 import time
 from multiprocessing import Process, Manager, Lock
 import setproctitle
+import shlex
 
 from cli_helpers.tabular_output import TabularOutputFormatter
 from cli_helpers.tabular_output import preprocessors
@@ -1076,8 +1077,16 @@ class SQLCli(object):
             raise SQLCliException("Please load driver first.")
 
         # 去掉为空的元素
-        # connect_parameters = [var for var in re.split(r'//|:|@| |/', arg) if var]
-        connect_parameters = re.split(r'://|:|@|/', arg)
+        # connect_parameters = re.split(r'://|:|@|/|\s+', arg)
+
+        m_connect_parameterlist = shlex.shlex(arg)
+        m_connect_parameterlist.whitespace = '://|:|@| '
+        m_connect_parameterlist.quotes = '"'
+        m_connect_parameterlist.whitespace_split = True
+        connect_parameters = list(m_connect_parameterlist)
+        for m_nPos in range(0, len(connect_parameters)):
+            if connect_parameters[m_nPos].startswith('"') and connect_parameters[m_nPos].endswith('"'):
+                connect_parameters[m_nPos] = connect_parameters[m_nPos][1:-1]
         if len(connect_parameters) == 8:
             # 指定了所有的数据库连接参数
             self.db_username = connect_parameters[0]
@@ -1120,8 +1129,7 @@ class SQLCli(object):
                                               "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
                 else:
                     # 用户第一次连接，而且没有指定环境变量
-                    raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
-                                          "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
+                    raise SQLCliException("Missed SQLCLI_CONNECTION_URL in env.")
         elif len(connect_parameters) == 4:
             # 用户写法是connect user xxx password xxxx; 密码可能包含引号
             if connect_parameters[0].upper() == "USER" and connect_parameters[2].upper() == "PASSWORD":
@@ -1152,10 +1160,11 @@ class SQLCli(object):
                                                   "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
                     else:
                         # 用户第一次连接，而且没有指定环境变量
-                        raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
-                                              "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
+                        raise SQLCliException("Missed SQLCLI_CONNECTION_URL in env.")
         else:
             # 不知道的参数写法
+            if "SQLCLI_DEBUG" in os.environ:
+                print("DEBUG:: Connect Str =[" + str(connect_parameters) + "]")
             raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
                                   "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
 
@@ -1222,6 +1231,8 @@ class SQLCli(object):
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
+                print("db_user = [" + str(self.db_username) + "]")
+                print("db_pass = [" + str(self.db_password) + "]")
                 print("db_type = [" + str(self.db_type) + "]")
                 print("db_host = [" + str(self.db_host) + "]")
                 print("db_port = [" + str(self.db_port) + "]")
@@ -1348,8 +1359,8 @@ class SQLCli(object):
     # 设置一些选项
     def set_options(self, arg, **_):
         if arg is None:
-            raise Exception("Missing required argument. set parameter parameter_value.")
-        elif arg == "":
+            raise SQLCliException("Missing required argument. set parameter parameter_value.")
+        elif arg == "":      # 显示所有的配置
             m_Result = []
             for key, value in self.SQLExecuteHandler.options.items():
                 m_Result.append([str(key), str(value)])
@@ -1362,7 +1373,7 @@ class SQLCli(object):
         else:
             options_parameters = str(arg).split()
             if len(options_parameters) == 1:
-                raise Exception("Missing required argument. set parameter parameter_value.")
+                raise SQLCliException("Missing required argument. set parameter parameter_value.")
 
             # 处理DEBUG选项
             if options_parameters[0].upper() == "DEBUG":
@@ -1374,7 +1385,7 @@ class SQLCli(object):
 
             # 如果不是已知的选项，则直接抛出到SQL引擎
             if options_parameters[0].upper() in self.SQLExecuteHandler.options:
-                self.SQLExecuteHandler.options[options_parameters[0].upper()] = options_parameters[1].upper()
+                self.SQLExecuteHandler.options[options_parameters[0].upper()] = options_parameters[1]
                 yield (
                     None,
                     None,
@@ -1387,45 +1398,53 @@ class SQLCli(object):
     def execute_internal_command(self, arg, **_):
         # 创建数据文件, 根据末尾的rows来决定创建的行数
         # 此时，SQL语句中的回车换行符没有意义
-        matchObj = re.match(r"create\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+([1-9]\d*)(\s+)?(;)?$",
+        matchObj = re.match(r"create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+(\d+)(\s+)?$",
                             arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            # create file command  将根据格式要求创建需要的文件
-            Create_file(p_filename=str(matchObj.group(1)).replace('\r', '').replace('\n', ''),
-                        p_formula_str=str(matchObj.group(2).replace('\r', '').replace('\n', '').strip()),
-                        p_rows=int(matchObj.group(4)),
+            m_filetype = str(matchObj.group(1)).strip()
+            m_filename = str(matchObj.group(2)).strip().replace('\r', '').replace('\n', '')
+            m_formula_str = str(matchObj.group(3).replace('\r', '').replace('\n', '').strip())
+            m_rows = int(matchObj.group(5))
+            Create_file(p_filetype=m_filetype,
+                        p_filename=m_filename,
+                        p_formula_str=m_formula_str,
+                        p_rows=m_rows,
                         p_options=self.SQLExecuteHandler.options)
             yield (
                 None,
                 None,
                 None,
-                str(matchObj.group(4)) + ' rows created Successful.')
+                str(m_rows) + ' rows created Successful.')
             return
 
-        #  创建数据文件
-        matchObj = re.match(r"create\s+file\s+(.*?)\((.*)\)(\s+)?(;)?$",
+        matchObj = re.match(r"create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?$",
                             arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            # create file command  将根据格式要求创建需要的文件
-            Create_file(p_filename=str(matchObj.group(1)).replace('\r', '').replace('\n', ''),
-                        p_formula_str=str(matchObj.group(2)),
-                        p_rows=1,
+            m_filetype = str(matchObj.group(1)).strip()
+            m_filename = str(matchObj.group(2)).strip().replace('\r', '').replace('\n', '')
+            m_formula_str = str(matchObj.group(3).replace('\r', '').replace('\n', '').strip())
+            m_rows = 1
+            Create_file(p_filetype=m_filetype,
+                        p_filename=m_filename,
+                        p_formula_str=m_formula_str,
+                        p_rows=m_rows,
                         p_options=self.SQLExecuteHandler.options)
             yield (
                 None,
                 None,
                 None,
-                'file created Successful.')
+                str(m_rows) + ' rows created Successful.')
             return
 
         #  在不同的文件中进行相互转换
-        matchObj = re.match(r"create\s+file\s+(.*?)\s+from\s+(.*?)(\s+)?(;)?$",
+        matchObj = re.match(r"create\s+(.*?)\s+file\s+(.*?)\s+from\s+(.*?)file(.*?)(\s+)?$",
                             arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             # 在不同的文件中相互转换
-            Convert_file(p_srcfilename=str(matchObj.group(2)),
-                         p_dstfilename=str(matchObj.group(1)),
-                         p_options=self.SQLExecuteHandler.options)
+            Convert_file(p_srcfileType=str(matchObj.group(3)).strip(),
+                         p_srcfilename=str(matchObj.group(4)).strip(),
+                         p_dstfileType=str(matchObj.group(1)).strip(),
+                         p_dstfilename=str(matchObj.group(2)).strip())
             yield (
                 None,
                 None,
@@ -1434,19 +1453,34 @@ class SQLCli(object):
             return
 
         # 创建随机数Seed的缓存文件
-        matchObj = re.match(r"create\s+seeddatafile(\s+)?;$",
+        matchObj = re.match(r"create\s+seeddatafile\s+(.*?)\s+with\s+null\s+rows\s+(\d+)$",
                             arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            Create_SeedCacheFile()
+            m_strSeedFile = str(matchObj.group(1)).lstrip().rstrip()
+            m_nNullValueCount = int(matchObj.group(2))
+            Create_SeedCacheFile(p_szSeedName=m_strSeedFile, p_nNullValueCount=m_nNullValueCount)
             yield (
                 None,
                 None,
                 None,
-                'file created Successful.')
+                'seed file created Successful.')
+            return
+
+        # 创建随机数Seed的缓存文件
+        matchObj = re.match(r"create\s+seeddatafile\s+(.*?)(\s+)?$",
+                            arg, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_strSeedFile = str(matchObj.group(1))
+            Create_SeedCacheFile(p_szSeedName=m_strSeedFile)
+            yield (
+                None,
+                None,
+                None,
+                'seed file created Successful.')
             return
 
         # 不认识的internal命令
-        raise SQLCliException("Unknown internal Command. Please double check.")
+        raise SQLCliException("Unknown internal Command [" + str(arg) + "]. Please double check.")
 
     # 逐条处理SQL语句
     # 如果执行成功，返回true

@@ -338,7 +338,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
 
             # 如果本行只有唯一的内容，就是段落终止符的话，本语句没有意义，不会执行；但是注释有意义
             # / 不能送给SQL解析器
-            if re.match(r'^/$', SQLCommands[m_nPos]):
+            if re.match(r'^(\s+)?/(\s+)?$', SQLCommands[m_nPos]):
                 SQLSplitResults.append("")
                 SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
                 if m_nPos == len(SQLCommands) - 1:
@@ -486,7 +486,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 m_bInMultiLineSQL = True
         else:  # 工作在多行语句中
             # 本行只有唯一的内容，就是段落终止符的话，语句应该可以提交了
-            if re.match(r'^/$', SQLCommands[m_nPos]):
+            if re.match(r'^(\s+)?/(\s+)?$', SQLCommands[m_nPos]):
                 SQLSplitResults.append(m_NewSQL)
                 # 注释信息包含/符号
                 SQLSplitResultsWithComments.append(m_NewSQLWithComments + "\n/")

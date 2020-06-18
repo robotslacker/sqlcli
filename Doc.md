@@ -25,7 +25,7 @@ SQLCli 目前可以支持的数据库有：
      在jaydebeapi 1.1.1的版本下，发现jpype必须进行降级，否则无法使用  
      pip install --upgrade jpype1==0.6.3 --user
    * 对于Linux平台，也需要提前安装gcc编译器（Jaydebeapi安装过程中需要动态编译jpype）  
-     yum install -y gcc-c++ gcc  
+     yum install -y gcc-c++ gcc python3-devel
      在jaydebeapi 1.1.1的版本下，发现jpype必须进行降级，否则无法使用  
      pip install --upgrade jpype1==0.6.3 --user
    * 对于MAC平台，直接安装
@@ -590,12 +590,15 @@ Mapping file loaded.
    这里指的内部语句是说不需要后台SQL引擎完成，而是通过在SQLCli程序中扩展代码来支持的语句。  
    目前支持的扩展语句有：
 ```
-   __internal__ CREATE SEEDDATAFILE;
+   __internal__ CREATE SEEDDATAFILE [SeedName] WITH NULL rows [null rows];
    这个程序将在$SQLCLI_HOME下创建若干seed文件，用来后续的随机函数
    若不创建这个文件，则random_from_seed会抛出异常
    对于一个环境只需要执行一次这样的操作，以后的每次随机数操作并不需要重复进行这个操作。
+   null rows:  在创建的数据模板中包含了多少个NULL值
+   SeedName:   数据种子的名称
+   目前支持的种子有：  10n，100n, 1Kn, 10Kn, 10s, 100s, 1Ks, 10Ks, 100Ks
 
-   __internal__ CREATE FILE '[mem://xxx]|[file://xxx]|[kafka://xxx]|[hdfs://xxx]'
+   __internal__ CREATE [MEM|FS|HDFS] FILE '[xxx]'
    (
      如果参数中提供了ROWS：
          这里将把括号内内容理解为一行内容，其中的换行符在处理过程中被去掉
@@ -605,6 +608,11 @@ Mapping file loaded.
          相关信息将被完成宏替换后构成一个文件
    ) ROWS [number of rows];
    
+   MEM:  表示文件将被创建在内存中，程序退出后，文件将不复存在
+   FS:   表示文件将被创建在文件中，需要注意的是，这里的目录不是真实的OS目录，而是一个相对于工作目录的相对目录
+   HDFS: 表示文件将被创建在HDFS上，这里需要远程的HDFS服务器开启WebFS的功能
+         文件格式例子：  http://nodexx:port/dirx/diry/xx.dat
+         其中port是webfs的port，不是rpc的port， SQLCli并不支持rpc协议
    这里语句的开头：  __internal__ 是必须的内容，固定写法
    宏代码的格式包括：
      {identity(start_number)}                  表示一个自增字段，起始数字为start_number
@@ -627,18 +635,13 @@ Mapping file loaded.
     __internal__ CREATE FILE '[mem://xxx]|[file://xxx]|[hdfs://xxx]' FROM '[mem://xxx]|[file://xxx]|[hdfs://xxx]'
     这里将完成一个文件复制。 
 
-   文件格式：
-     mem://xxx            会在内存中创建这个文件，一旦退出sqlcli，相关信息将会丢失
-     file://xxx           会在本地文件系统中创建这个文件，其中xxx为文件名称信息
-     kafka://xxx          会连接Kafka服务器，将生成的字符串发送过去，其中xxx为需要发送的TOPIC内容
-     hdfs://xxx           会连接HDFS服务器，将生成的字符串发送过去，其中xxx为需要发送的TOPIC内容
    注意：
      如果需要发送数据到kafka, 必须提前设置kafka服务器的地址, 设置的方法是：
      SQL>  set KAFKA_SERVERS [kafka Server地址]:[kafka 端口号]
 
 
    例子：
-   SQL> __internal__ CREATE FILE file://abc.txt
+   SQL> __internal__ CREATE FS FILE file://abc.txt
       > (
       > {identity(10)},'{random_ascii_letters(5)}','{random_ascii_lowercase(3)}'
       > ) ROWS 3;
@@ -647,7 +650,7 @@ Mapping file loaded.
     11,'SSiAa','vtg'
     12,'SSdaa','cfg'
 
-   SQL> __internal__ CREATE FILE file://abc.txt
+   SQL> __internal__ CREATE FS FILE file://abc.txt
       > (
       > {identity(10)},'{random_ascii_letters(5)}','{random_ascii_lowercase(3)}'
       > {identity(10)},'{random_ascii_letters(5)}','{random_ascii_lowercase(3)}'
@@ -656,7 +659,7 @@ Mapping file loaded.
     10,'vxbMd','jsr'
     11,'SSiAa','vtg'
 
-   SQL> __internal__ CREATE FILE file://abc.txt FROM hdfs://def.txt
+   SQL> __internal__ CREATE FS FILE file://abc.txt FROM HDFS FILE http://nodexx:port/def.txt
    会从HDFS上下载一个文件def.txt, 并保存到本地文件系统的abc.txt中
 
 ```

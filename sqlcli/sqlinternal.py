@@ -8,6 +8,7 @@ import datetime
 import random
 from hdfs.client import Client
 from hdfs.util import HdfsError
+import traceback
 
 
 # 缓存seed文件，来加速后面的随机函数random_from_seed工作
@@ -17,7 +18,7 @@ g_MemoryFSHandler = None
 
 
 # 创建seed文件，默认在SQLCLI_HOME/data下
-def Create_SeedCacheFile():
+def Create_SeedCacheFile(p_szSeedName, p_nNullValueCount=0):
     if "SQLCLI_HOME" not in os.environ:
         raise SQLCliException("Missed SQLCLI_HOME, please set it first. Seed file will created in SQLCLI_HOME/data")
 
@@ -26,68 +27,116 @@ def Create_SeedCacheFile():
     if not os.path.exists(datadir):
         os.makedirs(datadir)
 
-    buf = []
-    for n in range(1, 10):
-        buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.10")
-    with open(seed_file, 'w') as f:
-        f.writelines(buf)
+    if p_szSeedName not in seed_cache.keys():
+        raise SQLCliException("Unknown seed name [" + p_szSeedName + "]")
 
-    buf = []
-    for n in range(1, 100):
-        buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.100")
-    with open(seed_file, 'w') as f:
-        f.writelines(buf)
+    if p_szSeedName == "10s":
+        buf = []
+        for n in range(0, 10):
+            buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
+        if p_nNullValueCount > 0:
+            for n in range(0, p_nNullValueCount):
+                m_nPos = random.randint(0, 10 - 1)
+                buf[m_nPos] = "\n"
+        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.10")
+        with open(seed_file, 'w') as f:
+            f.writelines(buf)
 
-    buf = []
-    for n in range(1, 1000):
-        buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.1K")
-    with open(seed_file, 'w') as f:
-        f.writelines(buf)
+    if p_szSeedName == "100s":
+        buf = []
+        for n in range(0, 100):
+            buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
+        if p_nNullValueCount > 0:
+            for n in range(0, p_nNullValueCount):
+                m_nPos = random.randint(0, 100 - 1)
+                buf[m_nPos] = "\n"
+        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.100")
+        with open(seed_file, 'w') as f:
+            f.writelines(buf)
 
-    buf = []
-    for n in range(1, 10 * 1000):
-        buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.10K")
-    with open(seed_file, 'w') as f:
-        f.writelines(buf)
+    if p_szSeedName == "1Ks":
+        buf = []
+        for n in range(0, 1000):
+            buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
+        if p_nNullValueCount > 0:
+            for n in range(0, p_nNullValueCount):
+                m_nPos = random.randint(0, 1000 - 1)
+                buf[m_nPos] = "\n"
+        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.1K")
+        with open(seed_file, 'w') as f:
+            f.writelines(buf)
 
-    buf = []
-    for n in range(1, 100 * 1000):
-        buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.100K")
-    with open(seed_file, 'w') as f:
-        f.writelines(buf)
+    if p_szSeedName == "10Ks":
+        buf = []
+        for n in range(0, 10 * 1000):
+            buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
+        if p_nNullValueCount > 0:
+            for n in range(0, p_nNullValueCount):
+                m_nPos = random.randint(0, 10*1000 - 1)
+                buf[m_nPos] = "\n"
+        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.10K")
+        with open(seed_file, 'w') as f:
+            f.writelines(buf)
 
-    buf = []
-    for n in range(1, 10):
-        buf.append(random_digits([20, ]) + "\n")
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.10")
-    with open(seed_file, 'w') as f:
-        f.writelines(buf)
+    if p_szSeedName == "100Ks":
+        buf = []
+        for n in range(0, 100 * 1000):
+            buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
+        if p_nNullValueCount > 0:
+            for n in range(0, p_nNullValueCount):
+                m_nPos = random.randint(0, 100*1000 - 1)
+                buf[m_nPos] = "\n"
+        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.100K")
+        with open(seed_file, 'w') as f:
+            f.writelines(buf)
 
-    buf = []
-    for n in range(1, 100):
-        buf.append(random_digits([20, ]) + "\n")
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.100")
-    with open(seed_file, 'w') as f:
-        f.writelines(buf)
+    if p_szSeedName == "10n":
+        buf = []
+        for n in range(0, 10):
+            buf.append(random_digits([20, ]) + "\n")
+        if p_nNullValueCount > 0:
+            for n in range(0, p_nNullValueCount):
+                m_nPos = random.randint(0, 10 - 1)
+                buf[m_nPos] = "\n"
+        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.10")
+        with open(seed_file, 'w') as f:
+            f.writelines(buf)
 
-    buf = []
-    for n in range(1, 1000):
-        buf.append(random_digits([20, ]) + "\n")
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.1K")
-    with open(seed_file, 'w') as f:
-        f.writelines(buf)
+    if p_szSeedName == "100n":
+        buf = []
+        for n in range(0, 100):
+            buf.append(random_digits([20, ]) + "\n")
+        if p_nNullValueCount > 0:
+            for n in range(0, p_nNullValueCount):
+                m_nPos = random.randint(0, 100 - 1)
+                buf[m_nPos] = "\n"
+        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.100")
+        with open(seed_file, 'w') as f:
+            f.writelines(buf)
 
-    buf = []
-    for n in range(1, 10 * 1000):
-        buf.append(random_digits([20, ]) + "\n")
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.10K")
-    with open(seed_file, 'w') as f:
-        f.writelines(buf)
+    if p_szSeedName == "1Kn":
+        buf = []
+        for n in range(0, 1000):
+            buf.append(random_digits([20, ]) + "\n")
+        if p_nNullValueCount > 0:
+            for n in range(0, p_nNullValueCount):
+                m_nPos = random.randint(0, 1000 - 1)
+                buf[m_nPos] = "\n"
+        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.1K")
+        with open(seed_file, 'w') as f:
+            f.writelines(buf)
+
+    if p_szSeedName == "10Kn":
+        buf = []
+        for n in range(0, 10 * 1000):
+            buf.append(random_digits([20, ]) + "\n")
+        if p_nNullValueCount > 0:
+            for n in range(0, p_nNullValueCount):
+                m_nPos = random.randint(0, 10*1000 - 1)
+                buf[m_nPos] = "\n"
+        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.10K")
+        with open(seed_file, 'w') as f:
+            f.writelines(buf)
 
 
 # 缓存seed文件，默认在SQLCLI_HOME/data下
@@ -99,55 +148,91 @@ def Load_SeedCacheFile():
     if not os.path.exists(seed_file):
         raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
     with open(seed_file, 'r') as f:
-        seed_cache["10s"] = f.readlines()
+        m_seedlines = f.readlines()
+    for m_nPos in range(0, len(m_seedlines)):
+        if m_seedlines[m_nPos].endswith("\n"):
+            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
+    seed_cache["10s"] = m_seedlines
 
     seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.100")
     if not os.path.exists(seed_file):
         raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
     with open(seed_file, 'r') as f:
-        seed_cache["100s"] = f.readlines()
+        m_seedlines = f.readlines()
+    for m_nPos in range(0, len(m_seedlines)):
+        if m_seedlines[m_nPos].endswith("\n"):
+            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
+    seed_cache["100s"] = m_seedlines
 
     seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.1K")
     if not os.path.exists(seed_file):
         raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
     with open(seed_file, 'r') as f:
-        seed_cache["1Ks"] = f.readlines()
+        m_seedlines = f.readlines()
+    for m_nPos in range(0, len(m_seedlines)):
+        if m_seedlines[m_nPos].endswith("\n"):
+            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
+    seed_cache["1Ks"] = m_seedlines
 
     seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.10K")
     if not os.path.exists(seed_file):
         raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
     with open(seed_file, 'r') as f:
-        seed_cache["10Ks"] = f.readlines()
+        m_seedlines = f.readlines()
+    for m_nPos in range(0, len(m_seedlines)):
+        if m_seedlines[m_nPos].endswith("\n"):
+            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
+    seed_cache["10Ks"] = m_seedlines
 
     seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.100K")
     if not os.path.exists(seed_file):
         raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
     with open(seed_file, 'r') as f:
-        seed_cache["100Ks"] = f.readlines()
+        m_seedlines = f.readlines()
+    for m_nPos in range(0, len(m_seedlines)):
+        if m_seedlines[m_nPos].endswith("\n"):
+            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
+    seed_cache["100Ks"] = m_seedlines
 
     seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.10")
     if not os.path.exists(seed_file):
         raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
     with open(seed_file, 'r') as f:
-        seed_cache["10n"] = f.readlines()
+        m_seedlines = f.readlines()
+    for m_nPos in range(0, len(m_seedlines)):
+        if m_seedlines[m_nPos].endswith("\n"):
+            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
+    seed_cache["10n"] = m_seedlines
 
     seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.100")
     if not os.path.exists(seed_file):
         raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
     with open(seed_file, 'r') as f:
-        seed_cache["100n"] = f.readlines()
+        m_seedlines = f.readlines()
+    for m_nPos in range(0, len(m_seedlines)):
+        if m_seedlines[m_nPos].endswith("\n"):
+            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
+    seed_cache["100n"] = m_seedlines
 
     seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.1K")
     if not os.path.exists(seed_file):
         raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
     with open(seed_file, 'r') as f:
-        seed_cache["1Kn"] = f.readlines()
+        m_seedlines = f.readlines()
+    for m_nPos in range(0, len(m_seedlines)):
+        if m_seedlines[m_nPos].endswith("\n"):
+            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
+    seed_cache["1Kn"] = m_seedlines
 
     seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.10K")
     if not os.path.exists(seed_file):
         raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
     with open(seed_file, 'r') as f:
-        seed_cache["10Kn"] = f.readlines()
+        m_seedlines = f.readlines()
+    for m_nPos in range(0, len(m_seedlines)):
+        if m_seedlines[m_nPos].endswith("\n"):
+            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
+    seed_cache["10Kn"] = m_seedlines
 
 
 # 返回随机的Boolean类型
@@ -190,7 +275,12 @@ def random_from_seed(p_arg):
         if n == 0:
             Load_SeedCacheFile()
             n = len(seed_cache[m_SeedName])
-        return seed_cache[m_SeedName][random.randint(0, n - 1)][0:m_nMaxLength]
+        m_RandomRow = seed_cache[m_SeedName][random.randint(0, n - 1)]
+        if len(m_RandomRow) < m_nMaxLength:
+            m_RandomResult = m_RandomRow
+        else:
+            m_RandomResult = m_RandomRow[0:m_nMaxLength]
+        return m_RandomResult
     else:
         raise SQLCliException("Unknown seed [" + str(p_arg[0]) + "].  Please create it first.")
 
@@ -316,7 +406,7 @@ def get_final_string(p_row_struct):
     return m_Result
 
 
-def Create_file(p_filename, p_formula_str, p_rows, p_options):
+def Create_file(p_filetype, p_filename, p_formula_str, p_rows, p_options):
     try:
         m_producer = None
         m_topicname = None
@@ -324,40 +414,55 @@ def Create_file(p_filename, p_formula_str, p_rows, p_options):
         m_HDFS_Handler = None
         m_filename = None
 
-        if p_filename.startswith('mem://'):
+        if p_filetype.upper() == "MEM":
             m_fs = fs.open_fs('mem://')
-            m_filename = p_filename[len('mem://'):]
+            m_filename = p_filename
             m_output = m_fs.open(m_filename, 'w')
-        elif p_filename.startswith('file://'):
+        elif p_filetype.upper() == "FS":
             m_fs = fs.open_fs('./')
-            m_filename = p_filename[len('file://'):]
+            m_filename = p_filename
             m_output = m_fs.open(m_filename, 'w')
-        elif p_filename.startswith('kafka://'):
+        elif p_filetype.upper() == "KAFKA":
             if p_options["KAFKA_SERVERS"] is None or len(p_options["KAFKA_SERVERS"].strip()) == 0:
                 raise SQLCliException("Please set KAFKA_SERVERS first")
             m_producer = KafkaProducer(bootstrap_servers=p_options["KAFKA_SERVERS"])
-            m_topicname = p_filename[len('kafka://'):]
-        elif p_filename.startswith('hdfs://'):
-            if p_options["HDFS_WEBFSURL"] is None or len(p_options["HDFS_WEBFSURL"].strip()) == 0:
-                raise SQLCliException("Please set HDFS_WEBFSURL first")
-            if p_options["HDFS_WEBFSROOT"] is None or len(p_options["HDFS_WEBFSROOT"].strip()) == 0:
-                raise SQLCliException("Please set HDFS_WEBFSROOT first")
-            m_filefullname = p_filename[len('hdfs://'):]
-            m_filename = os.path.basename(m_filefullname)
-            m_pathname = os.path.join(p_options["HDFS_WEBFSROOT"], os.path.dirname(m_filefullname))
-            m_HDFS_Handler = Client(p_options["HDFS_WEBFSURL"],
-                                    m_pathname,
+            m_topicname = p_filename
+        elif p_filetype.upper() == "HDFS":
+            # HDFS 文件格式： http://node:port/xx/yy/cc.dat
+            # 注意这里的node和port都是webfs端口，不是rpc端口
+            m_Protocal = p_filename.split("://")[0]
+            m_NodePort = p_filename[len(m_Protocal)+3:].split("/")[0]
+            m_WebFSURL = m_Protocal + "://" + m_NodePort
+            m_WebFSDir, m_filename = os.path.split(p_filename[len(m_WebFSURL):])
+            m_HDFS_Handler = Client(m_WebFSURL,
+                                    m_WebFSDir,
                                     proxy=None, session=None)
         else:
             raise SQLCliException("Unknown file format.")
 
         m_row_struct = parse_formula_str(p_formula_str)
         buf = []
-        if p_filename.startswith('hdfs://'):            # 处理HDFS文件写入
-            with m_HDFS_Handler.write(m_filename) as m_output:
-                for i in range(0, p_rows):
-                    m_output.write(get_final_string(m_row_struct))
-        elif p_filename.startswith('kafka://'):        # 处理Kafka数据写入
+        if p_filetype.upper() == "HDFS":              # 处理HDFS文件写入
+            # 总是覆盖服务器上的文件
+            # 每10W行提交一次服务器文件, 以避免内存的OOM问题
+            if p_rows < 100000:
+                with m_HDFS_Handler.write(hdfs_path=m_filename, overwrite=True) as m_output:
+                    for i in range(0, p_rows):
+                        m_output.write((get_final_string(m_row_struct) + "\n").encode())
+            else:
+                for i in range(0, p_rows // 100000):
+                    if i == 0:
+                        with m_HDFS_Handler.write(hdfs_path=m_filename, overwrite=True) as m_output:
+                            for j in range(0, 100000):
+                                m_output.write((get_final_string(m_row_struct) + "\n").encode())
+                    else:
+                        with m_HDFS_Handler.write(hdfs_path=m_filename, append=True) as m_output:
+                            for j in range(0, 100000):
+                                m_output.write((get_final_string(m_row_struct) + "\n").encode())
+                with m_HDFS_Handler.write(hdfs_path=m_filename, append=True) as m_output:
+                    for i in range(0, p_rows % 100000):
+                        m_output.write((get_final_string(m_row_struct) + "\n").encode())
+        elif p_filetype.upper() == "KAFKA":           # 处理Kafka数据写入
             for i in range(0, p_rows):
                 m_producer.send(m_topicname, get_final_string(m_row_struct).encode())
             m_producer.flush()
@@ -373,69 +478,68 @@ def Create_file(p_filename, p_formula_str, p_rows, p_options):
     except SQLCliException as e:
         raise SQLCliException(e.message)
     except Exception as e:
+        if "SQLCLI_DEBUG" in os.environ:
+            print('traceback.print_exc():\n%s' % traceback.print_exc())
+            print('traceback.format_exc():\n%s' % traceback.format_exc())
         raise SQLCliException(repr(e))
     return
 
 
-def Convert_file(p_srcfilename, p_dstfilename, p_options):
+def Convert_file(p_srcfileType, p_srcfilename, p_dstfileType, p_dstfilename):
     try:
         global g_MemoryFSHandler
-        if p_srcfilename.startswith('mem://'):
+        if p_srcfileType.upper() == "MEM":
             m_srcFSType = "MEM"
             if g_MemoryFSHandler is None:
                 g_MemoryFSHandler = fs.open_fs('mem://')
                 m_srcFS = g_MemoryFSHandler
             else:
                 m_srcFS = g_MemoryFSHandler
-            m_srcFileName = p_srcfilename[len('mem://'):]
-        elif p_srcfilename.startswith('file://'):
+            m_srcFileName = p_srcfilename
+        elif p_srcfileType.upper() == "FS":
             m_srcFSType = "FS"
             m_srcFS = fs.open_fs('./')
-            m_srcFileName = p_srcfilename[len('file://'):]
-        elif p_srcfilename.startswith('hdfs://'):
+            m_srcFileName = p_srcfilename
+        elif p_srcfileType.upper() == "HDFS":
             m_srcFSType = "HDFS"
-            m_srcFullFileName = p_srcfilename[len('hdfs://'):]
-            m_srcFileName = os.path.basename(m_srcFullFileName)
-            if p_options["HDFS_WEBFSURL"] is None or len(p_options["HDFS_WEBFSURL"].strip()) == 0:
-                raise SQLCliException("Please set HDFS_WEBFSURL first")
-            if p_options["HDFS_WEBFSROOT"] is None or len(p_options["HDFS_WEBFSROOT"].strip()) == 0:
-                raise SQLCliException("Please set HDFS_WEBFSROOT first")
-            m_srcPathName = os.path.join(p_options["HDFS_WEBFSROOT"], os.path.dirname(m_srcFullFileName))
-            m_srcFS = Client(p_options["HDFS_WEBFSURL"], m_srcPathName, proxy=None, session=None)
+            m_srcFullFileName = p_srcfilename
+            m_Protocal = m_srcFullFileName.split("://")[0]
+            m_NodePort = m_srcFullFileName[len(m_Protocal)+3:].split("/")[0]
+            m_WebFSURL = m_Protocal + "://" + m_NodePort
+            m_WebFSDir, m_srcFileName = os.path.split(m_srcFullFileName[len(m_WebFSURL):])
+            m_srcFS = Client(m_WebFSURL, m_WebFSDir, proxy=None, session=None)
         else:
             m_srcFS = None
             m_srcFileName = None
             m_srcFSType = "Not Supported"
 
-        if p_dstfilename.startswith('mem://'):
+        if p_dstfileType.upper() == "MEM":
             m_dstFSType = "MEM"
             if g_MemoryFSHandler is None:
                 g_MemoryFSHandler = fs.open_fs('mem://')
                 m_dstFS = g_MemoryFSHandler
             else:
                 m_dstFS = g_MemoryFSHandler
-            m_dstFileName = p_dstfilename[len('mem://'):]
-        elif p_dstfilename.startswith('file://'):
+            m_dstFileName = p_dstfilename
+        elif p_dstfileType.upper() == "FS":
             m_dstFSType = "FS"
             m_dstFS = fs.open_fs('./')
-            m_dstFileName = p_dstfilename[len('file://'):]
-        elif p_dstfilename.startswith('hdfs://'):
+            m_dstFileName =p_dstfilename
+        elif p_dstfileType.upper() == "HDFS":
             m_dstFSType = "HDFS"
-            m_dstFullFileName = p_dstfilename[len('hdfs://'):]
-            m_dstFileName = os.path.basename(m_dstFullFileName)
-            if p_options["HDFS_WEBFSURL"] is None or len(p_options["HDFS_WEBFSURL"].strip()) == 0:
-                raise SQLCliException("Please set HDFS_WEBFSURL first")
-            if p_options["HDFS_WEBFSROOT"] is None or len(p_options["HDFS_WEBFSROOT"].strip()) == 0:
-                raise SQLCliException("Please set HDFS_WEBFSROOT first")
-            m_dstPathName = os.path.join(p_options["HDFS_WEBFSROOT"], os.path.dirname(m_dstFullFileName))
-            m_dstFS = Client(p_options["HDFS_WEBFSURL"], m_dstPathName, proxy=None, session=None)
+            m_dstFullFileName = p_dstfilename
+            m_Protocal = m_dstFullFileName.split("://")[0]
+            m_NodePort = m_dstFullFileName[len(m_Protocal)+3:].split("/")[0]
+            m_WebFSURL = m_Protocal + "://" + m_NodePort
+            m_WebFSDir, m_dstFileName = os.path.split(m_dstFullFileName[len(m_WebFSURL):])
+            m_dstFS = Client(m_WebFSURL, m_WebFSDir, proxy=None, session=None)
         else:
             m_dstFS = None
             m_dstFileName = None
-            m_dstFSType = "Not Supported"
+            m_dstFSType = "Not Supported convert."
 
         if m_srcFSType == "Not Supported" or m_dstFSType == "Not Supported":
-            raise SQLCliException("Not supported convert.")
+            raise SQLCliException("Not supported convert. From [" + p_srcfileType + "] to [" + p_dstfileType + "]")
 
         if m_srcFSType in ('MEM', 'FS') and m_dstFSType in ('MEM', 'FS'):
             with m_srcFS.openbin(m_srcFileName, "r") as m_reader, m_dstFS.openbin(m_dstFileName, "w") as m_writer:
@@ -453,21 +557,36 @@ def Convert_file(p_srcfilename, p_dstfilename, p_options):
                         break
                     m_writer.write(m_Contents)
 
+        # 对于HDFS的写入，每80M提交一次，以避免内存的OOM问题
         if m_srcFSType in ('MEM', 'FS') and m_dstFSType == "HDFS":
-            with m_srcFS.openbin(m_srcFileName, "r") as m_reader, m_dstFS.write(m_dstFileName) as m_writer:
+            bHeaderWrite = True
+            with m_srcFS.openbin(m_srcFileName, "r") as m_reader:
                 while True:
-                    m_Contents = m_reader.read(8192)
+                    m_Contents = m_reader.read(8192*10240)
                     if len(m_Contents) == 0:
                         break
-                    m_writer.write(m_Contents)
+                    if bHeaderWrite:
+                        with m_dstFS.write(m_dstFileName, overwrite=True) as m_writer:
+                            m_writer.write(m_Contents)
+                        bHeaderWrite = False
+                    else:
+                        with m_dstFS.write(m_dstFileName, append=True) as m_writer:
+                            m_writer.write(m_Contents)
 
         if m_srcFSType == "HDFS" and m_dstFSType == "HDFS":
-            with m_srcFS.read(m_srcFileName) as m_reader, m_dstFS.write(m_dstFileName) as m_writer:
+            bHeaderWrite = True
+            with m_srcFS.read(m_srcFileName) as m_reader:
                 while True:
-                    m_Contents = m_reader.read(8192)
+                    m_Contents = m_reader.read(8192*10240)
                     if len(m_Contents) == 0:
                         break
-                    m_writer.write(m_Contents)
+                    if bHeaderWrite:
+                        with m_dstFS.write(m_dstFileName, overwrite=True) as m_writer:
+                            m_writer.write(m_Contents)
+                        bHeaderWrite = False
+                    else:
+                        with m_dstFS.write(m_dstFileName, append=True) as m_writer:
+                            m_writer.write(m_Contents)
     except HdfsError as he:
         # HDFS 会打印整个堆栈信息，所以这里默认只打印第一行的信息
         if "SQLCLI_DEBUG" in os.environ:
