@@ -223,7 +223,6 @@ class SQLExecute(object):
                 for row in rowset:
                     m_row = []
                     for column in row:
-                        print("CONTENT2 = [" + column + "]")
                         if str(type(column)).find('JDBCClobClient') != -1:
                             m_row.append(column.getSubString(1, int(self.options["CLOB_LONG"])))
                         elif str(type(column)).find("Float") != -1:
