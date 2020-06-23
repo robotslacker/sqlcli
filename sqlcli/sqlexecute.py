@@ -74,7 +74,9 @@ class SQLExecute(object):
 
             # 如果运行在脚本模式下，需要在控制台回显SQL
             if p_sqlscript is not None:
-                click.secho(SQLFormatWithPrefix(m_CommentSQL), file=self.Console)
+                click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.Console)
+            if self.logger is not None:
+                self.logger.info(SQLFormatWithPrefix(m_CommentSQL))
 
             # 如果打开了回显，并且指定了输出文件，且SQL被改写过，输出改写后的SQL
             if self.options["SQLREWRITE"].upper() == 'ON':
@@ -86,7 +88,7 @@ class SQLExecute(object):
                         click.echo(SQLFormatWithPrefix(
                             "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
                     if p_sqlscript is not None:
-                        click.secho(SQLFormatWithPrefix(
+                        click.echo(SQLFormatWithPrefix(
                             "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
 
             # 如果是空语句，不在执行

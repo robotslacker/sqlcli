@@ -130,6 +130,7 @@ class SQLCli(object):
         self.SQLExecuteHandler.Console = self.Console
         self.SQLExecuteHandler.SQLPerfFile = self.m_SQLPerf
         self.SQLExecuteHandler.m_Worker_Name = WorkerName
+        self.SQLExecuteHandler.logger = self.logger
         self.SQLMappingHandler.Console = self.Console
 
         # 默认的输出格式
