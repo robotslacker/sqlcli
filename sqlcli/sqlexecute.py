@@ -9,6 +9,7 @@ import time
 import os
 from time import strftime, localtime
 from multiprocessing import Lock
+import traceback
 
 
 class SQLExecute(object):
@@ -178,6 +179,9 @@ class SQLExecute(object):
                     )
                     raise e
                 else:
+                    if "SQLCLI_DEBUG" in os.environ:
+                        print('traceback.print_exc():\n%s' % traceback.print_exc())
+                        print('traceback.format_exc():\n%s' % traceback.format_exc())
                     yield None, None, None, str(e.message)
 
             # 记录结束时间
@@ -220,7 +224,7 @@ class SQLExecute(object):
             status = "{0} row{1} selected."
             m_arraysize = int(self.options["ARRAYSIZE"])
             rowset = list(cursor.fetchmany(m_arraysize))
-            if self.options['TERMOUT'] != 'OFF':
+            if self.options['TERMOUT'].upper() != 'OFF':
                 for row in rowset:
                     m_row = []
                     for column in row:

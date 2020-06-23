@@ -187,9 +187,17 @@ class SQLMapping(object):
         for m_MappingFiles in self.m_SQL_MappingList:                           # 所有的SQL Mapping信息
             m_MappingFile_Contents = self.m_SQL_MappingList[m_MappingFiles]     # 具体的一个SQL Mapping文件
             for m_Mapping_Contents in m_MappingFile_Contents:                   # 具体的一个映射信息
-                if re.match(m_Mapping_Contents[0], m_TestScriptFileName):       # 文件名匹配
-                    for (m_Key, m_Value) in m_Mapping_Contents[1]:              # 内容遍历
-                        m_New_SQL = self.ReplaceSQL(m_New_SQL, m_Key, m_Value)
+                try:
+                    if re.match(m_Mapping_Contents[0], m_TestScriptFileName):       # 文件名匹配
+                        for (m_Key, m_Value) in m_Mapping_Contents[1]:              # 内容遍历
+                            m_New_SQL = self.ReplaceSQL(m_New_SQL, m_Key, m_Value)
+                except re.error as ex:
+                    print("[WARNING] Invalid regex pattern. " +
+                          "[" + str(m_Mapping_Contents[0]) + " : " + m_TestScriptFileName + " : " +
+                          m_MappingFiles + "]  " +
+                          repr(ex), file=self.Console)
+                    print("[WARNING] Your mapping config has been ignored.")
+                    self.m_SQL_MappingList = {}
         return m_New_SQL
 
 
