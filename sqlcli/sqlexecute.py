@@ -230,7 +230,37 @@ class SQLExecute(object):
                 for row in rowset:
                     m_row = []
                     for column in row:
-                        if str(type(column)).find('JDBCClobClient') != -1:
+                        if str(type(column)).find('jarray') != -1:
+                            m_ColumnValue = "STRUCTURE("
+                            for m_nPos in range(0, len(column)):
+                                m_ColumnType = str(type(column[m_nPos]))
+                                if m_nPos == 0:
+                                    if m_ColumnType.find('str') != -1:
+                                        m_ColumnValue = m_ColumnValue + "'" + str(column[m_nPos]) + "'"
+                                    elif m_ColumnType.find('JDBCSqlDate') != -1:
+                                        m_ColumnValue = m_ColumnValue + "DATE'" + str(column[m_nPos]) + "'"
+                                    elif str(type(column)).find("Float") != -1:
+                                        m_ColumnValue = m_ColumnValue + self.options["FLOAT_FORMAT"] % column[m_nPos]
+                                    elif str(type(column)).find("Double") != -1:
+                                        m_ColumnValue = m_ColumnValue + self.options["DOUBLE_FORMAT"] % column[m_nPos]
+                                    else:
+                                        m_ColumnValue = m_ColumnValue + str(column[m_nPos])
+                                else:
+                                    if m_ColumnType.find('str') != -1:
+                                        m_ColumnValue = m_ColumnValue + ",'" + str(column[m_nPos]) + "'"
+                                    elif m_ColumnType.find('JDBCSqlDate') != -1:
+                                        m_ColumnValue = m_ColumnValue + ",DATE'" + str(column[m_nPos]) + "'"
+                                    elif str(type(column)).find("Float") != -1:
+                                        m_ColumnValue = m_ColumnValue + "," + \
+                                                        self.options["FLOAT_FORMAT"] % column[m_nPos]
+                                    elif str(type(column)).find("Double") != -1:
+                                        m_ColumnValue = m_ColumnValue + "," + \
+                                                        self.options["DOUBLE_FORMAT"] % column[m_nPos]
+                                    else:
+                                        m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
+                            m_ColumnValue = m_ColumnValue + ")"
+                            m_row.append(m_ColumnValue)
+                        elif str(type(column)).find('JDBCClobClient') != -1:
                             m_Length = column.length()
                             m_ColumnValue = column.getSubString(1, int(self.options["LOB_LENGTH"]))
                             if m_Length > int(self.options["LOB_LENGTH"]):
