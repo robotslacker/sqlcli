@@ -230,7 +230,7 @@ class SQLExecute(object):
                 for row in rowset:
                     m_row = []
                     for column in row:
-                        if str(type(column)).find('jarray') != -1:
+                        if str(type(column)).find('java.lang.Object[]') != -1:
                             m_ColumnValue = "STRUCTURE("
                             for m_nPos in range(0, len(column)):
                                 m_ColumnType = str(type(column[m_nPos]))
