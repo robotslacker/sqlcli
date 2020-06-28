@@ -146,28 +146,41 @@ class SQLMapping(object):
             # 记录匹配到的内容
             m_SearchedKey = m_SearchResult.group()
 
+        # 将内容用{}来进行分割，以处理各种内置的函数，如env等
         m_row_struct = re.split('[{}]', p_Value)
-        m_Value = ""
         if len(m_row_struct) == 1:
+            # 没有任何内置的函数， 直接替换掉结果就可以了
             m_Value = p_Value
         else:
+            # 存在内置的函数，即数据中存在{}包括的内容
             for m_nRowPos in range(0, len(m_row_struct)):
                 if re.search(r'env(.*)', m_row_struct[m_nRowPos], re.IGNORECASE):
+                    # 函数的参数处理，即函数的参数可能包含， 如 func(a,b)，将a，b作为数组记录
                     m_function_struct = re.split(r'[(,)]', m_row_struct[m_nRowPos])
-                    # 替换本地标识符:1
+                    # 特殊替换本地标识符:1， :1表示=>前面的内容
                     for m_nPos in range(1, len(m_function_struct)):
                         if m_function_struct[m_nPos] == ":1":
                             m_function_struct[m_nPos] = m_SearchedKey
+
                     # 执行替换函数
                     if m_function_struct[0].upper() == "ENV":
                         if len(m_function_struct) <= 1:
                             print("[WARNING] Invalid env macro, use env(). [" + str(p_Key) + "=>" + str(p_Value) + "]",
                                   file=self.Console)
-                            m_Value = ""
+                            m_row_struct[m_nRowPos] = ""
                         else:
-                            m_Value = self.ReplaceMacro_Env(m_function_struct[1:])
-        m_szSQL = re.sub(p_Key, m_Value, p_szSQL, flags=re.DOTALL)
-        return m_szSQL
+                            m_row_struct[m_nRowPos] = self.ReplaceMacro_Env(m_function_struct[1:])
+
+            # 重新拼接字符串
+            m_Value = None
+            for m_nRowPos in range(0, len(m_row_struct)):
+                if m_Value is None:
+                    m_Value = m_row_struct[m_nRowPos]
+                else:
+                    m_Value = m_Value + str(m_row_struct[m_nRowPos])
+
+        m_ResultSQL = re.sub(p_Key, m_Value, p_szSQL, flags=re.DOTALL)
+        return m_ResultSQL
 
     def RewriteSQL(self, p_szTestScriptFileName, p_szSQL):
         # 检查是否存在sql mapping文件
@@ -412,7 +425,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                               r'^(\s+)?DELETE(\s+)?|^(\s+)?INSERT(\s+)?|^(\s+)?__INTERNAL__(\s+)?|' \
                               r'^(\s+)?DROP(\s+)?|^(\s+)?REPLACE(\s+)?|^(\s+)?LOAD(\s+)?|' \
                               r'^(\s+)?MERGE(\s+)?|^(\s+)?DECLARE(\s+)?|^(\s+)?BEGIN(\s+)?|' \
-                              r'^(\s+)?ALTER(\s+)?'
+                              r'^(\s+)?ALTER(\s+)?|^(\s+)?WITH(\s+)?'
             if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE):
                 SQLSplitResults.append(SQLCommands[m_nPos])
                 SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
@@ -542,7 +555,8 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 if re.match(r'(.*);(\s+)?$', SQLCommands[m_nPos]):  # 本行以；结尾
                     # 查找这个多行语句是否就是一个存储过程
                     strRegexPattern = \
-                        r'^((\s+)?CREATE(\s+)|^(\s+)?REPLACE(\s+))((\s+)?(OR)?(\s+)?(REPLACE)?(\s+)?)?(FUNCTION|PROCEDURE)'
+                        r'^((\s+)?CREATE(\s+)|' \
+                        r'^(\s+)?REPLACE(\s+))((\s+)?(OR)?(\s+)?(REPLACE)?(\s+)?)?(FUNCTION|PROCEDURE)'
                     strRegexPattern2 = \
                         r'^(\s+)?DECLARE(\s+)|^(\s+)?BEGIN(\s+)'
                     if not re.match(strRegexPattern, m_NewSQL, re.IGNORECASE) and \
