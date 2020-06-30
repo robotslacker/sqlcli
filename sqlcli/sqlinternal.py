@@ -9,16 +9,22 @@ import random
 from hdfs.client import Client
 from hdfs.util import HdfsError
 import traceback
+from glob import glob
 
 
 # 缓存seed文件，来加速后面的随机函数random_from_seed工作
-seed_cache = {"10s": [], "100s": [], "1Ks": [], "10Ks": [], "100Ks": [], "10n": [], "100n": [], "1Kn": [], "10Kn": []}
+seed_cache = {}
 # 全局内存文件系统句柄
 g_MemoryFSHandler = None
 
 
 # 创建seed文件，默认在SQLCLI_HOME/data下
-def Create_SeedCacheFile(p_szSeedName, p_nNullValueCount=0):
+def Create_SeedCacheFile(
+        p_szDataType,                      # 种子文件的数据类型，目前支持String和integer
+        p_nDataLength,                     # 每个随机数的最大数据长度
+        p_nRows,                           # 种子文件的行数，即随机数的数量
+        p_szSeedName,
+        p_nNullValueCount=0):
     if "SQLCLI_HOME" not in os.environ:
         raise SQLCliException("Missed SQLCLI_HOME, please set it first. Seed file will created in SQLCLI_HOME/data")
 
@@ -27,114 +33,35 @@ def Create_SeedCacheFile(p_szSeedName, p_nNullValueCount=0):
     if not os.path.exists(datadir):
         os.makedirs(datadir)
 
-    if p_szSeedName not in seed_cache.keys():
-        raise SQLCliException("Unknown seed name [" + p_szSeedName + "]")
+    # 检查输入的参数
+    if p_szDataType.upper() not in ('STRING', 'INTEGER'):
+        raise SQLCliException("Data Type must be String or integer.")
+    if p_nDataLength <= 0:
+        raise SQLCliException("Data Length must great then zero.")
+    if p_nRows <= 0:
+        raise SQLCliException("rows must great then zero.")
 
-    if p_szSeedName == "10s":
+    if p_szDataType.upper() == "STRING":
         buf = []
-        for n in range(0, 10):
-            buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
+        for n in range(0, p_nRows):
+            buf.append(random_ascii_letters_and_digits([p_nDataLength, ]) + "\n")
         if p_nNullValueCount > 0:
             for n in range(0, p_nNullValueCount):
-                m_nPos = random.randint(0, 10 - 1)
+                m_nPos = random.randint(0, p_nRows - 1)
                 buf[m_nPos] = "\n"
-        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.10")
+        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", p_szSeedName + ".seed")
         with open(seed_file, 'w') as f:
             f.writelines(buf)
 
-    if p_szSeedName == "100s":
+    if p_szDataType.upper() == "INTEGER":
         buf = []
-        for n in range(0, 100):
-            buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
+        for n in range(0, p_nRows):
+            buf.append(random_digits([p_nDataLength, ]) + "\n")
         if p_nNullValueCount > 0:
             for n in range(0, p_nNullValueCount):
-                m_nPos = random.randint(0, 100 - 1)
+                m_nPos = random.randint(0, p_nRows - 1)
                 buf[m_nPos] = "\n"
-        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.100")
-        with open(seed_file, 'w') as f:
-            f.writelines(buf)
-
-    if p_szSeedName == "1Ks":
-        buf = []
-        for n in range(0, 1000):
-            buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
-        if p_nNullValueCount > 0:
-            for n in range(0, p_nNullValueCount):
-                m_nPos = random.randint(0, 1000 - 1)
-                buf[m_nPos] = "\n"
-        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.1K")
-        with open(seed_file, 'w') as f:
-            f.writelines(buf)
-
-    if p_szSeedName == "10Ks":
-        buf = []
-        for n in range(0, 10 * 1000):
-            buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
-        if p_nNullValueCount > 0:
-            for n in range(0, p_nNullValueCount):
-                m_nPos = random.randint(0, 10*1000 - 1)
-                buf[m_nPos] = "\n"
-        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.10K")
-        with open(seed_file, 'w') as f:
-            f.writelines(buf)
-
-    if p_szSeedName == "100Ks":
-        buf = []
-        for n in range(0, 100 * 1000):
-            buf.append(random_ascii_letters_and_digits([100, ]) + "\n")
-        if p_nNullValueCount > 0:
-            for n in range(0, p_nNullValueCount):
-                m_nPos = random.randint(0, 100*1000 - 1)
-                buf[m_nPos] = "\n"
-        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.100K")
-        with open(seed_file, 'w') as f:
-            f.writelines(buf)
-
-    if p_szSeedName == "10n":
-        buf = []
-        for n in range(0, 10):
-            buf.append(random_digits([20, ]) + "\n")
-        if p_nNullValueCount > 0:
-            for n in range(0, p_nNullValueCount):
-                m_nPos = random.randint(0, 10 - 1)
-                buf[m_nPos] = "\n"
-        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.10")
-        with open(seed_file, 'w') as f:
-            f.writelines(buf)
-
-    if p_szSeedName == "100n":
-        buf = []
-        for n in range(0, 100):
-            buf.append(random_digits([20, ]) + "\n")
-        if p_nNullValueCount > 0:
-            for n in range(0, p_nNullValueCount):
-                m_nPos = random.randint(0, 100 - 1)
-                buf[m_nPos] = "\n"
-        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.100")
-        with open(seed_file, 'w') as f:
-            f.writelines(buf)
-
-    if p_szSeedName == "1Kn":
-        buf = []
-        for n in range(0, 1000):
-            buf.append(random_digits([20, ]) + "\n")
-        if p_nNullValueCount > 0:
-            for n in range(0, p_nNullValueCount):
-                m_nPos = random.randint(0, 1000 - 1)
-                buf[m_nPos] = "\n"
-        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.1K")
-        with open(seed_file, 'w') as f:
-            f.writelines(buf)
-
-    if p_szSeedName == "10Kn":
-        buf = []
-        for n in range(0, 10 * 1000):
-            buf.append(random_digits([20, ]) + "\n")
-        if p_nNullValueCount > 0:
-            for n in range(0, p_nNullValueCount):
-                m_nPos = random.randint(0, 10*1000 - 1)
-                buf[m_nPos] = "\n"
-        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.10K")
+        seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", p_szSeedName + ".seed")
         with open(seed_file, 'w') as f:
             f.writelines(buf)
 
@@ -144,95 +71,15 @@ def Load_SeedCacheFile():
     if "SQLCLI_HOME" not in os.environ:
         raise SQLCliException("Missed SQLCLI_HOME, please set it first. Seed file will created in $SQLCLI_HOME/data")
 
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.10")
-    if not os.path.exists(seed_file):
-        raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
-    with open(seed_file, 'r') as f:
-        m_seedlines = f.readlines()
-    for m_nPos in range(0, len(m_seedlines)):
-        if m_seedlines[m_nPos].endswith("\n"):
-            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
-    seed_cache["10s"] = m_seedlines
-
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.100")
-    if not os.path.exists(seed_file):
-        raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
-    with open(seed_file, 'r') as f:
-        m_seedlines = f.readlines()
-    for m_nPos in range(0, len(m_seedlines)):
-        if m_seedlines[m_nPos].endswith("\n"):
-            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
-    seed_cache["100s"] = m_seedlines
-
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.1K")
-    if not os.path.exists(seed_file):
-        raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
-    with open(seed_file, 'r') as f:
-        m_seedlines = f.readlines()
-    for m_nPos in range(0, len(m_seedlines)):
-        if m_seedlines[m_nPos].endswith("\n"):
-            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
-    seed_cache["1Ks"] = m_seedlines
-
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.10K")
-    if not os.path.exists(seed_file):
-        raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
-    with open(seed_file, 'r') as f:
-        m_seedlines = f.readlines()
-    for m_nPos in range(0, len(m_seedlines)):
-        if m_seedlines[m_nPos].endswith("\n"):
-            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
-    seed_cache["10Ks"] = m_seedlines
-
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_string.100K")
-    if not os.path.exists(seed_file):
-        raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
-    with open(seed_file, 'r') as f:
-        m_seedlines = f.readlines()
-    for m_nPos in range(0, len(m_seedlines)):
-        if m_seedlines[m_nPos].endswith("\n"):
-            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
-    seed_cache["100Ks"] = m_seedlines
-
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.10")
-    if not os.path.exists(seed_file):
-        raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
-    with open(seed_file, 'r') as f:
-        m_seedlines = f.readlines()
-    for m_nPos in range(0, len(m_seedlines)):
-        if m_seedlines[m_nPos].endswith("\n"):
-            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
-    seed_cache["10n"] = m_seedlines
-
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.100")
-    if not os.path.exists(seed_file):
-        raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
-    with open(seed_file, 'r') as f:
-        m_seedlines = f.readlines()
-    for m_nPos in range(0, len(m_seedlines)):
-        if m_seedlines[m_nPos].endswith("\n"):
-            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
-    seed_cache["100n"] = m_seedlines
-
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.1K")
-    if not os.path.exists(seed_file):
-        raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
-    with open(seed_file, 'r') as f:
-        m_seedlines = f.readlines()
-    for m_nPos in range(0, len(m_seedlines)):
-        if m_seedlines[m_nPos].endswith("\n"):
-            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
-    seed_cache["1Kn"] = m_seedlines
-
-    seed_file = os.path.join(os.environ["SQLCLI_HOME"], "data", "seed_int.10K")
-    if not os.path.exists(seed_file):
-        raise SQLCliException("Seed file [" + seed_file + "] not found. Please check it.")
-    with open(seed_file, 'r') as f:
-        m_seedlines = f.readlines()
-    for m_nPos in range(0, len(m_seedlines)):
-        if m_seedlines[m_nPos].endswith("\n"):
-            m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]
-    seed_cache["10Kn"] = m_seedlines
+    m_seedpath = os.path.join(os.environ["SQLCLI_HOME"], "data", "*.seed")
+    for seed_file in glob(m_seedpath):
+        m_seedName = os.path.basename(seed_file)[:-5]            # 去掉.seed的后缀
+        with open(seed_file, 'r') as f:
+            m_seedlines = f.readlines()
+        for m_nPos in range(0, len(m_seedlines)):
+            if m_seedlines[m_nPos].endswith("\n"):
+                m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]   # 去掉回车换行
+        seed_cache[m_seedName] = m_seedlines
 
 
 # 返回随机的Boolean类型
@@ -248,33 +95,20 @@ def random_timestamp(p_arg):
     return (random.random() * (etime - stime) + stime).strftime(frmt)
 
 
-# 返回一个随机的时间   start < 返回值 < end
-def random_date(p_arg):
-    frmt = "%Y-%m-%d"
-    stime = datetime.datetime.strptime(str(p_arg[0]), frmt)
-    etime = datetime.datetime.strptime(str(p_arg[1]), frmt)
-    return (random.random() * (etime - stime) + stime).strftime(frmt)
-
-
 # 第一个参数是seed的名字
 # 第二个参数是截取的最大长度
 def random_from_seed(p_arg):
     m_SeedName = str(p_arg[0])
     m_nMaxLength = int(p_arg[1])
-    if m_SeedName.upper().endswith('s'):
-        # 随机字符串，不支持超过100位的字符串
-        if m_nMaxLength > 100:
-            m_nMaxLength = 100
-    if m_SeedName.upper().endswith('n'):
-        # 随机数字，不支持超过20位的数字
-        if m_nMaxLength > 20:
-            m_nMaxLength = 20
 
+    # 如果还没有加载种子，就先加载
+    n = len(seed_cache)
+    if n == 0:
+        Load_SeedCacheFile()
+
+    # 在种子中查找需要的内容
     if m_SeedName in seed_cache:
         n = len(seed_cache[m_SeedName])
-        if n == 0:
-            Load_SeedCacheFile()
-            n = len(seed_cache[m_SeedName])
         m_RandomRow = seed_cache[m_SeedName][random.randint(0, n - 1)]
         if len(m_RandomRow) < m_nMaxLength:
             m_RandomResult = m_RandomRow
@@ -284,6 +118,22 @@ def random_from_seed(p_arg):
     else:
         raise SQLCliException("Unknown seed [" + str(p_arg[0]) + "].  Please create it first.")
 
+# 返回一个随机的时间
+# 有3个参数：
+#   stime   开始时间
+#   etime   结束时间
+#   frmt    日期格式，可以忽略，默认为"%Y-%m-%d"
+def random_date(p_arg):
+    if len(p_arg) > 2:
+        frmt = str(p_arg[2])
+    else:
+        frmt = "%Y-%m-%d"
+    try:
+        stime = datetime.datetime.strptime(str(p_arg[0]), frmt)
+        etime = datetime.datetime.strptime(str(p_arg[1]), frmt)
+    except ValueError as ve:
+        raise SQLCliException("Invalid date format [" + str(frmt) + "] for [" + str(p_arg[0]) + "]")
+    return (random.random() * (etime - stime) + stime).strftime(frmt)
 
 def random_digits(p_arg):
     n = int(p_arg[0])

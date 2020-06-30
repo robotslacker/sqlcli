@@ -1454,12 +1454,17 @@ class SQLCli(object):
             return
 
         # 创建随机数Seed的缓存文件
-        matchObj = re.match(r"create\s+seeddatafile\s+(.*?)\s+with\s+null\s+rows\s+(\d+)$",
+        matchObj = re.match(r"create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
+                            r"length\s+(\d+)\s+rows\s+(\d+)\s+with\s+null\s+rows\s+(\d+)$",
                             arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            m_strSeedFile = str(matchObj.group(1)).lstrip().rstrip()
-            m_nNullValueCount = int(matchObj.group(2))
-            Create_SeedCacheFile(p_szSeedName=m_strSeedFile, p_nNullValueCount=m_nNullValueCount)
+            m_DataType = str(matchObj.group(1)).lstrip().rstrip()
+            m_SeedFileName = str(matchObj.group(2)).lstrip().rstrip()
+            m_DataLength = int(matchObj.group(3))
+            m_nRows = int(matchObj.group(4))
+            m_nNullValueCount = int(matchObj.group(5))
+            Create_SeedCacheFile(p_szDataType=m_DataType, p_nDataLength=m_DataLength, p_nRows=m_nRows,
+                                 p_szSeedName=m_SeedFileName, p_nNullValueCount=m_nNullValueCount)
             yield (
                 None,
                 None,
@@ -1468,11 +1473,16 @@ class SQLCli(object):
             return
 
         # 创建随机数Seed的缓存文件
-        matchObj = re.match(r"create\s+seeddatafile\s+(.*?)(\s+)?$",
+        matchObj = re.match(r"create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
+                            r"length\s+(\d+)\s+rows\s+(\d+)(\s+)?$",
                             arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            m_strSeedFile = str(matchObj.group(1))
-            Create_SeedCacheFile(p_szSeedName=m_strSeedFile)
+            m_DataType = str(matchObj.group(1)).lstrip().rstrip()
+            m_SeedFileName = str(matchObj.group(2)).lstrip().rstrip()
+            m_DataLength = int(matchObj.group(3))
+            m_nRows = int(matchObj.group(4))
+            Create_SeedCacheFile(p_szDataType=m_DataType, p_nDataLength=m_DataLength, p_nRows=m_nRows,
+                                 p_szSeedName=m_SeedFileName)
             yield (
                 None,
                 None,
