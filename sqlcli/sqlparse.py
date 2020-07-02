@@ -45,7 +45,7 @@ class SQLMapping(object):
                 # 用户提供的是当前目录下的文件
                 m_SQL_MappingBaseName = os.path.basename(m_SQL_MappingFile)  # 不包含路径的文件名
                 m_SQL_MappingFullName = os.path.join(
-                    os.path.dirname(m_szTestScriptFileName),m_SQL_MappingFile)
+                    os.path.dirname(m_szTestScriptFileName), m_SQL_MappingFile)
             elif os.path.isfile(os.path.join(
                     os.path.dirname(m_szTestScriptFileName),
                     m_SQL_MappingFile + ".map")):

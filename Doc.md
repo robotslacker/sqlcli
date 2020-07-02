@@ -591,15 +591,17 @@ Mapping file loaded.
    这里指的内部语句是说不需要后台SQL引擎完成，而是通过在SQLCli程序中扩展代码来支持的语句。  
    目前支持的扩展语句有：
 ```
-   __internal__ CREATE SEEDDATAFILE [SeedName] WITH NULL rows [null rows];
-   这个程序将在$SQLCLI_HOME下创建若干seed文件，用来后续的随机函数
-   若不创建这个文件，则random_from_seed会抛出异常
-   对于一个环境只需要执行一次这样的操作，以后的每次随机数操作并不需要重复进行这个操作。
-   null rows:  在创建的数据模板中包含了多少个NULL值
-   SeedName:   数据种子的名称
-   目前支持的种子有：  10n，100n, 1Kn, 10Kn, 10s, 100s, 1Ks, 10Ks, 100Ks
+   SQL> __internal__ CREATE [string|integer] SEEDDATAFILE [SeedName] LENGTH [row length] ROWS [row number]  
+   SQL> WITH NULL ROWS [null rows number];
+   这个程序将在$SQLCLI_HOME/data下创建若干seed文件，用来后续的随机函数
 
-   __internal__ CREATE [MEM|FS|HDFS] FILE '[xxx]'
+    [string|integer]          是字符型随机数据文件还是数字型随机数据文件
+    [SeedName]                数据种子的名称，根据需要编写，应简单好记
+    [row length]              数据种子中每行数据的最大长度
+    [row number]              数据种子的行数
+    [null rows number]        在该数据文件row number的行数中有多少行为空行
+
+   __internal__ CREATE [MEM|FS|HDFS] FILE [xxx]
    (
      如果参数中提供了ROWS：
          这里将把括号内内容理解为一行内容，其中的换行符在处理过程中被去掉
@@ -622,18 +624,14 @@ Mapping file loaded.
      {random_ascii_uppercase(length)}          表示一个随机的ascii字符串，只能是小写字母，最大长度为length
      {random_digits(length)}                   表示一个随机的数字，可能数字，最大长度为length
      {random_ascii_letters_and_digits(length)} 表示一个随机的ascii字符串，可能大写，可能小写，可能数字，最大长度为length
-     {random_from_seed(seedname,length}        表示从seed文件中随机选取一个内容，并且最大长度限制在length, 写的时候seedname不要引号
-                                               
-                                                支持的字符串seedname有， 10s， 100s， 1Ks, 10Ks, 100Ks
-                                                由于seed文件中的字符串最大为100，这里设置比100更高的length并没有实际意义
-                                                                                              
-                                                支持的数字seedname有， 10n， 100n， 1Kn, 10Kn
-                                                由于seed文件中的字符串最大为10，这里设置比10更高的length并没有实际意义
-     {random_date(start, end)}                  表示一个随机的日期， 日期区间为 start到end，日期格式为%Y-%M-%D
-     {random_timestamp(start, end)}             表示一个随机的时间戳， 时间区间为 start到end，日期格式为%Y-%M-%D %H:%M%S
-     {random_boolean())                         表示一个随机的Boolean，可能为0，也可能为1
+     {random_from_seed(seedname,length}        表示从seed文件中随机选取一个内容，并且最大长度限制在length, 此时seedname不要引号
+     {random_date(start, end, frmt)}           表示一个随机的日期， 日期区间为 start到end，日期格式为frmt
+                                               frmt可以不提供，默认为%Y-%M-%D
+     {random_timestamp(start, end, frmt)}      表示一个随机的时间戳， 时间区间为 start到end，日期格式为frmt
+                                               frmt可以不提供，默认为%Y-%M-%D %H:%M%S
+     {random_boolean())                        表示一个随机的Boolean，可能为0，也可能为1
 
-    __internal__ CREATE FILE '[mem://xxx]|[file://xxx]|[hdfs://xxx]' FROM '[mem://xxx]|[file://xxx]|[hdfs://xxx]'
+    __internal__ CREATE [MEM|FS|HDFS] FILE [From file] FROM [MEM|FS|HDFS] FILE [To file] 
     这里将完成一个文件复制。 
 
    注意：

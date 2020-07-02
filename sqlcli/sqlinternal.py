@@ -84,14 +84,44 @@ def Load_SeedCacheFile():
 
 # 返回随机的Boolean类型
 def random_boolean(p_arg):
+    if p_arg:
+        pass              # 这里用来避免p_arg参数无用的编译器警告
     return "1" if (random.randint(0, 1) == 1) else "0"
 
 
-# 返回一个随机的时间戳   start < 返回值 < end
+# 返回一个随机的时间
+# 有3个参数：
+#   stime   开始时间
+#   etime   结束时间
+#   frmt    日期格式，可以忽略，默认为"%Y-%m-%d"
+def random_date(p_arg):
+    if len(p_arg) > 2:
+        frmt = str(p_arg[2])
+    else:
+        frmt = "%Y-%m-%d"
+    try:
+        stime = datetime.datetime.strptime(str(p_arg[0]), frmt)
+        etime = datetime.datetime.strptime(str(p_arg[1]), frmt)
+    except ValueError:
+        raise SQLCliException("Invalid date format [" + str(frmt) + "] for [" + str(p_arg[0]) + "]")
+    return (random.random() * (etime - stime) + stime).strftime(frmt)
+
+
+# 返回一个随机的时间戳
+# 有3个参数：
+#   stime   开始时间
+#   etime   结束时间
+#   frmt    日期格式，可以忽略，默认为%Y-%m-%d %H:%M:%S
 def random_timestamp(p_arg):
-    frmt = "%Y-%m-%d %H:%M:%S"
-    stime = datetime.datetime.strptime(str(p_arg[0]), frmt)
-    etime = datetime.datetime.strptime(str(p_arg[1]), frmt)
+    if len(p_arg) > 2:
+        frmt = str(p_arg[2])
+    else:
+        frmt = "%Y-%m-%d %H:%M:%S"
+    try:
+        stime = datetime.datetime.strptime(str(p_arg[0]), frmt)
+        etime = datetime.datetime.strptime(str(p_arg[1]), frmt)
+    except ValueError:
+        raise SQLCliException("Invalid timestamp format [" + str(frmt) + "] for [" + str(p_arg[0]) + "]")
     return (random.random() * (etime - stime) + stime).strftime(frmt)
 
 
@@ -118,22 +148,6 @@ def random_from_seed(p_arg):
     else:
         raise SQLCliException("Unknown seed [" + str(p_arg[0]) + "].  Please create it first.")
 
-# 返回一个随机的时间
-# 有3个参数：
-#   stime   开始时间
-#   etime   结束时间
-#   frmt    日期格式，可以忽略，默认为"%Y-%m-%d"
-def random_date(p_arg):
-    if len(p_arg) > 2:
-        frmt = str(p_arg[2])
-    else:
-        frmt = "%Y-%m-%d"
-    try:
-        stime = datetime.datetime.strptime(str(p_arg[0]), frmt)
-        etime = datetime.datetime.strptime(str(p_arg[1]), frmt)
-    except ValueError as ve:
-        raise SQLCliException("Invalid date format [" + str(frmt) + "] for [" + str(p_arg[0]) + "]")
-    return (random.random() * (etime - stime) + stime).strftime(frmt)
 
 def random_digits(p_arg):
     n = int(p_arg[0])
@@ -196,6 +210,7 @@ def identity(p_arg):
 
 def parse_formula_str(p_formula_str):
     m_row_struct = re.split('[{}]', p_formula_str)
+    m_return_row_struct = []
 
     for m_nRowPos in range(0, len(m_row_struct)):
         if re.search('random_ascii_lowercase|random_ascii_uppercase|random_ascii_letters' +
@@ -242,8 +257,10 @@ def parse_formula_str(p_formula_str):
             if m_function_struct[0].upper() == "RANDOM_BOOLEAN":
                 m_call_out_struct.append(random_boolean)
                 m_call_out_struct.append(m_function_struct[1:])
-            m_row_struct[m_nRowPos] = m_call_out_struct
-    return m_row_struct
+            m_return_row_struct.append(m_call_out_struct)
+        else:
+            m_return_row_struct.append(m_row_struct[m_nRowPos])
+    return m_return_row_struct
 
 
 def get_final_string(p_row_struct):
@@ -374,7 +391,7 @@ def Convert_file(p_srcfileType, p_srcfilename, p_dstfileType, p_dstfilename):
         elif p_dstfileType.upper() == "FS":
             m_dstFSType = "FS"
             m_dstFS = fs.open_fs('./')
-            m_dstFileName =p_dstfilename
+            m_dstFileName = p_dstfilename
         elif p_dstfileType.upper() == "HDFS":
             m_dstFSType = "HDFS"
             m_dstFullFileName = p_dstfilename
