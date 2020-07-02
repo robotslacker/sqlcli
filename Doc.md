@@ -640,7 +640,7 @@ Mapping file loaded.
 
 
    例子：
-   SQL> __internal__ CREATE FS FILE file://abc.txt
+   SQL> __internal__ CREATE FS FILE abc.txt
       > (
       > {identity(10)},'{random_ascii_letters(5)}','{random_ascii_lowercase(3)}'
       > ) ROWS 3;
@@ -649,7 +649,7 @@ Mapping file loaded.
     11,'SSiAa','vtg'
     12,'SSdaa','cfg'
 
-   SQL> __internal__ CREATE FS FILE file://abc.txt
+   SQL> __internal__ CREATE FS FILE abc.txt
       > (
       > {identity(10)},'{random_ascii_letters(5)}','{random_ascii_lowercase(3)}'
       > {identity(10)},'{random_ascii_letters(5)}','{random_ascii_lowercase(3)}'
@@ -658,7 +658,7 @@ Mapping file loaded.
     10,'vxbMd','jsr'
     11,'SSiAa','vtg'
 
-   SQL> __internal__ CREATE FS FILE file://abc.txt FROM HDFS FILE http://nodexx:port/def.txt
+   SQL> __internal__ CREATE FS FILE abc.txt FROM HDFS FILE http://nodexx:port/def.txt
    会从HDFS上下载一个文件def.txt, 并保存到本地文件系统的abc.txt中
 
 ```
