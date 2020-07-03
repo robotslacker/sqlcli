@@ -129,7 +129,10 @@ class SQLCli(object):
         self.SQLExecuteHandler.logfile = self.logfile
         self.SQLExecuteHandler.Console = self.Console
         self.SQLExecuteHandler.SQLPerfFile = self.m_SQLPerf
-        self.SQLExecuteHandler.m_Worker_Name = WorkerName
+        if WorkerName is None:
+            self.SQLExecuteHandler.m_Worker_Name = "MAIN"
+        else:
+            self.SQLExecuteHandler.m_Worker_Name = WorkerName
         self.SQLExecuteHandler.logger = self.logger
         self.SQLMappingHandler.Console = self.Console
 
@@ -374,6 +377,8 @@ class SQLCli(object):
                     m_DatabaseType = "teradata"
                 elif m_JarBaseFileName.startswith("tdgssconfig"):
                     m_DatabaseType = "teradata-gss"
+                elif m_JarBaseFileName.startswith("clickhouse"):
+                    m_DatabaseType = "clickhouse"
                 else:
                     m_DatabaseType = "UNKNOWN"
 
@@ -1215,6 +1220,12 @@ class SQLCli(object):
                                                   "databasename=" + self.db_service_name,
                                                   [self.db_username, self.db_password],
                                                   m_JarList)
+            elif self.db_type.upper() == "CLICKHOUSE":
+                self.db_conn = jaydebeapi.connect("ru.yandex.clickhouse.ClickHouseDriver",
+                                                  "jdbc:clickhouse://" +
+                                                  self.db_host + ":" + self.db_port + "/" + self.db_service_name,
+                                                  [self.db_username, self.db_password],
+                                                  m_JarList)
             elif self.db_type.upper() == "TERADATA":
                 self.db_conn = jaydebeapi.connect("com.teradata.jdbc.TeraDriver",
                                                   "jdbc:teradata://" +
@@ -1638,7 +1649,8 @@ class SQLCli(object):
         if self.sqlmap is not None:   # 如果传递的参数，有Mapping，以参数为准，先加载参数中的Mapping文件
             self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, self.sqlmap)
         elif "SQLCLI_SQLMAPPING" in os.environ:     # 如果没有参数，则以环境变量中的信息为准
-            self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, os.environ["SQLCLI_SQLMAPPING"])
+            if len(os.environ["SQLCLI_SQLMAPPING"].strip()) > 0:
+                self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, os.environ["SQLCLI_SQLMAPPING"])
         else:  # 任何地方都没有sql mapping信息，设置QUERYREWRITE为OFF
             self.SQLExecuteHandler.options["SQLREWRITE"] = "OFF"
 

@@ -120,6 +120,7 @@ class SQLExecute(object):
                     try:
                         if "SQLCLI_DEBUG" in os.environ:
                             click.secho("DEBUG-SQL=[" + str(sql) + "]", file=self.logfile)
+                        # 执行SQL脚本
                         cur.execute(sql)
                         rowcount = 0
                         while True:
@@ -129,7 +130,36 @@ class SQLExecute(object):
                             yield title, result, headers, status
                             if not m_FetchStatus:
                                 break
+
+                        # 记录结束时间
+                        end = time.time()
+                        # 记录SQL日志信息
+                        self.Log_Perf(
+                            {
+                                "StartedTime": start,
+                                "elapsed": end - start,
+                                "SQL": sql,
+                                "SQLStatus": m_SQL_Status,
+                                "ErrorMessage": m_SQL_ErrorMessage,
+                                "thread_name": self.m_Worker_Name
+                            }
+                        )
+
                     except Exception as e:
+                        end = time.time()  # 记录结束时间
+                        m_SQL_Status = 1
+                        m_SQL_ErrorMessage = str(e)
+                        self.Log_Perf(
+                            {
+                                "StartedTime": start,
+                                "elapsed": end - start,
+                                "SQL": sql,
+                                "SQLStatus": m_SQL_Status,
+                                "ErrorMessage": m_SQL_ErrorMessage,
+                                "thread_name": self.m_Worker_Name
+                            }
+                        )
+
                         if (
                                 str(e).find("SQLSyntaxErrorException") != -1 or
                                 str(e).find("SQLException") != -1 or
@@ -137,48 +167,19 @@ class SQLExecute(object):
                                 str(e).find("SQLTransactionRollbackException") != -1 or
                                 str(e).find('time data') != -1
                         ):
-                            # SQL 语法错误
+                            # 发生了SQL语法错误
                             if self.options["WHENEVER_SQLERROR"] == "EXIT":
                                 raise SQLCliException(str(e))
                             else:
                                 yield None, None, None, str(e)
                         else:
-                            # 其他不明错误
-                            m_SQL_Status = 1
-                            m_SQL_ErrorMessage = str(e)
-                            # 记录结束时间
-                            end = time.time()
-
-                            # 记录性能日志信息
-                            self.Log_Perf(
-                                {
-                                    "StartedTime": start,
-                                    "elapsed": end - start,
-                                    "SQL": sql,
-                                    "SQLStatus": m_SQL_Status,
-                                    "ErrorMessage": m_SQL_ErrorMessage,
-                                    "thread_name": self.m_Worker_Name
-                                }
-                            )
+                            # 发生了其他不明错误
                             raise e
             except SQLCliException as e:
                 m_SQL_Status = 1
                 m_SQL_ErrorMessage = str(e.message)
+                # 如果要求出错退出，就立刻退出，否则打印日志信息
                 if self.options["WHENEVER_SQLERROR"] == "EXIT":
-                    # 记录结束时间
-                    end = time.time()
-
-                    # 记录性能日志信息
-                    self.Log_Perf(
-                        {
-                            "StartedTime": start,
-                            "elapsed": end - start,
-                            "SQL": sql,
-                            "SQLStatus": m_SQL_Status,
-                            "ErrorMessage": m_SQL_ErrorMessage,
-                            "thread_name": self.m_Worker_Name
-                        }
-                    )
                     raise e
                 else:
                     if "SQLCLI_DEBUG" in os.environ:
@@ -186,23 +187,10 @@ class SQLExecute(object):
                         print('traceback.format_exc():\n%s' % traceback.format_exc())
                     yield None, None, None, str(e.message)
 
-            # 记录结束时间
-            end = time.time()
-
-            # 记录性能日志信息
-            self.Log_Perf(
-                {
-                    "StartedTime": start,
-                    "elapsed": end - start,
-                    "SQL": sql,
-                    "SQLStatus": m_SQL_Status,
-                    "ErrorMessage": m_SQL_ErrorMessage,
-                    "thread_name": self.m_Worker_Name
-                }
-            )
             self.m_Current_RunningSQL = None
 
             # 如果需要，打印语句执行时间
+            end = time.time()
             if self.options['TIMING'].upper() == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
                     yield None, None, None, 'Running time elapsed: %9.2f Seconds' % (end - start)
@@ -328,21 +316,22 @@ class SQLExecute(object):
 
         # 多进程，多线程写入，考虑锁冲突
         self.m_PerfFileLocker.acquire()
-        if self.SQLPerfFileHandle is None:
-            if self.m_Worker_Name.upper() == "MAIN":
-                self.SQLPerfFileHandle = open(self.SQLPerfFile, "w", encoding="utf-8")
-                self.SQLPerfFileHandle.write("Started\telapsed\tSQLPrefix\tSQLStatus\tErrorMessage\tthread_name\n")
-                self.SQLPerfFileHandle.close()
+        if not os.path.exists(self.SQLPerfFile):
+            # 如果文件不存在，创建文件，并写入文件头信息
+            self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
+            self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tSQLPrefix\tSQLStatus\tErrorMessage\tthread_name\n")
+            self.SQLPerfFileHandle.close()
+
         # 打开Perf文件
         self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
-
         # 写入内容信息
         self.SQLPerfFileHandle.write(
+            "'" + str(self.sqlscript) + "'\t" +
             "'" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p_SQLResult["StartedTime"])) + "'\t" +
             "%8.2f" % p_SQLResult["elapsed"] + "\t" +
             "'" + str(p_SQLResult["SQL"][0:40]).replace("\n", " ").replace("\t", "    ") + "'\t" +
             str(p_SQLResult["SQLStatus"]) + "\t" +
-            "'" + str(p_SQLResult["ErrorMessage"]) + "'\t" +
+            "'" + str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
             "'" + str(p_SQLResult["thread_name"] + "'" + "\n")
         )
         self.SQLPerfFileHandle.flush()
