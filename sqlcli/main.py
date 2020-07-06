@@ -89,8 +89,6 @@ class SQLCli(object):
     db_host = None
     db_port = None
     db_service_name = None
-    db_conn = None
-    db_saved_conn = {}              # 数据库Session备份
 
     # SQLCli的初始化参数
     logon = None
@@ -98,13 +96,6 @@ class SQLCli(object):
     sqlscript = None
     sqlmap = None
     nologo = None
-
-    # 执行者
-    SQLMappingHandler = None
-    SQLExecuteHandler = None
-
-    # 屏幕控制程序
-    prompt_app = None
 
     # 目前程序运行的当前SQL
     m_Current_RunningSQL = None
@@ -119,7 +110,6 @@ class SQLCli(object):
     # 后台进程队列
     m_BackGround_Jobs = None
     m_Max_JobID = 0                     # 当前的最大JOBID
-    m_ProcessList = []                  # 所有后台进程句柄
 
     # 屏幕输出
     Console = None                      # 程序的控制台显示
@@ -142,9 +132,12 @@ class SQLCli(object):
             WorkerName=None,
             logger=None
     ):
-        # 初始化SQLExecute和SQLMap
-        self.SQLExecuteHandler = SQLExecute()
-        self.SQLMappingHandler = SQLMapping()
+        self.m_ProcessList = []                   # 所有本进程启动的子进程句柄信息
+        self.db_saved_conn = {}                   # 数据库Session备s份
+        self.SQLMappingHandler = SQLMapping()     # 函数句柄，处理SQLMapping信息
+        self.SQLExecuteHandler = SQLExecute()     # 函数句柄，具体来执行SQL
+        self.prompt_app = None                    # PromptKit控制台
+        self.db_conn = None                       # 当前应用的数据库连接句柄
 
         # 传递各种参数
         self.sqlscript = sqlscript
@@ -664,6 +657,9 @@ class SQLCli(object):
                 # 3秒后再检查
                 time.sleep(3)
 
+            # 清理僵死进程
+            m_WorkerThread.join()
+
             # 任务已经完成，检查Loop次数
             m_CurrentLoopCount = int(m_CurrentJob["Finished"])
             m_ToDoLoopCount = int(m_CurrentJob["LoopCount"])
@@ -935,6 +931,7 @@ class SQLCli(object):
             for m_Process in self.m_ProcessList:
                 if m_Process["ProcessHandle"].is_alive():
                     m_Process["ProcessHandle"].terminate()
+                    m_Process["ProcessHandle"].join()
                     self.m_BackGround_Jobs.Set_JobStatus(m_Process["JOB#"], "ABORTED")
                     m_nCount = m_nCount + 1
 
@@ -1685,12 +1682,14 @@ class SQLCli(object):
                     m_runCli_Result = False
                     raise EOFError
                 self.DoSQL('exit')
-
-            # 循环从控制台读取命令
-            while True:
-                if not self.DoSQL():
-                    m_runCli_Result = False
-                    raise EOFError
+                self.echo("Disconnected.")
+                return m_runCli_Result
+            else:
+                # 循环从控制台读取命令
+                while True:
+                    if not self.DoSQL():
+                        m_runCli_Result = False
+                        raise EOFError
         except (SQLCliException, EOFError):
             # SQLCliException只有在被设置了WHENEVER_SQLERROR为EXIT的时候，才会被捕获到
             self.echo("Disconnected.")
