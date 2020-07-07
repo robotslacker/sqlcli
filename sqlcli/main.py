@@ -1211,7 +1211,8 @@ class SQLCli(object):
                 self.db_conn = jaydebeapi.connect("ru.yandex.clickhouse.ClickHouseDriver",
                                                   "jdbc:clickhouse://" +
                                                   self.db_host + ":" + self.db_port + "/" + self.db_service_name,
-                                                  [self.db_username, self.db_password],
+                                                  {'user': self.db_username, 'password': self.db_password,
+                                                   'socket_timeout': "36000000"},
                                                   m_JarList)
             elif self.db_type.upper() == "TERADATA":
                 self.db_conn = jaydebeapi.connect("com.teradata.jdbc.TeraDriver",
@@ -1392,7 +1393,8 @@ class SQLCli(object):
                 raise CommandNotFound
 
     # 执行特殊的命令
-    def execute_internal_command(self, arg, **_):
+    @staticmethod
+    def execute_internal_command(arg, **_):
         # 创建数据文件, 根据末尾的rows来决定创建的行数
         # 此时，SQL语句中的回车换行符没有意义
         matchObj = re.match(r"create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+(\d+)(\s+)?$",
@@ -1405,8 +1407,7 @@ class SQLCli(object):
             Create_file(p_filetype=m_filetype,
                         p_filename=m_filename,
                         p_formula_str=m_formula_str,
-                        p_rows=m_rows,
-                        p_options=self.SQLExecuteHandler.options)
+                        p_rows=m_rows)
             yield (
                 None,
                 None,
@@ -1424,8 +1425,7 @@ class SQLCli(object):
             Create_file(p_filetype=m_filetype,
                         p_filename=m_filename,
                         p_formula_str=m_formula_str,
-                        p_rows=m_rows,
-                        p_options=self.SQLExecuteHandler.options)
+                        p_rows=m_rows)
             yield (
                 None,
                 None,

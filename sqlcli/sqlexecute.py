@@ -326,7 +326,7 @@ class SQLExecute(object):
         self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
         # 写入内容信息
         self.SQLPerfFileHandle.write(
-            "'" + str(self.sqlscript) + "'\t" +
+            "'" + str(os.path.basename(self.sqlscript)) + "'\t" +
             "'" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p_SQLResult["StartedTime"])) + "'\t" +
             "%8.2f" % p_SQLResult["elapsed"] + "\t" +
             "'" + str(p_SQLResult["SQL"][0:40]).replace("\n", " ").replace("\t", "    ") + "'\t" +

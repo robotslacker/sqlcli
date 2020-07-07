@@ -2,7 +2,6 @@
 import fs
 import re
 import os
-from kafka import KafkaProducer
 from .sqlcliexception import SQLCliException
 import datetime
 import random
@@ -273,13 +272,10 @@ def get_final_string(p_row_struct):
     return m_Result
 
 
-def Create_file(p_filetype, p_filename, p_formula_str, p_rows, p_options):
+def Create_file(p_filetype, p_filename, p_formula_str, p_rows):
     try:
-        m_producer = None
-        m_topicname = None
         m_output = None
         m_HDFS_Handler = None
-        m_filename = None
 
         if p_filetype.upper() == "MEM":
             m_fs = fs.open_fs('mem://')
@@ -289,11 +285,6 @@ def Create_file(p_filetype, p_filename, p_formula_str, p_rows, p_options):
             m_fs = fs.open_fs('./')
             m_filename = p_filename
             m_output = m_fs.open(m_filename, 'w')
-        elif p_filetype.upper() == "KAFKA":
-            if p_options["KAFKA_SERVERS"] is None or len(p_options["KAFKA_SERVERS"].strip()) == 0:
-                raise SQLCliException("Please set KAFKA_SERVERS first")
-            m_producer = KafkaProducer(bootstrap_servers=p_options["KAFKA_SERVERS"])
-            m_topicname = p_filename
         elif p_filetype.upper() == "HDFS":
             # HDFS 文件格式： http://node:port/xx/yy/cc.dat
             # 注意这里的node和port都是webfs端口，不是rpc端口
@@ -329,10 +320,6 @@ def Create_file(p_filetype, p_filename, p_formula_str, p_rows, p_options):
                 with m_HDFS_Handler.write(hdfs_path=m_filename, append=True) as m_output:
                     for i in range(0, p_rows % 100000):
                         m_output.write((get_final_string(m_row_struct) + "\n").encode())
-        elif p_filetype.upper() == "KAFKA":           # 处理Kafka数据写入
-            for i in range(0, p_rows):
-                m_producer.send(m_topicname, get_final_string(m_row_struct).encode())
-            m_producer.flush()
         else:                                          # 处理普通文件写入
             for i in range(0, p_rows):
                 buf.append(get_final_string(m_row_struct) + '\n')
