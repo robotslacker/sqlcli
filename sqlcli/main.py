@@ -13,19 +13,20 @@ from multiprocessing.managers import BaseManager
 import setproctitle
 import shlex
 import copy
-from cli_helpers.tabular_output import TabularOutputFormatter
-from cli_helpers.tabular_output import preprocessors
+from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 import click
-
 from prompt_toolkit.shortcuts import PromptSession
+
 from .sqlexecute import SQLExecute
+from .sqlparse import SQLMapping
+from .kafkawrapper import KafkaWrapper
+from .sqlcliexception import SQLCliException
+
 from .sqlinternal import Create_file
 from .sqlinternal import Convert_file
 from .sqlinternal import Create_SeedCacheFile
-from .sqlcliexception import SQLCliException
 from .commandanalyze import register_special_command
 from .commandanalyze import CommandNotFound
-from .sqlparse import SQLMapping
 from .__init__ import __version__
 from .sqlparse import SQLAnalyze
 
@@ -136,6 +137,7 @@ class SQLCli(object):
         self.db_saved_conn = {}                   # 数据库Session备s份
         self.SQLMappingHandler = SQLMapping()     # 函数句柄，处理SQLMapping信息
         self.SQLExecuteHandler = SQLExecute()     # 函数句柄，具体来执行SQL
+        self.KafkaHandler = KafkaWrapper()        # 函数句柄，处理Kafka的消息
         self.prompt_app = None                    # PromptKit控制台
         self.db_conn = None                       # 当前应用的数据库连接句柄
 
@@ -1212,7 +1214,7 @@ class SQLCli(object):
                                                   "jdbc:clickhouse://" +
                                                   self.db_host + ":" + self.db_port + "/" + self.db_service_name,
                                                   {'user': self.db_username, 'password': self.db_password,
-                                                   'socket_timeout': "36000000"},
+                                                   'socket_timeout': "360000000"},
                                                   m_JarList)
             elif self.db_type.upper() == "TERADATA":
                 self.db_conn = jaydebeapi.connect("com.teradata.jdbc.TeraDriver",
@@ -1393,8 +1395,14 @@ class SQLCli(object):
                 raise CommandNotFound
 
     # 执行特殊的命令
-    @staticmethod
-    def execute_internal_command(arg, **_):
+    def execute_internal_command(self, arg, **_):
+        # 处理kafka数据
+        matchObj = re.match(r"(.*)kafka(.*)$",arg, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            (title, result, headers, status) = self.KafkaHandler.Process_SQLCommand(arg)
+            yield title, result, headers, status
+            return
+
         # 创建数据文件, 根据末尾的rows来决定创建的行数
         # 此时，SQL语句中的回车换行符没有意义
         matchObj = re.match(r"create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+(\d+)(\s+)?$",

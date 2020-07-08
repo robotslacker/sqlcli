@@ -73,7 +73,7 @@ def Load_SeedCacheFile():
     m_seedpath = os.path.join(os.environ["SQLCLI_HOME"], "data", "*.seed")
     for seed_file in glob(m_seedpath):
         m_seedName = os.path.basename(seed_file)[:-5]            # 去掉.seed的后缀
-        with open(seed_file, 'r') as f:
+        with open(seed_file, 'r', encoding="utf-8") as f:
             m_seedlines = f.readlines()
         for m_nPos in range(0, len(m_seedlines)):
             if m_seedlines[m_nPos].endswith("\n"):

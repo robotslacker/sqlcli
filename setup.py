@@ -38,7 +38,8 @@ setup(
     long_description=readme,
     keywords='sql command jaydebeapi',
     platforms='any',
-    install_requires=['jaydebeapi', 'setproctitle', 'click', 'prompt_toolkit', 'cli_helpers', 'fs', 'hdfs'],
+    install_requires=['jaydebeapi', 'setproctitle', 'click', 'prompt_toolkit',
+                      'cli_helpers', 'fs', 'hdfs', 'confluent_kafka'],
 
     author='RobotSlacker',
     author_email='184902652@qq.com',

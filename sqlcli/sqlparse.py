@@ -3,7 +3,7 @@ import re
 import copy
 import os
 import shlex
-
+from .sqlinternal import random_ascii_letters_and_digits
 
 class SQLMapping(object):
     # MappingList = { Mapping_Name : Mapping_Contents}
@@ -132,6 +132,16 @@ class SQLMapping(object):
         else:
             return ""
 
+    @staticmethod
+    def ReplaceMacro_Random(p_arg):
+        m_RandomType = p_arg[0].replace("'", "").replace('"', "").strip()
+        if m_RandomType.lower() == "random_ascii_letters_and_digits":
+            if str(p_arg[1]).isnumeric():
+                m_RandomLength = int(p_arg[1])
+                return random_ascii_letters_and_digits([m_RandomLength, ])
+            else:
+                return ""
+
     def ReplaceSQL(self, p_szSQL, p_Key, p_Value):
         # 首先查找是否有匹配的内容，如果没有，直接返回
         try:
@@ -163,13 +173,28 @@ class SQLMapping(object):
                             m_function_struct[m_nPos] = m_SearchedKey
 
                     # 执行替换函数
-                    if m_function_struct[0].upper() == "ENV":
-                        if len(m_function_struct) <= 1:
-                            print("[WARNING] Invalid env macro, use env(). [" + str(p_Key) + "=>" + str(p_Value) + "]",
-                                  file=self.Console)
-                            m_row_struct[m_nRowPos] = ""
-                        else:
-                            m_row_struct[m_nRowPos] = self.ReplaceMacro_Env(m_function_struct[1:])
+                    if len(m_function_struct) <= 1:
+                        print("[WARNING] Invalid env macro, use env(). [" + str(p_Key) + "=>" + str(p_Value) + "]",
+                              file=self.Console)
+                        m_row_struct[m_nRowPos] = ""
+                    else:
+                        m_row_struct[m_nRowPos] = self.ReplaceMacro_Env(m_function_struct[1:])
+
+                if re.search(r'random(.*)', m_row_struct[m_nRowPos], re.IGNORECASE):
+                    # 函数的参数处理，即函数的参数可能包含， 如 func(a,b)，将a，b作为数组记录
+                    m_function_struct = re.split(r'[(,)]', m_row_struct[m_nRowPos])
+                    # 特殊替换本地标识符:1， :1表示=>前面的内容
+                    for m_nPos in range(1, len(m_function_struct)):
+                        if m_function_struct[m_nPos] == ":1":
+                            m_function_struct[m_nPos] = m_SearchedKey
+                    # 执行替换函数
+                    if len(m_function_struct) <= 1:
+                        print("[WARNING] Invalid random macro, use random(). [" + str(p_Key) + "=>" + str(p_Value) + "]",
+                              file=self.Console)
+                        m_row_struct[m_nRowPos] = ""
+                    else:
+                        m_row_struct[m_nRowPos] = self.ReplaceMacro_Random(m_function_struct[1:])
+
 
             # 重新拼接字符串
             m_Value = None
