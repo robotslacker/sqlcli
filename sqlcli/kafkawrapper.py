@@ -1,10 +1,10 @@
 # -*- coding: UTF-8 -*-
 from confluent_kafka import Producer, Consumer, TopicPartition, KafkaException
 from confluent_kafka.admin import AdminClient, NewTopic
-import time
 import re
 import os
 import traceback
+import time
 
 
 class KafkaWrapperException(Exception):
@@ -63,12 +63,12 @@ class KafkaWrapper(object):
     def kafka_Produce(self, p_szTopicName, p_Message, p_ErrorList, ):
         def delivery_report(err, msg):
             if err is not None:
-                p_ErrorList.append({"err":err, "msg": msg})
+                p_ErrorList.append({"err": err, "msg": msg})
 
         try:
             nCount = 0
             p_ErrorList = []
-            p = Producer({'bootstrap.servers': self.__kafka_servers__,})
+            p = Producer({'bootstrap.servers': self.__kafka_servers__, })
             p.poll(0)
             if isinstance(p_Message, str):
                 nCount = nCount + 1
@@ -94,7 +94,7 @@ class KafkaWrapper(object):
     def kafka_Consume(self, p_szTopicName, p_szGroupID="", p_nBatchSize=1000, p_nTimeOut=10):
         c = Consumer({'bootstrap.servers': self.__kafka_servers__,
                       'group.id': p_szGroupID,
-                      'default.topic.config': {'auto.offset.reset': 'earliest' }}
+                      'default.topic.config': {'auto.offset.reset': 'earliest'}}
                      )
         c.subscribe([p_szTopicName, ])
         message_return = []
@@ -107,14 +107,15 @@ class KafkaWrapper(object):
             if msg.error():
                 print("Consumer error: {}".format(msg.error()))
                 break
-            message_return.append(msg.value().decode('utf-8'))
+            func = getattr(msg, 'value')
+            message_return.append(func().decode('utf-8'))
             nCount = nCount + 1
             if nCount > p_nBatchSize:
                 break
         c.close()
         return message_return
 
-    def  Process_SQLCommand(self, p_szSQL):
+    def Process_SQLCommand(self, p_szSQL):
         m_szSQL = p_szSQL.strip()
         matchObj = re.match(r"create\s+kafka\s+server\s+(.*)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
@@ -201,11 +202,12 @@ class KafkaWrapper(object):
 if __name__ == '__main__':
     myCommand = KafkaWrapper()
     myCommand.Kafka_Connect("node10:9092")
-    # myCommand.Kafka_CreateTopic("Hello", p_Partitons=1)
-    # time.sleep(5)
-    # myCommand.kafka_Produce("Hello", "从前有个山。。")
-    # myCommand.kafka_Produce("Hello", ["我有一个西瓜", "就是不给你吃"])
-    # time.sleep(5)
+    myCommand.Kafka_CreateTopic("Hello", p_Partitons=1)
+    time.sleep(5)
+    m_ErrorList = []
+    myCommand.kafka_Produce("Hello", "从前有个山。。", m_ErrorList)
+    myCommand.kafka_Produce("Hello", ["我有一个西瓜", "就是不给你吃"], m_ErrorList)
+    time.sleep(5)
     print("Return = " + str(myCommand.kafka_Consume("Hello", "testgroup")))
-    # time.sleep(5)
-    # myCommand.Kafka_DeleteTopic("Hello")
+    time.sleep(5)
+    myCommand.Kafka_DeleteTopic("Hello")

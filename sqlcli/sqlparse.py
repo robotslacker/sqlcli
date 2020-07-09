@@ -5,6 +5,7 @@ import os
 import shlex
 from .sqlinternal import random_ascii_letters_and_digits
 
+
 class SQLMapping(object):
     # MappingList = { Mapping_Name : Mapping_Contents}
     # Mapping_Contents = [ filename_pattern, match_roles[] ]
@@ -189,12 +190,12 @@ class SQLMapping(object):
                             m_function_struct[m_nPos] = m_SearchedKey
                     # 执行替换函数
                     if len(m_function_struct) <= 1:
-                        print("[WARNING] Invalid random macro, use random(). [" + str(p_Key) + "=>" + str(p_Value) + "]",
+                        print("[WARNING] Invalid random macro, use random(). "
+                              "[" + str(p_Key) + "=>" + str(p_Value) + "]",
                               file=self.Console)
                         m_row_struct[m_nRowPos] = ""
                     else:
                         m_row_struct[m_nRowPos] = self.ReplaceMacro_Random(m_function_struct[1:])
-
 
             # 重新拼接字符串
             m_Value = None

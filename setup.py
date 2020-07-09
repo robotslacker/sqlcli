@@ -3,7 +3,7 @@
 import ast
 from io import open
 import re
-from setuptools import setup, find_packages
+from setuptools import setup
 
 '''
 How to build and upload this package to PyPi
@@ -25,8 +25,8 @@ with open("sqlcli/__init__.py", "rb") as f:
 
 def open_file(filename):
     """Open and read the file *filename*."""
-    with open(filename, 'r+', encoding='utf-8') as f:
-        return f.read()
+    with open(filename, 'r+', encoding='utf-8') as rf:
+        return rf.read()
 
 
 readme = open_file("README.md")
@@ -34,7 +34,7 @@ readme = open_file("README.md")
 setup(
     name='robotslacker-sqlcli',
     version=version,
-    description='SQL Command tool, use JDBC, jaydebeapi',
+    description='SQL Command test tool, use JDBC, jaydebeapi',
     long_description=readme,
     keywords='sql command jaydebeapi',
     platforms='any',
@@ -45,7 +45,7 @@ setup(
     author_email='184902652@qq.com',
     url='https://github.com/robotslacker/sqlcli',
 
-    zip_safe = False,
+    zip_safe=False,
     packages=['sqlcli'],
     package_data={'sqlcli': ['jlib/*']},
 

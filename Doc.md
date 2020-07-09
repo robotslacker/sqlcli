@@ -29,7 +29,19 @@ SQLCli 目前可以支持的数据库有：
      在jaydebeapi 1.1.1的版本下，发现jpype必须进行降级，否则无法使用  
      pip install --upgrade jpype1==0.6.3 --user
    * 对于MAC平台，直接安装
-   
+
+
+依赖的第三方安装包：  
+   * 这些安装包会在robotslacker-sqlcli安装的时候自动随带安装
+   * jaydebeapi               : Python通过jaydebeapi来调用JDBC，从而执行SQL语句
+   * setproctitle             : Python通过setproctitle来设置进程名称，从而在多进程并发时候给以帮助
+   * click                    : Python的命令行参数处理
+   * prompt_toolkit           : 用于提供包括提示符功能的控制台终端的显示样式
+   * cli_helpers              : 用于提供将数据库返回结果进行表单、CSV格式化显示
+   * fs                       : Python文件系统类库，支持内存文件系统、标准文件系统；这里主要为了满足内存文件系统需要
+   * hdfs                     : HDFS类库，支持对HDFS文件操作
+   * confluent_kafka          : Kafka类库，支持对Kafka操作, 这个包和kafka-python冲突，需要提前移除kafka-python
+
 安装命令：
 ```
    pip install -U robotslacker-sqlcli
@@ -152,24 +164,25 @@ SQL>
 这里的运行日志不是指程序的logfile，而是用CSV文件记录的SQL日志，  
 这些日志将作为后续对SQL运行行为的一种分析  
 运行日志共包括如下信息：  
-1、StartedTime  SQL运行开始时间，格式是：%Y-%m-%d %H:%M:%S  
-2、elapsed      SQL运行的消耗时间，这里的单位是毫秒  
-3、SQL          运行的SQL，在这个运行日志中，并不会打印SQL全文，而是只打印SQL的前40个字符  
-4、SQLStatus    SQL运行结果，0表示运行正常结束，1表示运行错误  
-5、ErrorMessage 错误日志，在SQLStatus为1的时候才有意义  
-6、thread_name  工作线程名，对于主程序，这里显示的是MAIN  
+1、Script       运行的脚本名称
+2、StartedTime  SQL运行开始时间，格式是：%Y-%m-%d %H:%M:%S  
+3、elapsed      SQL运行的消耗时间，这里的单位是毫秒  
+4、SQL          运行的SQL，在这个运行日志中，并不会打印SQL全文，而是只打印SQL的前40个字符  
+5、SQLStatus    SQL运行结果，0表示运行正常结束，1表示运行错误  
+6、ErrorMessage 错误日志，在SQLStatus为1的时候才有意义  
+7、thread_name  工作线程名，对于主程序，这里显示的是MAIN  
 说明：上述信息都有TAB分隔，其中字符信息用单引号包括，如下是一个例子：  
 ```
-Started elapsed SQLPrefix       SQLStatus       ErrorMessage    thread_name
-'2020-05-25 17:46:23'       0.00        'loaddriver localtest\linkoopdb-jdbc-2.3.'      0       ''      'MAIN'
-'2020-05-25 17:46:23'       0.28        'connect admin/123456'  0       ''      'MAIN'
-'2020-05-25 17:46:24'       0.00        'SET ECHO ON'   0       ''      'MAIN'
-'2020-05-25 17:46:24'       0.00        'SET TIMING ON' 0       ''      'MAIN'
-'2020-05-25 17:46:24'       0.01        'LOADSQLMAP stresstest' 0       ''      'MAIN'
-'2020-05-25 17:46:24'       0.92        'ANALYZE TRUNCATE STATISTICS'   0       ''      'MAIN'
-'2020-05-25 17:46:25'       0.02        'SELECT count(SESSION_ID)  FROM INFORMATI'      0       ''      'MAIN'
-'2020-05-25 17:46:25'       1.37        'drop user testuser if exists cascade'  0       ''      'MAIN'
-'2020-05-25 17:46:26'       0.54        'CREATE USER testuser PASSWORD '123456''        0       ''      'MAIN'
+Script  Started elapsed SQLPrefix       SQLStatus       ErrorMessage    thread_name
+'sub_1.sql' '2020-05-25 17:46:23'       0.00        'loaddriver localtest\linkoopdb-jdbc-2.3.'      0       ''      'MAIN'
+'sub_1.sql' '2020-05-25 17:46:23'       0.28        'connect admin/123456'  0       ''      'MAIN'
+'sub_1.sql' '2020-05-25 17:46:24'       0.00        'SET ECHO ON'   0       ''      'MAIN'
+'sub_1.sql' '2020-05-25 17:46:24'       0.00        'SET TIMING ON' 0       ''      'MAIN'
+'sub_1.sql' '2020-05-25 17:46:24'       0.01        'LOADSQLMAP stresstest' 0       ''      'MAIN'
+'sub_1.sql' '2020-05-25 17:46:24'       0.92        'ANALYZE TRUNCATE STATISTICS'   0       ''      'MAIN'
+'sub_1.sql' '2020-05-25 17:46:25'       0.02        'SELECT count(SESSION_ID)  FROM INFORMATI'      0       ''      'MAIN'
+'sub_1.sql' '2020-05-25 17:46:25'       1.37        'drop user testuser if exists cascade'  0       ''      'MAIN'
+'sub_1.sql' '2020-05-25 17:46:26'       0.54        'CREATE USER testuser PASSWORD '123456''        0       ''      'MAIN'
 ```
 ***
 #### 在SQLCli里面查看当前支持的命令
@@ -196,6 +209,7 @@ SQL> help
 | start        | Execute commands from file. |
 | StartJob     | Start Jobs                  |
 | Submitjob    | Submit Jobs                 |
+| waitjob      | Wait Job complete           |
 +--------------+-----------------------------+
 这里显示的是所有除了标准SQL语句外，可以被执行的各种命令开头。
 标准的SQL语句并没有在这里显示出来，你可以直接在控制行内或者脚本里头执行SQL脚本。
@@ -203,15 +217,13 @@ SQL> help
 
 #### 加载数据库驱动
 仅在如下情况下，需要加载数据库驱动：  
-* 你需要测试的数据库不是我们已经内嵌支持的数据库  
-  内嵌支持的数据库有：SQLServer,Oracle,MySQL,PostgreSQL,TeraData  
 * 你需要为你的程序使用更新的jdbc驱动程序  
 
 在sqlcli命令行里头，可以通过load命令来加载数据库驱动文件。
 ```
 (base) sqlcli 
 SQL*Cli Release 0.0.32
-SQL> loaddriver  xxxxx-jdbc-x.x.x.jar   com.xxxx.xxxxxxx.jdbc.JdbcDriver 
+SQL> loaddriver  xxxxx-jdbc-x.x.x.jar 
 Driver loaded.
 SQL> 
 
@@ -252,8 +264,6 @@ SQL>
 常见数据库的连接方式示例：
 ORACLE:
     connect username/password@jdbc:oracle:tcp://IP:Port/Service_Name
-LinkoopDB:
-    connect username/password@jdbc:linkoopdb:tcp://IP:Port/Service_Name
 MYSQL:
     connect username/password@jdbc:mysql:tcp://IP:Port/Service_Name
 PostgreSQL：
@@ -261,7 +271,9 @@ PostgreSQL：
 SQLServer：
     connect username/password@jdbc:sqlserver:tcp://IP:Port/DatabaseName
 TeraData：
-    connect username/password@jdbc:teradata:tcp://IP:/DatabaseName
+    connect username/password@jdbc:teradata:tcp://IP:0/DatabaseName
+LinkoopDB:
+    connect username/password@jdbc:linkoopdb:tcp://IP:Port/Service_Name
 ```
 
 #### 断开数据库连接
@@ -337,16 +349,22 @@ Mapping file loaded.
    3.   通过在SQL输入窗口，输入loadsqlmap的方式来指定
 
 重写文件的写法要求：
-   以下是一个重写文件的典型格式， 1，2，3 是文件的行号，不是真实内容：
+   以下是一个重写文件的典型格式， 1，2，3，4，5 是文件的行号，不是真实内容：
     1 #..*:                                      
-    2 ((?i)CREATE TABLE .*\))=>\1 engine pallas
-    3 #.
+    2 ((?i)CREATE TABLE .*\))=>\1 engine xxxxx
+    3 WEBURL=>{ENV(ROOTURL)}
+    4 MYID=>{RANDOM('random_ascii_letters_and_digits',10)}
+    5 #.
 
     行1：
         这里定义的是参与匹配的文件名，以#.开头，以:结束，如果需要匹配全部文件，则可以在中间用.*来表示
     行2：
-        这里定义的是一个正则替换规则, =>前面的部分是查找表达式，=>后面的部分是需要被替换的内容
+        这里定义的是一个正则替换规则, 在符合CREATE TABLE的语句后面增加engine xxxxx字样
     行3：
+        这里定义的是一个正则替换规则, 用环境变量ROOTURL的值来替换文件中WEBURL字样
+    行4：
+        这里定义的是一个正则替换规则, 用一个最大长度位10，可能包含字母和数字的内容来替换文件中的MYID字样
+    行5：
         文件定义终止符
 
     每一个MAP文件里，可以循环反复多个这样的类似配置，每一个配置段都会生效
@@ -375,6 +393,7 @@ Mapping file loaded.
   SQL语句块的判断依据是：
 ```
      CREATE | REPLACE ******   FUNCTION|PROCEDURE **** | DECLARE ****
+     这里并没有完整描述，具体的信息可以从代码文件中查阅
 ```
 &emsp; SQL语句块的结束符为【/】，且【/】必须出现在具体一行语句的开头  比如：
 ```
@@ -436,8 +455,8 @@ Mapping file loaded.
 #### 设置程序的运行选项
 通过SET命令，我们可以改变SQLCli的一些行为或者显示选项。
 ```
-   SQL> set
-     Current set options: 
+    SQL> set
+    Current set options: 
     +-------------------+----------+
     | option            | value    |
     +-------------------+----------+
@@ -445,21 +464,24 @@ Mapping file loaded.
     | PAGE              | OFF      |
     | OUTPUT_FORMAT     | ASCII    |
     | ECHO              | ON       |
-    | LOB_LENGTH              | 20       |
-    | KAFKA_SERVERS     | None     |
     | TIMING            | OFF      |
+    | TIME              | OFF      |
     | TERMOUT           | ON       |
     | FEEDBACK          | ON       |
     | ARRAYSIZE         | 10000    |
     | SQLREWRITE        | OFF      |
     | DEBUG             | OFF      |
+    | KAFKA_SERVERS     | None     |
+    | LOB_LENGTH        | 20       |
+    | FLOAT_FORMAT      | %.7g     |
+    | DOUBLE_FORMAT     | %0.10g   |
     +-------------------+----------+
   没有任何参数的set将会列出程序所有的配置情况。
 
 ```
    
-   目前支持的控制参数有：  
-1.&emsp; ECHO    SQL回显标志， 默认为OFF，即SQL内容在LOG中不回显
+&emsp; &emsp; 主要的控制参数解释：  
+&emsp; &emsp; 1.ECHO    SQL回显标志， 默认为ON，即SQL内容在LOG中回显
 ```
         SQL> set ECHO ON      # 在LOG中将会回显SQL语句
         SQL> set ECHO OFF     # 在LOG中不会回显SQL语句
@@ -482,16 +504,15 @@ Mapping file loaded.
         SQL> 1 rows selected.
 ```
 
-2.&emsp; WHENEVER_SQLERROR  SQL错误终端表示， 用来控制在执行SQL过程中遇到SQL错误，是否继续。 默认是CONTINUE，即继续。   
+&emsp; &emsp; 2. WHENEVER_SQLERROR  SQL错误终端表示， 用来控制在执行SQL过程中遇到SQL错误，是否继续。 默认是CONTINUE，即继续。   
 &emsp; 目前支持的选项有：    
 ```
        CONTINUE |     遇到SQL语句错误继续执行 
        EXIT     |     遇到SQL语句错误直接退出SQLCli程序
 ```
-&emsp; PAGE        是否分页显示，当执行的SQL语句结果超过了屏幕显示的内容，是否会暂停显示，等待用户输入任意键后继续显示下一页，默认是OFF，即不中断。
+&emsp; &emsp; 3. PAGE        是否分页显示，当执行的SQL语句结果超过了屏幕显示的内容，是否会暂停显示，等待用户输入任意键后继续显示下一页，默认是OFF，即不中断。
 
-
-3.&emsp; OUTPUT_FORMAT   显示格式， 默认是ASCII
+&emsp; &emsp; 4. OUTPUT_FORMAT   显示格式， 默认是ASCII
 &emsp; 目前支持的选项有：
 ```
       ASCII    |     显示格式为表格的格式 
@@ -529,7 +550,7 @@ Mapping file loaded.
         2 rows selected.
 ```
 
-4.&emsp; LOB_LENGTH      控制LOB字段的输出长度，默认是20  
+&emsp; &emsp; 5. LOB_LENGTH      控制LOB字段的输出长度，默认是20  
 &emsp; &emsp; 由于LOB字段中的文本长度可能会比较长，所以默认不会显示出所有的LOB内容到当前输出中，而是最大长度显示LOB_LENGTH值所代表的长度对于超过默认显示长度的，将在输出内容后面添加...省略号来表示   
 &emsp; &emsp; 对于BLOB类型，输出默认为16进制格式。对于超过默认显示长度的，将在输出内容后面添加...省略号来表示 
 ```       
@@ -550,7 +571,7 @@ Mapping file loaded.
         SQL> 1 rows selected.
 ```
 
-5.&emsp; FEEDBACK      控制是否回显执行影响的行数，默认是ON，显示  
+&emsp; &emsp; 6. FEEDBACK      控制是否回显执行影响的行数，默认是ON，显示  
 ```
        SQL> set feedback on
        SQL> select * from test_tab;
@@ -570,7 +591,7 @@ Mapping file loaded.
        | 1  | XYXYXYXY |
        +----+----------+
 ```
-6.&emsp; TERMOUT       控制是否显示SQL查询的返回，默认是ON，显示  
+&emsp; &emsp; 7. TERMOUT       控制是否显示SQL查询的返回，默认是ON，显示  
 
 ```
        SQL> set termout on
@@ -587,6 +608,68 @@ Mapping file loaded.
        2 rows selected.
 
 ```
+&emsp; &emsp; 8. FLOAT_FORMAT    控制浮点数字的显示格式，默认是%.7g
+```
+    SQL>  select abs(1.234567891234) from dual;
+    +----------+
+    | C1       |
+    +----------+
+    | 1.234568 |
+    +----------+
+    1 row selected.
+    SQL> set FLOAT_FORMAT %0.10g
+    SQL>  select abs(1.234567891234) from dual;
+    +-------------+
+    | C1          |
+    +-------------+
+    | 1.234567891 |
+    +-------------+
+    1 row selected.
+
+    类似的参数还有DOUBLE_FORMAT
+```
+#### 在SQL中用内置变量来查看上一个SQL的执行结果
+&emsp; &emsp; 有一些场景通常要求我们来下一个SQL指定的时候，将上一个SQL的结果做出参数来执行  
+&emsp; &emsp; 这里提供的解决办法是： 在SQL中引入被特殊定义的标志  
+&emsp; &emsp; 具体的标志有：  
+&emsp; &emsp; &emsp; &emsp; 1：  %lastsqlresult.LastAffectedRows%
+```
+    SQL>  select abs(1.234567891234) from dual;
+    +----------+
+    | C1       |
+    +----------+
+    | 1.234568 |
+    +----------+
+    1 row selected.
+    SQL> select %lastsqlresult.LastAffectedRows% From Dual;
+    +----------+
+    | C1       |
+    +----------+
+    | 1        |
+    +----------+
+   这里的1表示之前第一个SQL中1 row selected的1
+   
+```  
+&emsp; &emsp; &emsp; &emsp; 2：  %lastsqlresult.LastSQLResult%  
+```
+    SQL>  select abs(1.234567891234) from dual;
+    +----------+
+    | C1       |
+    +----------+
+    | 1.234568 |
+    +----------+
+    1 row selected.
+    SQL> select %lastsqlresult.LastSQLResult[0][0]% From Dual;
+    +----------+
+    | C1       |
+    +----------+
+    | 1.234568 |
+    +----------+
+   这里的1.234568表示之前第一个SQL返回结果记录集中的第0行，第零列
+   在这里，LastSQLResult后面的数据前述SQL结果集的行、列。可取值范围为： 0 - (Rowsaffected - 1), 0 - (column number -1)
+
+```  
+
 #### 执行特殊的内部语句
    这里指的内部语句是说不需要后台SQL引擎完成，而是通过在SQLCli程序中扩展代码来支持的语句。  
    目前支持的扩展语句有：
@@ -661,7 +744,42 @@ Mapping file loaded.
    SQL> __internal__ CREATE FS FILE abc.txt FROM HDFS FILE http://nodexx:port/def.txt
    会从HDFS上下载一个文件def.txt, 并保存到本地文件系统的abc.txt中
 
+
+   SQL> __internal__ create kafka server [bootstrap_server];
+   创建一个Kafka服务器的配置信息，这个配置信息将用于随后的操作，格式位nodex:port1,nodey:port2....
+
+   SQL> __internal__ create kafka topic [topic name] Partitions [number of partitions] replication_factor [number of replication factor];
+   创建一个kafka的Topic，Topic的具体参数参考[topic name]， [number of partitions]， [number of replication factor]
+   例子： __internal__ create kafka topic mytopic Partitions 16 replication_factor 1;
+   注意： 由于kafka的机制，创建topic总是会立即成功的，但立即成功并不代表立即可用
+         如果脚本中随后要立刻用到刚刚创建的topic，则需要休息一点时间后在进行尝试。比如sleep 3 
+
+   SQL> __internal__ get kafka Offset topic [topic name] Partition [Partition id] group [gruop id];
+   获得指定分区的高水位线和低水位线
+    +-----------+-----------+
+    | minOffset | maxOffset |
+    +-----------+-----------+
+    | 0         | 57        |
+    +-----------+-----------+
+   例子： __internal__ get kafka Offset topic mytopic Partition 0 group “”;
+
+   SQL> __internal__ create kafka message from file [text file name] to topic [topic name];
+   将指定文本文件中所有内容按行发送到Kafka指定的Topic中
+   例子： __internal__ create kafka message from file Doc.md to topic Hello;
+
+    SQL> __internal__ create kafka message topic [topic name]
+       > (
+       >    [message item1]
+       >    [message item2] 
+       >    [message item3]
+       》 );
+    将SQL中包含的Message item发送到kafka指定的topic中
+    上述的例子，将发送3条消息到服务器。
+
+    SQL> __internal__ drop kafka topic [topic name];
+    删除指定的topic
 ```
+
 ***    
 #### 退出
 你可以使用exit来退出命令行程序，或者在脚本中使用Exit来退出正在执行的脚本

@@ -117,9 +117,9 @@ class SQLExecute(object):
                         "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
             # lastsqlresult.LastSQLResult[X][Y]
             matchObj = re.search(r"%lastsqlresult.LastSQLResult\[(\d+)\]\[(\d+)\]%",
-                                sql, re.IGNORECASE | re.DOTALL)
+                                 sql, re.IGNORECASE | re.DOTALL)
             if matchObj:
-                m_Searched = matchObj.group(0);
+                m_Searched = matchObj.group(0)
                 m_nRow = int(matchObj.group(1))
                 m_nColumn = int(matchObj.group(2))
                 if m_nRow >= len(self.LastSQLResult):
@@ -205,6 +205,7 @@ class SQLExecute(object):
                                 str(e).find("SQLException") != -1 or
                                 str(e).find("SQLDataException") != -1 or
                                 str(e).find("SQLTransactionRollbackException") != -1 or
+                                str(e).find("SQLTransientConnectionException") != -1 or
                                 str(e).find('time data') != -1
                         ):
                             # 发生了SQL语法错误
@@ -374,7 +375,7 @@ class SQLExecute(object):
             "'" + str(os.path.basename(self.sqlscript)) + "'\t" +
             "'" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p_SQLResult["StartedTime"])) + "'\t" +
             "%8.2f" % p_SQLResult["elapsed"] + "\t" +
-            "'" + str(p_SQLResult["SQL"][0:40]).replace("\n", " ").replace("\t", "    ") + "'\t" +
+            "'" + str(p_SQLResult["SQL"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
             str(p_SQLResult["SQLStatus"]) + "\t" +
             "'" + str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
             "'" + str(p_SQLResult["thread_name"] + "'" + "\n")

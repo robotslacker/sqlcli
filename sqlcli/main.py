@@ -1397,7 +1397,7 @@ class SQLCli(object):
     # 执行特殊的命令
     def execute_internal_command(self, arg, **_):
         # 处理kafka数据
-        matchObj = re.match(r"(.*)kafka(.*)$",arg, re.IGNORECASE | re.DOTALL)
+        matchObj = re.match(r"(.*)kafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             (title, result, headers, status) = self.KafkaHandler.Process_SQLCommand(arg)
             yield title, result, headers, status
