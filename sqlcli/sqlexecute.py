@@ -22,7 +22,6 @@ class SQLExecute(object):
     m_Current_RunningSQL = None         # 目前程序运行的当前SQL
     Console = False                     # 屏幕输出Console
     logger = None                       # 日志输出
-    m_Worker_Name = None                # 为每个SQLExecute实例起一个名字，便于统计分析
 
     m_PerfFileLocker = Lock()           # # 进程锁, 用来在输出perf文件的时候控制并发写文件
 
@@ -43,6 +42,12 @@ class SQLExecute(object):
         self.LastAffectedRows = 0
         self.LastSQLResult = None
         self.LastElapsedTime = 0
+
+        # 当前Execute的WorkerName
+        self.m_Worker_Name = None
+
+    def set_Worker_Name(self, p_szWorkerName):
+        self.m_Worker_Name = p_szWorkerName
 
     def set_logfile(self, p_logfile):
         self.logfile = p_logfile
@@ -361,25 +366,44 @@ class SQLExecute(object):
             return
 
         # 多进程，多线程写入，考虑锁冲突
-        self.m_PerfFileLocker.acquire()
-        if not os.path.exists(self.SQLPerfFile):
-            # 如果文件不存在，创建文件，并写入文件头信息
-            self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
-            self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tSQLPrefix\tSQLStatus\tErrorMessage\tthread_name\n")
-            self.SQLPerfFileHandle.close()
+        try:
+            self.m_PerfFileLocker.acquire()
+            if not os.path.exists(self.SQLPerfFile):
+                # 如果文件不存在，创建文件，并写入文件头信息
+                self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
+                self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tSQLPrefix\t"
+                                             "SQLStatus\tErrorMessage\tthread_name\t"
+                                             "Copies\tFinished\n")
+                self.SQLPerfFileHandle.close()
 
-        # 打开Perf文件
-        self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
-        # 写入内容信息
-        self.SQLPerfFileHandle.write(
-            "'" + str(os.path.basename(self.sqlscript)) + "'\t" +
-            "'" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p_SQLResult["StartedTime"])) + "'\t" +
-            "%8.2f" % p_SQLResult["elapsed"] + "\t" +
-            "'" + str(p_SQLResult["SQL"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
-            str(p_SQLResult["SQLStatus"]) + "\t" +
-            "'" + str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
-            "'" + str(p_SQLResult["thread_name"] + "'" + "\n")
-        )
-        self.SQLPerfFileHandle.flush()
-        self.SQLPerfFileHandle.close()
-        self.m_PerfFileLocker.release()
+            if len(str(p_SQLResult["thread_name"]).split('-')) == 3:
+                # 对于多线程运行，这里的thread_name通常为JOB_NAME, 副本数，循环次数
+                m_ThreadName = str(p_SQLResult["thread_name"]).split('-')[0]
+                m_Copies = str(p_SQLResult["thread_name"]).split('-')[1]
+                m_CurrentLoop = int(str(p_SQLResult["thread_name"]).split('-')[2]) + 1
+            else:
+                # 对于单线程运行，这里的thread_name通常为JOB_NAME, 1， 1
+                m_ThreadName = str(p_SQLResult["thread_name"])
+                m_Copies = 1
+                m_CurrentLoop = 1
+
+            # 打开Perf文件
+            self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
+            # 写入内容信息
+            self.SQLPerfFileHandle.write(
+                "'" + str(os.path.basename(self.sqlscript)) + "'\t" +
+                "'" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p_SQLResult["StartedTime"])) + "'\t" +
+                "%8.2f" % p_SQLResult["elapsed"] + "\t" +
+                "'" + str(p_SQLResult["SQL"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
+                str(p_SQLResult["SQLStatus"]) + "\t" +
+                "'" + str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
+                "'" + str(m_ThreadName) + "'\t" +
+                str(m_Copies) + "'\t" + str(m_CurrentLoop) +
+                "\n"
+            )
+            self.SQLPerfFileHandle.flush()
+            self.SQLPerfFileHandle.close()
+        except Exception as ex:
+            print("Internal error:: perf file write not complete. " + repr(ex))
+        finally:
+            self.m_PerfFileLocker.release()

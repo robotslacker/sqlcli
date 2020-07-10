@@ -329,6 +329,9 @@ def Create_file(p_filetype, p_filename, p_formula_str, p_rows):
             if len(buf) != 0:
                 m_output.writelines(buf)
             m_output.close()
+
+            # 重置identity的序列号，保证下次从开头开始
+            delattr(identity, 'x')
     except SQLCliException as e:
         raise SQLCliException(e.message)
     except Exception as e:

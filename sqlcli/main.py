@@ -140,6 +140,10 @@ class SQLCli(object):
         self.KafkaHandler = KafkaWrapper()        # 函数句柄，处理Kafka的消息
         self.prompt_app = None                    # PromptKit控制台
         self.db_conn = None                       # 当前应用的数据库连接句柄
+        if WorkerName is None:
+            self.m_Worker_Name = "0"              # 当前进程名称. 对于主进程是：MAIN, 对于子进程是:JOBID-Copies-FinishedCount
+        else:
+            self.m_Worker_Name = WorkerName       # 当前进程名称. 如果有参数传递，以参数为准
 
         # 传递各种参数
         self.sqlscript = sqlscript
@@ -161,10 +165,6 @@ class SQLCli(object):
         self.SQLExecuteHandler.logfile = self.logfile
         self.SQLExecuteHandler.Console = self.Console
         self.SQLExecuteHandler.SQLPerfFile = self.m_SQLPerf
-        if WorkerName is None:
-            self.SQLExecuteHandler.m_Worker_Name = "MAIN"
-        else:
-            self.SQLExecuteHandler.m_Worker_Name = WorkerName
         self.SQLExecuteHandler.logger = self.logger
         self.SQLMappingHandler.Console = self.Console
 
@@ -177,9 +177,16 @@ class SQLCli(object):
         # 加载一些特殊的命令
         self.register_special_commands()
 
+        # 设置进程的名称
+        self.set_Worker_Name(self.m_Worker_Name)
+
         # 设置WHENEVER_SQLERROR
         if breakwitherror:
             self.SQLExecuteHandler.options["WHENEVER_SQLERROR"] = "EXIT"
+
+    def set_Worker_Name(self, p_szWorkerName):
+        self.m_Worker_Name = p_szWorkerName
+        self.SQLExecuteHandler.set_Worker_Name(p_szWorkerName)
 
     def register_special_commands(self):
 
@@ -455,10 +462,11 @@ class SQLCli(object):
     # 等待JOB完成
     def wait_job(self, arg, **_):
         if arg is None or len(str(arg).strip()) == 0:
-            raise SQLCliException("Missing required argument. showjob [all|job#].")
+            raise SQLCliException("Missing required argument. waitjob [all|job#].")
         m_Parameters = str(arg).split()
-
+        m_nLoopCount = 0
         if m_Parameters[0].upper() == "ALL":
+            # 等待所有的JOB完成
             while True:
                 m_bFoundJob = False
                 for m_Process in self.m_ProcessList:
@@ -472,39 +480,48 @@ class SQLCli(object):
                         "All Job Completed")
                     return
                 else:
+                    m_nLoopCount = m_nLoopCount + 1
                     time.sleep(3)
-
-        if m_Parameters[0].upper().isnumeric():
+                    if m_nLoopCount == 10:
+                        m_nLoopCount = 0
+                        if len(m_Parameters) == 2 and m_Parameters[1].upper() == "SHOW":
+                            self.DoSQL("showjob all")
+        elif m_Parameters[0].upper().isnumeric():
+            # 显示指定的JOB信息
             m_Job_ID = int(m_Parameters[0].upper())
+            while True:
+                m_bFoundJob = False
+                for m_Process in self.m_ProcessList:
+                    if m_Process["JOB#"] == m_Job_ID:
+                        m_bFoundJob = True
+                        if not m_Process["ProcessHandle"].is_alive():
+                            yield (
+                                None,
+                                None,
+                                None,
+                                "Job " + str(m_Job_ID) + " Completed")
+                            return
+                    else:
+                        continue
+
+                # 继续等待
+                if not m_bFoundJob:
+                    yield (
+                        None,
+                        None,
+                        None,
+                        "No job to wait.")
+                    return
+                else:
+                    m_nLoopCount = m_nLoopCount + 1
+                    time.sleep(3)
+                    if m_nLoopCount == 10:
+                        m_nLoopCount = 0
+                        if len(m_Parameters) == 2 and m_Parameters[1].upper() == "SHOW":
+                            self.DoSQL("showjob " + str(m_Job_ID))
+                    continue
         else:
             raise SQLCliException("Argument error. waitjob [all|job#].")
-
-        while True:
-            m_bFoundJob = False
-            for m_Process in self.m_ProcessList:
-                if m_Process["JOB#"] == m_Job_ID:
-                    m_bFoundJob = True
-                    if not m_Process["ProcessHandle"].is_alive():
-                        yield (
-                            None,
-                            None,
-                            None,
-                            "Job " + str(m_Job_ID) + " Completed")
-                        return
-                else:
-                    continue
-
-            # 继续等待
-            if not m_bFoundJob:
-                yield (
-                    None,
-                    None,
-                    None,
-                    "No job to wait.")
-                return
-            else:
-                time.sleep(3)
-                continue
 
     # 显示当前正在执行的JOB
     def show_job(self, arg, **_):
@@ -626,9 +643,12 @@ class SQLCli(object):
                 breakwitherror=p_args["breakwitherror"],
                 Console=HeadLessConsole,
                 HeadlessMode=True,
-                sqlperf=p_args["sqlperf"],
-                WorkerName=m_JobID
+                sqlperf=p_args["sqlperf"]
             )
+            m_SQLCli.set_Worker_Name(
+                str(p_args["Parent_WorkerName"])+":"+str(m_JobID) + "-" +
+                str(m_CurrentJob["Copies"]) + "-" +
+                str(m_CurrentJob["Finished"]))
             m_WorkerThread = threading.Thread(target=runJobInThread, args=(m_SQLCli,))
             m_WorkerThread.start()
 
@@ -666,6 +686,9 @@ class SQLCli(object):
             m_CurrentLoopCount = int(m_CurrentJob["Finished"])
             m_ToDoLoopCount = int(m_CurrentJob["LoopCount"])
             m_CurrentJob["Finished"] = str(m_CurrentLoopCount + 1)
+            m_SQLCli.set_Worker_Name(str(m_JobID) + "-" +
+                                     str(m_CurrentJob["Copies"]) + "-" +
+                                     str(m_CurrentJob["Finished"]))
             if (m_CurrentLoopCount + 1) >= m_ToDoLoopCount:              # 所有任务都已经完成
                 # 对共享的进程状态信息加锁
                 LOCK_JOBCATALOG.acquire()
@@ -706,6 +729,9 @@ class SQLCli(object):
 
                 # 继续新的一轮运行
                 m_CurrentLoop = m_CurrentLoop + 1
+
+                # 修改线程的WorkerName，标记当前循环次数和并发数
+
                 continue                       # 继续当前JOB的下一次运行
 
     # 启动后台SQL任务
@@ -747,6 +773,7 @@ class SQLCli(object):
             m_args = {"JOB#": m_Job["JOB#"], "logon": self.logon, "sqlmap": self.sqlmap, "nologo": self.nologo,
                       "breakwitherror": (self.SQLExecuteHandler.options["WHENEVER_SQLERROR"] == "EXIT"),
                       "logfilename": self.logfilename, "sqlperf": self.m_SQLPerf,
+                      "Parent_WorkerName": self.m_Worker_Name,
                       "PID": 0, "exitcode": 0}
             m_Process = Process(target=self.runJob, args=(m_args, self.m_BackGround_Jobs))
             m_Process.start()
@@ -814,6 +841,7 @@ class SQLCli(object):
                     "EndTime": None,
                     "Logfile": None,
                     "Finished": str(0),
+                    "Copies": str(m_Execute_Copies),
                     "LoopCount": str(m_Script_LoopCount)
                 }
             )
@@ -1816,8 +1844,7 @@ def cli(
         sqlscript=execute,
         sqlmap=sqlmap,
         nologo=nologo,
-        sqlperf=sqlperf,
-        WorkerName="MAIN"
+        sqlperf=sqlperf
     )
 
     # 运行主程序
