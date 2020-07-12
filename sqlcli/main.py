@@ -1618,14 +1618,6 @@ class SQLCli(object):
         # 程序运行的结果
         m_runCli_Result = True
 
-        # 加载多进程管理
-        # 一定要在start前注册，不然就注册无效
-        manager = BaseManager()
-        manager.register('BackGroundJobs', callable=BackGroundJobs)
-        manager.start()
-        func = getattr(manager, 'BackGroundJobs')
-        self.m_BackGround_Jobs = func()
-
         # 设置主程序的标题，随后开始运行程序
         setproctitle.setproctitle('SQLCli MAIN ' + " Script:" + str(self.sqlscript))
 
@@ -1697,6 +1689,14 @@ class SQLCli(object):
         if self.sqlscript is None and not self.HeadlessMode:
             self.prompt_app = PromptSession()
 
+        # 加载多进程管理
+        # 一定要在start前注册，不然就注册无效
+        manager = BaseManager()
+        manager.register('BackGroundJobs', callable=BackGroundJobs)
+        manager.start()
+        func = getattr(manager, 'BackGroundJobs')
+        self.m_BackGround_Jobs = func()
+
         # 开始依次处理SQL语句
         try:
             # 如果环境变量中包含了SQLCLI_CONNECTION_JAR_NAME
@@ -1729,7 +1729,12 @@ class SQLCli(object):
         except (SQLCliException, EOFError):
             # SQLCliException只有在被设置了WHENEVER_SQLERROR为EXIT的时候，才会被捕获到
             self.echo("Disconnected.")
-            return m_runCli_Result
+
+        # 当前进程关闭后退出RPC的Manager
+        manager.shutdown()
+
+        # 返回运行结果, True 运行成功。 False运行失败
+        return m_runCli_Result
 
     def log_output(self, output):
         if self.logfile:
