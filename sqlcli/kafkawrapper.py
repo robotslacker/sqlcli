@@ -80,9 +80,8 @@ class KafkaWrapper(object):
                 for m_Message in p_Message:
                     p.produce(p_szTopicName, m_Message.encode('utf-8'), callback=delivery_report)
                     nCount = nCount + 1
-                    if nCount == 5000:
+                    if (nCount % 5000) == 0:
                         p.flush()
-                        nCount = 0
                     if len(p_ErrorList) > 1000:
                         p.flush()
                         raise KafkaWrapperException("Too much error exception ..., produce aborted.")
@@ -174,11 +173,11 @@ class KafkaWrapper(object):
             try:
                 nTotalCount = self.kafka_Produce(m_TopicName, m_Messages, m_ProduceError)
                 if len(m_ProduceError) != 0:
-                    return None, None, None, "Total {} messages send to topic {} with {} failed.".\
-                        format(nTotalCount, m_TopicName, len(m_ProduceError))
+                    return None, None, None, "Total {}/{} messages send to topic {} with {} failed.". \
+                        format(nTotalCount, len(m_Messages), m_TopicName, len(m_ProduceError))
                 else:
-                    return None, None, None, "Total {} messages send to topic {} Successful".\
-                        format(nTotalCount, m_TopicName)
+                    return None, None, None, "Total {}/{} messages send to topic {} Successful". \
+                        format(nTotalCount, len(m_Messages), m_TopicName)
             except (KafkaException, KafkaWrapperException) as ke:
                 return None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
 
