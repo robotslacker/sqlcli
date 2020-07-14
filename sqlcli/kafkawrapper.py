@@ -44,9 +44,12 @@ class KafkaWrapper(object):
                 f.result()
                 return "Topic {} deleted".format(topic)
             except KafkaException as ke:
-                if "SQLCLI_DEBUG" in os.environ:
-                    print('traceback.print_exc():\n%s' % traceback.print_exc())
-                    print('traceback.format_exc():\n%s' % traceback.format_exc())
+                if repr(ke).find("UNKNOWN_TOPIC_OR_PART") != -1:
+                    return "Topic {} deleted".format(topic)
+                else:
+                    if "SQLCLI_DEBUG" in os.environ:
+                        print('traceback.print_exc():\n%s' % traceback.print_exc())
+                        print('traceback.format_exc():\n%s' % traceback.format_exc())
                 return "Failed to drop topic {}: {}".format(topic, repr(ke))
 
     def kafka_GetOffset(self, p_szTopicName, p_nPartitionID=0, p_szGroupID=''):

@@ -4,6 +4,7 @@ import re
 import os
 from .sqlcliexception import SQLCliException
 import datetime
+from time import strftime, localtime
 import random
 from hdfs.client import Client
 from hdfs.util import HdfsError
@@ -124,6 +125,17 @@ def random_timestamp(p_arg):
     return (random.random() * (etime - stime) + stime).strftime(frmt)
 
 
+# 返回系统当前时间
+def current_timestamp(p_arg):
+    if len(p_arg) == 1:
+        frmt = str(p_arg[0]).strip()
+        if len(frmt) == 0:
+            frmt = "%Y-%m-%d %H:%M:%S"
+    else:
+        frmt = "%Y-%m-%d %H:%M:%S"
+    return strftime(frmt, localtime())
+
+
 # 第一个参数是seed的名字
 # 第二个参数是截取的最大长度
 def random_from_seed(p_arg):
@@ -214,7 +226,7 @@ def parse_formula_str(p_formula_str):
     for m_nRowPos in range(0, len(m_row_struct)):
         if re.search('random_ascii_lowercase|random_ascii_uppercase|random_ascii_letters' +
                      '|random_digits|identity|random_ascii_letters_and_digits|random_from_seed' +
-                     '|random_date|random_timestamp|random_boolean',
+                     '|random_date|random_timestamp|random_boolean|current_timestamp',
                      m_row_struct[m_nRowPos], re.IGNORECASE):
             m_function_struct = re.split(r'[(,)]', m_row_struct[m_nRowPos])
             for m_nPos in range(0, len(m_function_struct)):
@@ -229,32 +241,35 @@ def parse_formula_str(p_formula_str):
             if m_function_struct[0].upper() == "RANDOM_ASCII_LOWERCASE":
                 m_call_out_struct.append(random_ascii_lowercase)
                 m_call_out_struct.append(m_function_struct[1:])
-            if m_function_struct[0].upper() == "RANDOM_ASCII_UPPERCASE":
+            elif m_function_struct[0].upper() == "RANDOM_ASCII_UPPERCASE":
                 m_call_out_struct.append(random_ascii_uppercase)
                 m_call_out_struct.append(m_function_struct[1:])
-            if m_function_struct[0].upper() == "RANDOM_ASCII_LETTERS":
+            elif m_function_struct[0].upper() == "RANDOM_ASCII_LETTERS":
                 m_call_out_struct.append(random_ascii_letters)
                 m_call_out_struct.append(m_function_struct[1:])
-            if m_function_struct[0].upper() == "RANDOM_DIGITS":
+            elif m_function_struct[0].upper() == "RANDOM_DIGITS":
                 m_call_out_struct.append(random_digits)
                 m_call_out_struct.append(m_function_struct[1:])
-            if m_function_struct[0].upper() == "IDENTITY":
+            elif m_function_struct[0].upper() == "IDENTITY":
                 m_call_out_struct.append(identity)
                 m_call_out_struct.append(m_function_struct[1:])
-            if m_function_struct[0].upper() == "RANDOM_ASCII_LETTERS_AND_DIGITS":
+            elif m_function_struct[0].upper() == "RANDOM_ASCII_LETTERS_AND_DIGITS":
                 m_call_out_struct.append(random_ascii_letters_and_digits)
                 m_call_out_struct.append(m_function_struct[1:])
-            if m_function_struct[0].upper() == "RANDOM_FROM_SEED":
+            elif m_function_struct[0].upper() == "RANDOM_FROM_SEED":
                 m_call_out_struct.append(random_from_seed)
                 m_call_out_struct.append(m_function_struct[1:])
-            if m_function_struct[0].upper() == "RANDOM_DATE":
+            elif m_function_struct[0].upper() == "RANDOM_DATE":
                 m_call_out_struct.append(random_date)
                 m_call_out_struct.append(m_function_struct[1:])
-            if m_function_struct[0].upper() == "RANDOM_TIMESTAMP":
+            elif m_function_struct[0].upper() == "RANDOM_TIMESTAMP":
                 m_call_out_struct.append(random_timestamp)
                 m_call_out_struct.append(m_function_struct[1:])
-            if m_function_struct[0].upper() == "RANDOM_BOOLEAN":
+            elif m_function_struct[0].upper() == "RANDOM_BOOLEAN":
                 m_call_out_struct.append(random_boolean)
+                m_call_out_struct.append(m_function_struct[1:])
+            elif m_function_struct[0].upper() == "CURRENT_TIMESTAMP":
+                m_call_out_struct.append(current_timestamp)
                 m_call_out_struct.append(m_function_struct[1:])
             m_return_row_struct.append(m_call_out_struct)
         else:
@@ -331,7 +346,8 @@ def Create_file(p_filetype, p_filename, p_formula_str, p_rows):
             m_output.close()
 
             # 重置identity的序列号，保证下次从开头开始
-            delattr(identity, 'x')
+            if hasattr(identity, 'x'):
+                delattr(identity, 'x')
     except SQLCliException as e:
         raise SQLCliException(e.message)
     except Exception as e:
