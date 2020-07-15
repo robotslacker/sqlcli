@@ -4,7 +4,6 @@ import re
 import os
 from .sqlcliexception import SQLCliException
 import datetime
-from time import strftime, localtime
 import random
 from hdfs.client import Client
 from hdfs.util import HdfsError
@@ -133,7 +132,7 @@ def current_timestamp(p_arg):
             frmt = "%Y-%m-%d %H:%M:%S"
     else:
         frmt = "%Y-%m-%d %H:%M:%S"
-    return strftime(frmt, localtime())
+    return datetime.datetime.now().strftime(frmt)
 
 
 # 第一个参数是seed的名字
@@ -226,7 +225,7 @@ def parse_formula_str(p_formula_str):
     for m_nRowPos in range(0, len(m_row_struct)):
         if re.search('random_ascii_lowercase|random_ascii_uppercase|random_ascii_letters' +
                      '|random_digits|identity|random_ascii_letters_and_digits|random_from_seed' +
-                     '|random_date|random_timestamp|random_boolean|current_timestamp',
+                     '|random_date|random_timestamp|random_boolean|current_timestamp|value',
                      m_row_struct[m_nRowPos], re.IGNORECASE):
             m_function_struct = re.split(r'[(,)]', m_row_struct[m_nRowPos])
             for m_nPos in range(0, len(m_function_struct)):
@@ -241,36 +240,275 @@ def parse_formula_str(p_formula_str):
             if m_function_struct[0].upper() == "RANDOM_ASCII_LOWERCASE":
                 m_call_out_struct.append(random_ascii_lowercase)
                 m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append("__NO_NAME__")
+            elif re.search(r"(.*):RANDOM_ASCII_LOWERCASE", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):RANDOM_ASCII_LOWERCASE", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is mot duplicate.")
+                m_call_out_struct.append(random_ascii_lowercase)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "RANDOM_ASCII_UPPERCASE":
                 m_call_out_struct.append(random_ascii_uppercase)
                 m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append("__NO_NAME__")
+            elif re.search(r"(.*):RANDOM_ASCII_UPPERCASE", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):RANDOM_ASCII_UPPERCASE", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is mot duplicate.")
+                m_call_out_struct.append(random_ascii_uppercase)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "RANDOM_ASCII_LETTERS":
                 m_call_out_struct.append(random_ascii_letters)
                 m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append("__NO_NAME__")
+            elif re.search(r"(.*):RANDOM_ASCII_LETTERS", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):RANDOM_ASCII_LETTERS", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is mot duplicate.")
+                m_call_out_struct.append(random_ascii_letters)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "RANDOM_DIGITS":
                 m_call_out_struct.append(random_digits)
                 m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append("__NO_NAME__")
+            elif re.search(r"(.*):RANDOM_DIGITS", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):RANDOM_DIGITS", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is mot duplicate.")
+                m_call_out_struct.append(random_digits)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "IDENTITY":
                 m_call_out_struct.append(identity)
                 m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append("__NO_NAME__")
+            elif re.search(r"(.*):IDENTITY", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):IDENTITY", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is mot duplicate.")
+                m_call_out_struct.append(identity)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "RANDOM_ASCII_LETTERS_AND_DIGITS":
                 m_call_out_struct.append(random_ascii_letters_and_digits)
                 m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append("__NO_NAME__")
+            elif re.search(r"(.*):RANDOM_ASCII_LETTERS_AND_DIGITS", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):RANDOM_ASCII_LETTERS_AND_DIGITS", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is mot duplicate.")
+                m_call_out_struct.append(random_ascii_letters_and_digits)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "RANDOM_FROM_SEED":
                 m_call_out_struct.append(random_from_seed)
                 m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append("__NO_NAME__")
+            elif re.search(r"(.*):RANDOM_FROM_SEED", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):RANDOM_FROM_SEED", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is mot duplicate.")
+                m_call_out_struct.append(random_from_seed)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "RANDOM_DATE":
                 m_call_out_struct.append(random_date)
                 m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append("__NO_NAME__")
+            elif re.search(r"(.*):RANDOM_DATE", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):RANDOM_DATE", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is mot duplicate.")
+                m_call_out_struct.append(random_date)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "RANDOM_TIMESTAMP":
                 m_call_out_struct.append(random_timestamp)
                 m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append("__NO_NAME__")
+            elif re.search(r"(.*):RANDOM_TIMESTAMP", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):RANDOM_TIMESTAMP", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is mot duplicate.")
+                m_call_out_struct.append(random_timestamp)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "RANDOM_BOOLEAN":
                 m_call_out_struct.append(random_boolean)
                 m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append("__NO_NAME__")
+            elif re.search(r"(.*):RANDOM_BOOLEAN", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):RANDOM_BOOLEAN", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is mot duplicate.")
+                m_call_out_struct.append(random_boolean)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "CURRENT_TIMESTAMP":
                 m_call_out_struct.append(current_timestamp)
                 m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append("__NO_NAME__")
+            elif re.search(r"(.*):CURRENT_TIMESTAMP", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):CURRENT_TIMESTAMP", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is mot duplicate.")
+                m_call_out_struct.append(current_timestamp)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append(m_ColumnName)
+            elif m_function_struct[0].upper() == "VALUE":
+                # 必须用：开头来表示字段名称
+                if not m_function_struct[1:][0].startswith(":"):
+                    raise SQLCliException("Invalid pattern. Please use Value(:ColumnName).")
+                else:
+                    m_ColumnName = m_function_struct[1:][0][1:]
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if not bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is valid.")
+                m_call_out_struct.append(None)
+                m_call_out_struct.append(m_ColumnName)
+                m_call_out_struct.append("VALUE")
+            elif re.search(r"(.*):VALUE", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):VALUE", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is mot duplicate.")
+                # 必须用：开头来表示字段名称
+                if not m_function_struct[1:][0].startswith(":"):
+                    raise SQLCliException("Invalid pattern. Please use Value(:ColumnName).")
+                else:
+                    m_ColumnName = m_function_struct[1:][0][1:]
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if not bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is valid.")
+                m_call_out_struct.append(None)
+                m_call_out_struct.append(m_ColumnName)
+                m_call_out_struct.append("VALUE")
+            else:
+                raise SQLCliException("Invalid pattern. parse [" + m_row_struct[m_nRowPos] + "] failed. ")
             m_return_row_struct.append(m_call_out_struct)
         else:
             m_return_row_struct.append(m_row_struct[m_nRowPos])
@@ -279,9 +517,19 @@ def parse_formula_str(p_formula_str):
 
 def get_final_string(p_row_struct):
     m_Result = ""
+    m_Saved_ColumnData = {}
     for col in p_row_struct:
         if isinstance(col, list):
-            m_Result = m_Result + col[0](col[1])
+            if col[2] == "VALUE":
+                m_ColumnName = col[1]
+                m_Value = m_Saved_ColumnData[m_ColumnName]
+                m_Result = m_Result + m_Value
+            elif col[2] == "__NO_NAME__":
+                m_Result = m_Result + col[0](col[1])
+            else:
+                m_Value = col[0](col[1])
+                m_Saved_ColumnData[col[2]] = m_Value
+                m_Result = m_Result + m_Value
         else:
             m_Result = m_Result + col
     return m_Result

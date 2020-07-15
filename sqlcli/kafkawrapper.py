@@ -5,6 +5,7 @@ import re
 import os
 import traceback
 import time
+from .sqlinternal import parse_formula_str, get_final_string
 
 
 class KafkaWrapperException(Exception):
@@ -38,7 +39,7 @@ class KafkaWrapper(object):
     def Kafka_DeleteTopic(self, p_szTopicName):
         a = AdminClient({'bootstrap.servers': self.__kafka_servers__})
         deleted_topics = [p_szTopicName, ]
-        fs = a.delete_topics(deleted_topics)
+        fs = a.delete_topics(topics=deleted_topics)
         for topic, f in fs.items():
             try:
                 f.result()
@@ -63,7 +64,7 @@ class KafkaWrapper(object):
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
             raise ke
 
-    def kafka_Produce(self, p_szTopicName, p_Message, p_ErrorList, ):
+    def kafka_Produce(self, p_szTopicName, p_Message, p_ErrorList):
         def delivery_report(err, msg):
             if err is not None:
                 p_ErrorList.append({"err": err, "msg": msg})
@@ -181,17 +182,53 @@ class KafkaWrapper(object):
             except (KafkaException, KafkaWrapperException) as ke:
                 return None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
 
-        matchObj = re.match(r"create\s+kafka\s+message\s+topic\s+(.*)(.*?)\((.*)\)(\s+)?$",
+        matchObj = re.match(r"create\s+kafka\s+message\s+topic\s+(.*?)\((.*)\)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_TopicName = str(matchObj.group(1)).strip()
-            m_Messages = str(matchObj.group(3)).strip().split()
+            m_RawMessages = str(matchObj.group(2)).split('\n')
+            m_Messages = []
+            for m_nPos in range(0, len(m_RawMessages)):
+                if len(m_RawMessages[m_nPos]) != 0:
+                    m_Messages.append(get_final_string(parse_formula_str(m_RawMessages[m_nPos])))
             m_ProduceError = []
             try:
                 nTotalCount = self.kafka_Produce(m_TopicName, m_Messages, m_ProduceError)
                 if len(m_ProduceError) != 0:
                     return None, None, None, "Total {} messages send to topic {} with {} failed.".\
                         format(nTotalCount, m_TopicName, len(m_ProduceError))
+                else:
+                    return None, None, None, "Total {} messages send to topic {} Successful".\
+                        format(nTotalCount, m_TopicName)
+            except (KafkaException, KafkaWrapperException) as ke:
+                return None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
+
+        matchObj = re.match(r"create\s+kafka\s+message\s+topic\s+(.*?)\((.*)\)(\s+)?rows\s+(\d+)(\s+)?$",
+                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_TopicName = str(matchObj.group(1)).strip()
+            m_formula_str = str(matchObj.group(2)).replace('\r', '').replace('\n', '').strip()
+            m_row_struct = parse_formula_str(m_formula_str)
+            m_row_count = int(str(matchObj.group(4)).strip())
+            m_ErrorCount = 0
+            nTotalCount = 0
+            try:
+                for i in range(0, m_row_count // 5000):
+                    m_Messages = []
+                    for j in range(0, 5000):
+                        m_Messages.append(get_final_string(m_row_struct))
+                    m_ProduceError = []
+                    nTotalCount = nTotalCount + self.kafka_Produce(m_TopicName, m_Messages, m_ProduceError)
+                    m_ErrorCount = m_ErrorCount + len(m_ProduceError)
+                m_Messages = []
+                for i in range(0, m_row_count % 5000):
+                    m_Messages.append(get_final_string(m_row_struct))
+                m_ProduceError = []
+                nTotalCount = nTotalCount + self.kafka_Produce(m_TopicName, m_Messages, m_ProduceError)
+                m_ErrorCount = m_ErrorCount + len(m_ProduceError)
+                if m_ErrorCount != 0:
+                    return None, None, None, "Total {} messages send to topic {} with {} failed.".\
+                        format(nTotalCount, m_TopicName, m_ErrorCount)
                 else:
                     return None, None, None, "Total {} messages send to topic {} Successful".\
                         format(nTotalCount, m_TopicName)

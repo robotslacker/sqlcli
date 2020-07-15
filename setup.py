@@ -36,7 +36,7 @@ setup(
     version=version,
     description='SQL Command test tool, use JDBC, jaydebeapi',
     long_description=readme,
-    keywords='sql command jaydebeapi',
+    keywords='sql command test jaydebeapi',
     platforms='any',
     install_requires=['jaydebeapi', 'setproctitle', 'click', 'prompt_toolkit',
                       'cli_helpers', 'fs', 'hdfs', 'confluent_kafka'],
@@ -48,7 +48,7 @@ setup(
     zip_safe=False,
     packages=['sqlcli'],
     package_data={'sqlcli': ['jlib/*']},
-
+    python_requires='>=3.6',
     entry_points={
         "console_scripts": ["sqlcli = sqlcli.main:cli"],
         "distutils.commands": ["lint = tasks:lint", "test = tasks:test"],
