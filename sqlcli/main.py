@@ -27,6 +27,7 @@ from .sqlinternal import Convert_file
 from .sqlinternal import Create_SeedCacheFile
 from .commandanalyze import register_special_command
 from .commandanalyze import CommandNotFound
+from .sqloption import SQLOptions
 from .__init__ import __version__
 from .sqlparse import SQLAnalyze
 
@@ -137,6 +138,7 @@ class SQLCli(object):
         self.db_saved_conn = {}                   # 数据库Session备s份
         self.SQLMappingHandler = SQLMapping()     # 函数句柄，处理SQLMapping信息
         self.SQLExecuteHandler = SQLExecute()     # 函数句柄，具体来执行SQL
+        self.SQLOptions = SQLOptions()             # 程序运行各种参数
         self.KafkaHandler = KafkaWrapper()        # 函数句柄，处理Kafka的消息
         self.prompt_app = None                    # PromptKit控制台
         self.db_conn = None                       # 当前应用的数据库连接句柄
@@ -162,6 +164,7 @@ class SQLCli(object):
         # 设置其他的变量
         self.SQLExecuteHandler.sqlscript = sqlscript
         self.SQLExecuteHandler.SQLMappingHandler = self.SQLMappingHandler
+        self.SQLExecuteHandler.SQLOptions = self.SQLOptions
         self.SQLExecuteHandler.logfile = self.logfile
         self.SQLExecuteHandler.Console = self.Console
         self.SQLExecuteHandler.SQLPerfFile = self.m_SQLPerf
@@ -182,7 +185,7 @@ class SQLCli(object):
 
         # 设置WHENEVER_SQLERROR
         if breakwitherror:
-            self.SQLExecuteHandler.options["WHENEVER_SQLERROR"] = "EXIT"
+            self.SQLOptions.set("WHENEVER_SQLERROR", "EXIT")
 
     def set_Worker_Name(self, p_szWorkerName):
         self.m_Worker_Name = p_szWorkerName
@@ -333,8 +336,9 @@ class SQLCli(object):
 
     # 退出当前应用程序
     def exit(self, arg, **_):
-        if arg is not None and len(arg) != 0:
-            raise SQLCliException("Unnecessary parameter. Use exit.")
+        if arg:
+            # 不处理任何exit的参数信息
+            pass
 
         # 没有后台作业
         if self.m_BackGround_Jobs is None:
@@ -449,7 +453,7 @@ class SQLCli(object):
 
     # 加载数据库SQL映射
     def load_sqlmap(self, arg, **_):
-        self.SQLExecuteHandler.options["SQLREWRITE"] = "ON"
+        self.SQLOptions.set("SQLREWRITE", "ON")
         self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, arg)
         self.sqlmap = arg
         yield (
@@ -771,7 +775,7 @@ class SQLCli(object):
         # 启动JOB
         for m_Job in m_JobLists:
             m_args = {"JOB#": m_Job["JOB#"], "logon": self.logon, "sqlmap": self.sqlmap, "nologo": self.nologo,
-                      "breakwitherror": (self.SQLExecuteHandler.options["WHENEVER_SQLERROR"] == "EXIT"),
+                      "breakwitherror": (self.SQLOptions.get("WHENEVER_SQLERROR").upper() == "EXIT"),
                       "logfilename": self.logfilename, "sqlperf": self.m_SQLPerf,
                       "Parent_WorkerName": self.m_Worker_Name,
                       "PID": 0, "exitcode": 0}
@@ -1390,12 +1394,12 @@ class SQLCli(object):
             raise SQLCliException("Missing required argument. set parameter parameter_value.")
         elif arg == "":      # 显示所有的配置
             m_Result = []
-            for key, value in self.SQLExecuteHandler.options.items():
-                m_Result.append([str(key), str(value)])
+            for row in self.SQLOptions.getOptionList():
+                m_Result.append([row["Name"], row["Value"], row["Comments"]])
             yield (
-                "Current set options: ",
+                "Current Options: ",
                 m_Result,
-                ["option", "value"],
+                ["Name", "Value", "Comments"],
                 ""
             )
         else:
@@ -1412,8 +1416,18 @@ class SQLCli(object):
                         del os.environ['SQLCLI_DEBUG']
 
             # 如果不是已知的选项，则直接抛出到SQL引擎
-            if options_parameters[0].upper() in self.SQLExecuteHandler.options:
-                self.SQLExecuteHandler.options[options_parameters[0].upper()] = options_parameters[1]
+            if options_parameters[0].startswith('@'):
+                if len(options_parameters) == 2:
+                    self.SQLOptions.set(options_parameters[0], options_parameters[1])
+                if len(options_parameters) == 3:
+                    self.SQLOptions.set(options_parameters[0], options_parameters[1], options_parameters[2])
+                yield (
+                    None,
+                    None,
+                    None,
+                    '')
+            elif self.SQLOptions.get(options_parameters[0].upper()) is not None:
+                self.SQLOptions.set(options_parameters[0].upper(), options_parameters[1])
                 yield (
                     None,
                     None,
@@ -1582,7 +1596,7 @@ class SQLCli(object):
                 #   csv                csv格式显示
                 formatted = self.format_output(
                     title, cur, headers,
-                    self.SQLExecuteHandler.options["OUTPUT_FORMAT"].lower(),
+                    self.SQLOptions.get("OUTPUT_FORMAT").lower(),
                     max_width
                 )
 
@@ -1601,7 +1615,7 @@ class SQLCli(object):
         except SQLCliException as e:
             # 用户执行的SQL出了错误, 由于SQLExecute已经打印了错误消息，这里直接退出
             self.output(None, e.message)
-            if self.SQLExecuteHandler.options["WHENEVER_SQLERROR"] == "EXIT":
+            if self.SQLOptions.get("WHENEVER_SQLERROR").upper() == "EXIT":
                 raise e
         except Exception as e:
             if "SQLCLI_DEBUG" in os.environ:
@@ -1673,7 +1687,7 @@ class SQLCli(object):
             if len(os.environ["SQLCLI_SQLMAPPING"].strip()) > 0:
                 self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, os.environ["SQLCLI_SQLMAPPING"])
         else:  # 任何地方都没有sql mapping信息，设置QUERYREWRITE为OFF
-            self.SQLExecuteHandler.options["SQLREWRITE"] = "OFF"
+            self.SQLOptions.set("SQLREWRITE", "OFF")
 
         # 给Page做准备，PAGE显示的默认换页方式.
         if not os.environ.get("LESS"):
@@ -1758,7 +1772,7 @@ class SQLCli(object):
             # 打印输出信息
             fits = True
             buf = []
-            output_via_pager = ((self.SQLExecuteHandler.options["PAGE"]).upper() == "ON")
+            output_via_pager = (self.SQLOptions.get("PAGE").upper() == "ON")
             for i, line in enumerate(output, 1):
                 if fits or output_via_pager:
                     # buffering

@@ -19,6 +19,7 @@ class SQLExecute(object):
     logfile = None                      # 打印的日志文件
     sqlscript = None                    # 需要执行的SQL脚本
     SQLMappingHandler = None            # SQL重写处理
+    SQLOptions = None                   # 程序处理参数
     m_Current_RunningSQL = None         # 目前程序运行的当前SQL
     Console = False                     # 屏幕输出Console
     logger = None                       # 日志输出
@@ -31,13 +32,6 @@ class SQLExecute(object):
     SQLPerfFileHandle = None            # SQLPerf文件句柄
 
     def __init__(self):
-        # 设置一些默认的参数
-        self.options = {"WHENEVER_SQLERROR": "CONTINUE", "PAGE": "OFF", "OUTPUT_FORMAT": "ASCII", "ECHO": "ON",
-                        'TIMING': 'OFF', 'TIME': 'OFF', 'TERMOUT': 'ON',
-                        'FEEDBACK': 'ON', "ARRAYSIZE": 10000, 'SQLREWRITE': 'ON', "DEBUG": 'OFF',
-                        'KAFKA_SERVERS': None,
-                        "LOB_LENGTH": 20, 'FLOAT_FORMAT': '%.7g', 'DOUBLE_FORMAT': '%0.10g'}
-
         # 记录最后SQL返回的结果
         self.LastAffectedRows = 0
         self.LastSQLResult = None
@@ -76,7 +70,8 @@ class SQLExecute(object):
             m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]
 
             # 如果打开了回显，并且指定了输出文件，则在输出文件里显示SQL语句
-            if self.options["ECHO"].upper() == 'ON' and len(m_CommentSQL.strip()) != 0 and self.logfile is not None:
+            if self.SQLOptions.get("ECHO").upper() == 'ON' \
+                    and len(m_CommentSQL.strip()) != 0 and self.logfile is not None:
                 click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.logfile)
 
             # 如果运行在脚本模式下，需要在控制台回显SQL
@@ -86,11 +81,11 @@ class SQLExecute(object):
                 self.logger.info(SQLFormatWithPrefix(m_CommentSQL))
 
             # 如果打开了回显，并且指定了输出文件，且SQL被改写过，输出改写后的SQL
-            if self.options["SQLREWRITE"].upper() == 'ON':
+            if self.SQLOptions.get("SQLREWRITE").upper() == 'ON':
                 old_sql = sql
                 sql = self.SQLMappingHandler.RewriteSQL(p_sqlscript, old_sql)
                 if old_sql != sql:
-                    if self.options["ECHO"].upper() == 'ON' and self.logfile is not None:
+                    if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
                         # SQL已经发生了改变
                         click.echo(SQLFormatWithPrefix(
                             "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
@@ -110,16 +105,25 @@ class SQLExecute(object):
             self.m_Current_RunningSQL = sql
 
             # 检查SQL中是否包含特殊内容
+            # 特殊内容都有：
+            # 1. %lastsqlresult.LastAffectedRows%
+            #    上一个SQL影响的行数
+            # 2. %lastsqlresult.LastSQLResult[X][Y]%
+            #    上一个SQL返回的记录集
+            # 3. ${var}
+            #    用户定义的变量
+
             # lastsqlresult.LastAffectedRows
             if sql.find("%lastsqlresult.LastAffectedRows%") != -1:
                 sql = sql.replace("%lastsqlresult.LastAffectedRows%", str(self.LastAffectedRows))
-                if self.options["ECHO"].upper() == 'ON' and self.logfile is not None:
+                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
                     # SQL已经发生了改变
                     click.echo(SQLFormatWithPrefix(
                         "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
                 if p_sqlscript is not None:
                     click.echo(SQLFormatWithPrefix(
                         "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
+
             # lastsqlresult.LastSQLResult[X][Y]
             matchObj = re.search(r"%lastsqlresult.LastSQLResult\[(\d+)\]\[(\d+)\]%",
                                  sql, re.IGNORECASE | re.DOTALL)
@@ -134,7 +138,31 @@ class SQLExecute(object):
                 else:
                     m_Result = str(self.LastSQLResult[m_nRow][m_nColumn])
                 sql = sql.replace(m_Searched, m_Result)
-                if self.options["ECHO"].upper() == 'ON' and self.logfile is not None:
+                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
+                    # SQL已经发生了改变
+                    click.echo(SQLFormatWithPrefix(
+                        "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
+                if p_sqlscript is not None:
+                    click.echo(SQLFormatWithPrefix(
+                        "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
+
+            # ${var}
+            bMatched = False
+            while True:
+                matchObj = re.search(r"(.*)\${([0-9A-Za-z_\-]+)\}(.*)?",
+                                     sql, re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    bMatched = True
+                    m_VarName = matchObj.group(2)
+                    if not m_VarName.startswith('@'):
+                        m_VarName = '@' + m_VarName
+                    m_VarValue = self.SQLOptions.get(m_VarName)
+                    if m_VarValue is not None:
+                        sql = matchObj.group(1) + m_VarValue + matchObj.group(3)
+                else:
+                    break
+            if bMatched:
+                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
                     # SQL已经发生了改变
                     click.echo(SQLFormatWithPrefix(
                         "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
@@ -150,7 +178,7 @@ class SQLExecute(object):
             except CommandNotFound:
                 if cur is None:
                     # 进入到SQL执行阶段，但是没有conn，也不是特殊命令
-                    if self.options["WHENEVER_SQLERROR"] == "EXIT":
+                    if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                         raise SQLCliException("Not Connected. ")
                     else:
                         self.LastAffectedRows = 0
@@ -214,7 +242,7 @@ class SQLExecute(object):
                                 str(e).find('time data') != -1
                         ):
                             # 发生了SQL语法错误
-                            if self.options["WHENEVER_SQLERROR"] == "EXIT":
+                            if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                                 raise SQLCliException(str(e))
                             else:
                                 self.LastAffectedRows = 0
@@ -227,7 +255,7 @@ class SQLExecute(object):
                 m_SQL_Status = 1
                 m_SQL_ErrorMessage = str(e.message)
                 # 如果要求出错退出，就立刻退出，否则打印日志信息
-                if self.options["WHENEVER_SQLERROR"] == "EXIT":
+                if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                     raise e
                 else:
                     if "SQLCLI_DEBUG" in os.environ:
@@ -242,10 +270,10 @@ class SQLExecute(object):
             # 如果需要，打印语句执行时间
             end = time.time()
             self.LastElapsedTime = end - start
-            if self.options['TIMING'].upper() == 'ON':
+            if self.SQLOptions.get('TIMING').upper() == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
                     yield None, None, None, 'Running time elapsed: %9.2f Seconds' % (end - start)
-            if self.options['TIME'].upper() == 'ON':
+            if self.SQLOptions.get('TIME').upper() == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
                     yield None, None, None, 'Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime())
 
@@ -263,9 +291,9 @@ class SQLExecute(object):
         if cursor.description is not None:
             headers = [x[0] for x in cursor.description]
             status = "{0} row{1} selected."
-            m_arraysize = int(self.options["ARRAYSIZE"])
+            m_arraysize = int(self.SQLOptions.get("ARRAYSIZE"))
             rowset = list(cursor.fetchmany(m_arraysize))
-            if self.options['TERMOUT'].upper() != 'OFF':
+            if self.SQLOptions.get('TERMOUT').upper() != 'OFF':
                 for row in rowset:
                     m_row = []
                     for column in row:
@@ -279,9 +307,11 @@ class SQLExecute(object):
                                     elif m_ColumnType.upper().find('SQLDATE') != -1:
                                         m_ColumnValue = m_ColumnValue + "DATE'" + str(column[m_nPos]) + "'"
                                     elif str(type(column)).upper().find("FLOAT") != -1:
-                                        m_ColumnValue = m_ColumnValue + self.options["FLOAT_FORMAT"] % column[m_nPos]
+                                        m_ColumnValue = m_ColumnValue + \
+                                                        self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
                                     elif str(type(column)).upper().find("DOUBLE") != -1:
-                                        m_ColumnValue = m_ColumnValue + self.options["DOUBLE_FORMAT"] % column[m_nPos]
+                                        m_ColumnValue = m_ColumnValue + \
+                                                        self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
                                     else:
                                         m_ColumnValue = m_ColumnValue + str(column[m_nPos])
                                 else:
@@ -291,18 +321,18 @@ class SQLExecute(object):
                                         m_ColumnValue = m_ColumnValue + ",DATE'" + str(column[m_nPos]) + "'"
                                     elif str(type(column)).upper().find("FLOAT") != -1:
                                         m_ColumnValue = m_ColumnValue + "," + \
-                                                        self.options["FLOAT_FORMAT"] % column[m_nPos]
+                                                        self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
                                     elif str(type(column)).upper().find("DOUBLE") != -1:
                                         m_ColumnValue = m_ColumnValue + "," + \
-                                                        self.options["DOUBLE_FORMAT"] % column[m_nPos]
+                                                        self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
                                     else:
                                         m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
                             m_ColumnValue = m_ColumnValue + ")"
                             m_row.append(m_ColumnValue)
                         elif str(type(column)).upper().find('JDBCCLOBCLIENT') != -1:
                             m_Length = column.length()
-                            m_ColumnValue = column.getSubString(1, int(self.options["LOB_LENGTH"]))
-                            if m_Length > int(self.options["LOB_LENGTH"]):
+                            m_ColumnValue = column.getSubString(1, int(self.SQLOptions.get("LOB_LENGTH")))
+                            if m_Length > int(self.SQLOptions.get("LOB_LENGTH")):
                                 m_ColumnValue = m_ColumnValue + "..."
                             m_row.append(m_ColumnValue)
                         elif str(type(column)).upper().find('JDBCBLOBCLIENT') != -1:
@@ -310,14 +340,15 @@ class SQLExecute(object):
                             # 2: 意思是去掉Hex前面的0x字样
                             m_Length = column.length()
                             m_ColumnValue = "".join([hex(int(i))[2:]
-                                                     for i in column.getBytes(1, int(self.options["LOB_LENGTH"]))])
-                            if m_Length > int(self.options["LOB_LENGTH"]):
+                                                     for i in column.getBytes(1,
+                                                                              int(self.SQLOptions.get("LOB_LENGTH")))])
+                            if m_Length > int(self.SQLOptions.get("LOB_LENGTH")):
                                 m_ColumnValue = m_ColumnValue + "..."
                             m_row.append(m_ColumnValue)
                         elif str(type(column)).upper().find("FLOAT") != -1:
-                            m_row.append(self.options["FLOAT_FORMAT"] % column)
+                            m_row.append(self.SQLOptions.get("FLOAT_FORMAT") % column)
                         elif str(type(column)).upper().find("DOUBLE") != -1:
-                            m_row.append(self.options["DOUBLE_FORMAT"] % column)
+                            m_row.append(self.SQLOptions.get("DOUBLE_FORMAT") % column)
                         elif str(type(column)).upper().find('STR') != -1:
                             # 对于二进制数据，其末尾用0x00表示，这里进行截断
                             m_0x00Start = column.find(chr(0))
@@ -343,11 +374,11 @@ class SQLExecute(object):
         if m_FetchStatus:
             status = None
 
-        if self.options['FEEDBACK'].upper() == 'ON' and status is not None:
+        if self.SQLOptions.get('FEEDBACK').upper() == 'ON' and status is not None:
             status = status.format(rowcount, "" if rowcount == 1 else "s")
         else:
             status = None
-        if self.options['TERMOUT'].upper() == 'OFF':
+        if self.SQLOptions.get('TERMOUT').upper() == 'OFF':
             return title, [], headers, status, m_FetchStatus, rowcount
         else:
             return title, result, headers, status, m_FetchStatus, rowcount

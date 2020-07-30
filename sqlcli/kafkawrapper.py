@@ -235,7 +235,7 @@ class KafkaWrapper(object):
             except (KafkaException, KafkaWrapperException) as ke:
                 return None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
 
-        print("Not Match anything")
+        return None, None, None, "Unknown kafka Command."
 
 
 if __name__ == '__main__':
