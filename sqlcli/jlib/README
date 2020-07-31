@@ -1,0 +1,2 @@
+1. config conf/sqlcli.conf
+2. use [sqlcli --syncdriver] to download all driver jar files.

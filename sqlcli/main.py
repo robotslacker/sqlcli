@@ -3,18 +3,21 @@ import os
 import sys
 import threading
 import traceback
-from io import open
 import jaydebeapi
 import jpype
 import re
 import time
-from multiprocessing import Process, Lock
-from multiprocessing.managers import BaseManager
 import setproctitle
 import shlex
 import copy
-from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 import click
+import configparser
+import wget
+import hashlib
+from urllib.error import URLError, HTTPError
+from multiprocessing import Process, Lock
+from multiprocessing.managers import BaseManager
+from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 from prompt_toolkit.shortcuts import PromptSession
 
 from .sqlexecute import SQLExecute
@@ -138,7 +141,8 @@ class SQLCli(object):
         self.db_saved_conn = {}                   # 数据库Session备s份
         self.SQLMappingHandler = SQLMapping()     # 函数句柄，处理SQLMapping信息
         self.SQLExecuteHandler = SQLExecute()     # 函数句柄，具体来执行SQL
-        self.SQLOptions = SQLOptions()             # 程序运行各种参数
+        self.SQLOptions = SQLOptions()            # 程序运行中各种参数
+        self.AppOptions = None                    # 应用程序的配置参数
         self.KafkaHandler = KafkaWrapper()        # 函数句柄，处理Kafka的消息
         self.prompt_app = None                    # PromptKit控制台
         self.db_conn = None                       # 当前应用的数据库连接句柄
@@ -1127,6 +1131,18 @@ class SQLCli(object):
                 connect_parameters[2] + ':' + connect_parameters[3] + ':' + \
                 connect_parameters[4] + '://' + connect_parameters[5] + ':' + \
                 connect_parameters[6] + ':/' + connect_parameters[7]
+        elif len(connect_parameters) == 7:
+            # 数据库连接参数, 没有指定driver_type
+            self.db_username = connect_parameters[0]
+            self.db_password = connect_parameters[1]
+            self.db_type = connect_parameters[3]
+            self.db_driver_type = "tcp"
+            self.db_host = connect_parameters[4]
+            self.db_port = connect_parameters[5]
+            self.db_service_name = connect_parameters[6]
+            self.db_url = \
+                connect_parameters[2] + ':' + connect_parameters[3] + ':' + \
+                '://' + connect_parameters[4] + ':' + connect_parameters[5] + ':/' + connect_parameters[6]
         elif len(connect_parameters) == 2:
             # 用户只指定了用户名和口令， 认为用户和上次保留一直的连接字符串信息
             self.db_username = connect_parameters[0]
@@ -1146,12 +1162,22 @@ class SQLCli(object):
                             connect_parameters[0] + ':' + connect_parameters[1] + ':' +\
                             connect_parameters[2] + '://' + connect_parameters[3] + ':' + \
                             connect_parameters[4] + ':/' + connect_parameters[5]
+                    elif len(connect_parameters) == 5:
+                        self.db_type = connect_parameters[1]
+                        self.db_driver_type = 'tcp'
+                        self.db_host = connect_parameters[2]
+                        self.db_port = connect_parameters[3]
+                        self.db_service_name = connect_parameters[4]
+                        self.db_url = \
+                            connect_parameters[0] + ':' + connect_parameters[1] + ':' + \
+                            '://' + connect_parameters[2] + ':' + connect_parameters[3] + ':/' + connect_parameters[4]
                     else:
-                        print("db_type = [" + str(self.db_type) + "]")
-                        print("db_host = [" + str(self.db_host) + "]")
-                        print("db_port = [" + str(self.db_port) + "]")
-                        print("db_service_name = [" + str(self.db_service_name) + "]")
-                        print("db_url = [" + str(self.db_url) + "]")
+                        if "SQLCLI_DEBUG" in os.environ:
+                            print("db_type = [" + str(self.db_type) + "]")
+                            print("db_host = [" + str(self.db_host) + "]")
+                            print("db_port = [" + str(self.db_port) + "]")
+                            print("db_service_name = [" + str(self.db_service_name) + "]")
+                            print("db_url = [" + str(self.db_url) + "]")
                         raise SQLCliException("Unexpeced env SQLCLI_CONNECTION_URL\n." +
                                               "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
                 else:
@@ -1178,11 +1204,12 @@ class SQLCli(object):
                                 connect_parameters[2] + '://' + connect_parameters[3] + ':' + \
                                 connect_parameters[4] + ':/' + connect_parameters[5]
                         else:
-                            print("db_type = [" + str(self.db_type) + "]")
-                            print("db_host = [" + str(self.db_host) + "]")
-                            print("db_port = [" + str(self.db_port) + "]")
-                            print("db_service_name = [" + str(self.db_service_name) + "]")
-                            print("db_url = [" + str(self.db_url) + "]")
+                            if "SQLCLI_DEBUG" in os.environ:
+                                print("db_type = [" + str(self.db_type) + "]")
+                                print("db_host = [" + str(self.db_host) + "]")
+                                print("db_port = [" + str(self.db_port) + "]")
+                                print("db_service_name = [" + str(self.db_service_name) + "]")
+                                print("db_url = [" + str(self.db_url) + "]")
                             raise SQLCliException("Unexpeced env SQLCLI_CONNECTION_URL\n." +
                                                   "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
                     else:
@@ -1204,63 +1231,45 @@ class SQLCli(object):
                 jpype.java.lang.Thread.currentThread().setContextClassLoader(
                     jpype.java.lang.ClassLoader.getSystemClassLoader())
 
-            # 拼接所有的Jar包， jaydebeapi将根据class的名字加载指定的文件
+            # 加载所有的Jar包， jaydebeapi将根据class的名字加载指定的文件
             m_JarList = []
+            m_driverclass = ""
+            m_JDBCURL = ""
+            m_JDBCProp = ""
             for m_Jar_Config in self.jar_file:
-                m_JarList.append(m_Jar_Config["FullName"])
-
-            if self.db_type.upper() == "ORACLE":
-                self.db_conn = jaydebeapi.connect("oracle.jdbc.driver.OracleDriver",
-                                                  "jdbc:oracle:thin:@" +
-                                                  self.db_host + ":" + self.db_port + "/" + self.db_service_name,
-                                                  [self.db_username, self.db_password],
-                                                  m_JarList)
-            elif self.db_type.upper() == "LINKOOPDB":
-                self.db_conn = jaydebeapi.connect("com.datapps.linkoopdb.jdbc.JdbcDriver",
-                                                  "jdbc:linkoopdb:tcp://" +
-                                                  self.db_host + ":" + self.db_port + "/" + self.db_service_name +
-                                                  ";query_iterator=1",
-                                                  [self.db_username, self.db_password],
-                                                  m_JarList)
-            elif self.db_type.upper() == "MYSQL":
-                self.db_conn = jaydebeapi.connect("com.mysql.cj.jdbc.Driver",
-                                                  "jdbc:mysql://" +
-                                                  self.db_host + ":" + self.db_port + "/" + self.db_service_name,
-                                                  [self.db_username, self.db_password],
-                                                  m_JarList)
-            elif self.db_type.upper() == "POSTGRESQL":
-                self.db_conn = jaydebeapi.connect("org.postgresql.Driver",
-                                                  "jdbc:postgresql://" +
-                                                  self.db_host + ":" + self.db_port + "/" + self.db_service_name,
-                                                  [self.db_username, self.db_password],
-                                                  m_JarList)
-            elif self.db_type.upper() == "SQLSERVER":
-                self.db_conn = jaydebeapi.connect("com.microsoft.sqlserver.jdbc.SQLServerDriver",
-                                                  "jdbc:sqlserver://" +
-                                                  self.db_host + ":" + self.db_port + ";" +
-                                                  "databasename=" + self.db_service_name,
-                                                  [self.db_username, self.db_password],
-                                                  m_JarList)
-            elif self.db_type.upper() == "CLICKHOUSE":
-                self.db_conn = jaydebeapi.connect("ru.yandex.clickhouse.ClickHouseDriver",
-                                                  "jdbc:clickhouse://" +
-                                                  self.db_host + ":" + self.db_port + "/" + self.db_service_name,
-                                                  {'user': self.db_username, 'password': self.db_password,
-                                                   'socket_timeout': "360000000"},
-                                                  m_JarList)
-            elif self.db_type.upper() == "TERADATA":
-                self.db_conn = jaydebeapi.connect("com.teradata.jdbc.TeraDriver",
-                                                  "jdbc:teradata://" +
-                                                  self.db_host +
-                                                  "/CLIENT_CHARSET=UTF8,CHARSET=UTF8," +
-                                                  "TMODE=TERA,LOB_SUPPORT=ON,COLUMN_NAME=ON,MAYBENULL=ON," +
-                                                  "database=" + self.db_service_name,
-                                                  [self.db_username, self.db_password],
-                                                  m_JarList)
-            else:
-                raise SQLCliException("Unknown driver. " + self.db_type.upper() + " Exit ")
+                m_JarList.extend(m_Jar_Config["FullName"])
+            for m_Jar_Config in self.jar_file:
+                if m_Jar_Config["Database"].upper() == self.db_type.upper():
+                    m_driverclass = m_Jar_Config["ClassName"]
+                    m_JDBCURL = m_Jar_Config["JDBCURL"]
+                    m_JDBCProp = m_Jar_Config["JDBCProp"]
+                    break
+            if m_JDBCURL is None:
+                raise SQLCliException("Unknown database [" + self.db_type.upper() + "]. Database Connect Failed. \n" +
+                                      "Maybe you forgot sync jlib files. ")
+            m_JDBCURL = m_JDBCURL.replace("${host}", self.db_host)
+            m_JDBCURL = m_JDBCURL.replace("${port}", self.db_port)
+            m_JDBCURL = m_JDBCURL.replace("${service}", self.db_service_name)
+            if m_driverclass is None:
+                raise SQLCliException("Missed driver [" + self.db_type.upper() + "] in config. Database Connect Failed. ")
+            m_jaydebeapi_prop = {}
+            m_jaydebeapi_prop['user'] = self.db_username
+            m_jaydebeapi_prop['password'] = self.db_password
+            if m_JDBCProp is not None:
+                for row in m_JDBCProp.strip().split(','):
+                    props = row.split(':')
+                    if len(props) == 2:
+                        m_PropName = str(props[0]).strip()
+                        m_PropValue = str(props[1]).strip()
+                        m_jaydebeapi_prop[m_PropName] = m_PropValue
+            self.db_conn = jaydebeapi.connect(m_driverclass,
+                                              m_JDBCURL,
+                                              m_jaydebeapi_prop,
+                                              m_JarList)
 
             self.SQLExecuteHandler.set_connection(self.db_conn)
+        except SQLCliException as se:  # Connecting to a database fail.
+            raise se
         except Exception as e:  # Connecting to a database fail.
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())
@@ -1627,6 +1636,59 @@ class SQLCli(object):
             self.m_Current_RunningSQL = None
             self.m_Current_RunningStarted = None
 
+    # 下载程序所需要的各种Jar包
+    def syncdriver(self):
+        # 加载程序的配置文件
+        self.AppOptions = configparser.ConfigParser()
+        m_conf_filename = os.path.join(os.path.dirname(__file__), "conf", "sqlcli.conf")
+        if os.path.exists(m_conf_filename):
+            self.AppOptions.read(m_conf_filename)
+
+        # 下载运行需要的各种Jar包
+        for row in self.AppOptions.items("driver"):
+            print("Checking driver [" + row[0] + "] ... ")
+            for m_driversection in str(row[1]).split(','):
+                m_driversection = m_driversection.strip()
+                try:
+                    m_driver_filename = self.AppOptions.get(m_driversection, "filename")
+                    m_driver_downloadurl = self.AppOptions.get(m_driversection, "downloadurl")
+                    m_driver_filemd5 = self.AppOptions.get(m_driversection, "md5")
+
+                    m_LocalJarFile = os.path.join(os.path.dirname(__file__), "jlib", m_driver_filename)
+                    if os.path.exists(m_LocalJarFile):
+                        with open(m_LocalJarFile, 'rb') as fp:
+                            data = fp.read()
+                        file_md5 = hashlib.md5(data).hexdigest()
+                        if "SQLCLI_DEBUG" in os.environ:
+                            print("File=[" + m_driver_filename + "], MD5=[" + file_md5 + "]")
+                    else:
+                        if "SQLCLI_DEBUG" in os.environ:
+                            print("File=[" + m_driver_filename + "] does not exist!")
+                        file_md5 = ""
+                    if file_md5 != m_driver_filemd5.strip():
+                        print("Driver [" + m_driversection + "], need upgrade ...")
+                        # 重新下载新的文件到本地
+                        try:
+                            wget.download(m_driver_downloadurl, out=m_LocalJarFile)
+                            print("")
+                        except (URLError, HTTPError):
+                            print('traceback.print_exc():\n%s' % traceback.print_exc())
+                            print('traceback.format_exc():\n%s' % traceback.format_exc())
+                            print("")
+                            print("Driver [" + m_driversection + "] download failed.")
+                            continue
+                        with open(m_LocalJarFile, 'rb') as fp:
+                            data = fp.read()
+                        file_md5 = hashlib.md5(data).hexdigest()
+                        if file_md5 != m_driver_filemd5.strip():
+                            print("Driver [" + m_driversection + "] consistent check failed.")
+                        else:
+                            print("Driver [" + m_driversection + "] is up-to-date.")
+                    else:
+                        print("Driver [" + m_driversection + "] is up-to-date.")
+                except (configparser.NoSectionError, configparser.NoOptionError):
+                    print("Bad driver config [" + m_driversection + "], Skip it ...")
+
     # 主程序
     def run_cli(self):
         # 程序运行的结果
@@ -1634,6 +1696,12 @@ class SQLCli(object):
 
         # 设置主程序的标题，随后开始运行程序
         setproctitle.setproctitle('SQLCli MAIN ' + " Script:" + str(self.sqlscript))
+
+        # 加载程序的配置文件
+        self.AppOptions = configparser.ConfigParser()
+        m_conf_filename = os.path.join(os.path.dirname(__file__), "conf", "sqlcli.conf")
+        if os.path.exists(m_conf_filename):
+            self.AppOptions.read(m_conf_filename)
 
         # 打开输出日志, 如果打开失败，就直接退出
         try:
@@ -1650,35 +1718,44 @@ class SQLCli(object):
 
         # 加载已经被隐式包含的数据库驱动，文件放置在SQLCli\jlib下
         m_jlib_directory = os.path.join(os.path.dirname(__file__), "jlib")
-        if os.path.isdir(m_jlib_directory):
-            list_file = os.listdir(m_jlib_directory)
-            for i in range(0, len(list_file)):
-                if list_file[i].endswith(".jar"):
-                    m_JarFullFileName = os.path.join(m_jlib_directory, list_file[i])
-                    m_JarBaseFileName = os.path.basename(m_JarFullFileName)
-                    if self.jar_file is None:
-                        self.jar_file = []
-                    if m_JarBaseFileName.startswith("linkoopdb"):
-                        m_DatabaseType = "linkoopdb"
-                    elif m_JarBaseFileName.startswith("mysql"):
-                        m_DatabaseType = "mysql"
-                    elif m_JarBaseFileName.startswith("postgresql"):
-                        m_DatabaseType = "postgresql"
-                    elif m_JarBaseFileName.startswith("sqljdbc"):
-                        m_DatabaseType = "sqlserver"
-                    elif m_JarBaseFileName.startswith("ojdbc"):
-                        m_DatabaseType = "oracle"
-                    elif m_JarBaseFileName.startswith("terajdbc"):
-                        m_DatabaseType = "teradata"
-                    elif m_JarBaseFileName.startswith("tdgssconfig"):
-                        m_DatabaseType = "teradata-gss"
-                    else:
-                        m_DatabaseType = "UNKNOWN"
-                    m_Jar_Config = {"JarName": m_JarBaseFileName,
-                                    "ClassName": None,
-                                    "FullName": m_JarFullFileName,
-                                    "Database": m_DatabaseType}
-                    self.jar_file.append(m_Jar_Config)
+        if self.jar_file is None:
+            self.jar_file = []
+        if self.AppOptions is not None:
+            for row in self.AppOptions.items("driver"):
+                m_DriverName = None
+                m_JarFullFileName = []
+                m_JDBCURL = None
+                m_JDBCProp = None
+                m_DatabaseType = row[0].strip()
+                for m_driversection in str(row[1]).split(','):
+                    m_driversection = m_driversection.strip()
+                    try:
+                        m_jar_filename = self.AppOptions.get(m_driversection, "filename")
+                        if os.path.exists(os.path.join(m_jlib_directory, m_jar_filename)):
+                            m_JarFullFileName.append(os.path.join(m_jlib_directory, m_jar_filename))
+                            if m_DriverName is None:
+                                try:
+                                    m_DriverName = self.AppOptions.get(m_driversection, "driver")
+                                except (configparser.NoSectionError, configparser.NoOptionError):
+                                    m_DriverName = None
+                            if m_JDBCURL is None:
+                                try:
+                                    m_JDBCURL = self.AppOptions.get(m_driversection, "jdbcurl")
+                                except (configparser.NoSectionError, configparser.NoOptionError):
+                                    m_JDBCURL = None
+                            if m_JDBCProp is None:
+                                try:
+                                    m_JDBCProp = self.AppOptions.get(m_driversection, "jdbcprop")
+                                except (configparser.NoSectionError, configparser.NoOptionError):
+                                    m_JDBCProp = None
+                    except (configparser.NoSectionError, configparser.NoOptionError):
+                        pass
+                m_Jar_Config = {"ClassName": m_DriverName,
+                                "FullName": m_JarFullFileName,
+                                "JDBCURL": m_JDBCURL,
+                                "JDBCProp": m_JDBCProp,
+                                "Database": m_DatabaseType}
+                self.jar_file.append(m_Jar_Config)
 
         # 处理传递的映射文件
         if self.sqlmap is not None:   # 如果传递的参数，有Mapping，以参数为准，先加载参数中的Mapping文件
@@ -1844,6 +1921,7 @@ class SQLCli(object):
 @click.option("--sqlmap", type=str, help="SQL Mapping file.")
 @click.option("--nologo", is_flag=True, help="Execute with silent mode.")
 @click.option("--sqlperf", type=str, help="SQL performance Log.")
+@click.option("--syncdriver", is_flag=True, help="Download jdbc jar from file server.")
 def cli(
         version,
         logon,
@@ -1851,10 +1929,24 @@ def cli(
         execute,
         sqlmap,
         nologo,
-        sqlperf
+        sqlperf,
+        syncdriver
 ):
     if version:
         print("Version:", __version__)
+        sys.exit(0)
+
+    # 从服务器下下载程序需要的各种jar包
+    if syncdriver:
+        sqlcli = SQLCli(
+            logfilename=logfile,
+            logon=logon,
+            sqlscript=execute,
+            sqlmap=sqlmap,
+            nologo=nologo,
+            sqlperf=sqlperf
+        )
+        sqlcli.syncdriver()
         sys.exit(0)
 
     sqlcli = SQLCli(

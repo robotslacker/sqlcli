@@ -39,7 +39,7 @@ setup(
     keywords='sql command test jaydebeapi',
     platforms='any',
     install_requires=['jaydebeapi', 'setproctitle', 'click', 'prompt_toolkit',
-                      'cli_helpers', 'fs', 'hdfs', 'confluent_kafka'],
+                      'cli_helpers', 'fs', 'hdfs', 'confluent_kafka', 'wget'],
 
     author='RobotSlacker',
     author_email='184902652@qq.com',
@@ -47,7 +47,7 @@ setup(
 
     zip_safe=False,
     packages=['sqlcli'],
-    package_data={'sqlcli': ['jlib/*']},
+    package_data={'sqlcli': ['jlib/README', 'conf/*conf']},
     python_requires='>=3.6',
     entry_points={
         "console_scripts": ["sqlcli = sqlcli.main:cli"],
