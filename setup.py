@@ -47,7 +47,7 @@ setup(
 
     zip_safe=False,
     packages=['sqlcli'],
-    package_data={'sqlcli': ['jlib/README', 'conf/*conf']},
+    package_data={'sqlcli': ['jlib/README', 'conf/*ini']},
     python_requires='>=3.6',
     entry_points={
         "console_scripts": ["sqlcli = sqlcli.main:cli"],

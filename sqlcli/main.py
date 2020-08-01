@@ -1194,7 +1194,7 @@ class SQLCli(object):
                     break
             if m_JDBCURL is None:
                 raise SQLCliException("Unknown database [" + self.db_type.upper() + "]. Database Connect Failed. \n" +
-                                      "Maybe you forgot sync jlib files. ")
+                                      "Maybe you forgot download jlib files. ")
             m_JDBCURL = m_JDBCURL.replace("${host}", self.db_host)
             m_JDBCURL = m_JDBCURL.replace("${port}", self.db_port)
             m_JDBCURL = m_JDBCURL.replace("${service}", self.db_service_name)
@@ -1694,6 +1694,9 @@ class SQLCli(object):
         m_conf_filename = os.path.join(os.path.dirname(__file__), "conf", "sqlcli.ini")
         if os.path.exists(m_conf_filename):
             self.AppOptions.read(m_conf_filename)
+        else:
+            self.echo("Can not open inifile for read [" + m_conf_filename + "]", err=True, fg="red")
+            return False
 
         # 打开输出日志, 如果打开失败，就直接退出
         try:
