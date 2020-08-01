@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
+"""处理程序运行的各种参数."""
 import os
 
 
 class SQLOptions(object):
-    # SQL选项
+    """处理程序运行的各种参数."""
     m_SQL_OptionList = []
 
     def __init__(self):
@@ -28,16 +29,18 @@ class SQLOptions(object):
         self.m_SQL_OptionList.append({"Name": "DOUBLE_FORMAT", "Value": "%.10g", "Comments": '----'})
 
     def get(self, p_ParameterName):
+        """根据参数名称返回参数，若不存在该参数，返回None."""
         for item in self.m_SQL_OptionList:
             if item["Name"] == p_ParameterName:
                 return item["Value"]
         return None
 
     def getOptionList(self):
+        """返回全部的运行参数列表"""
         return self.m_SQL_OptionList
 
     def set(self, p_ParameterName, p_ParameterValue, p_ParameterDefaultValue=None):
-        # 对系统内置的参数进行各种处理
+        """设置运行参数， 若p_ParameterValue为空，则加载默认参数"""
         for m_nPos in range(0, len(self.m_SQL_OptionList)):
             if self.m_SQL_OptionList[m_nPos]["Name"] == p_ParameterName:
                 if p_ParameterValue is None:

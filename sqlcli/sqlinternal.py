@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-import fs
 import re
 import os
-from .sqlcliexception import SQLCliException
 import datetime
 import random
 from hdfs.client import Client
 from hdfs.util import HdfsError
 import traceback
 from glob import glob
+import fs
+from .sqlcliexception import SQLCliException
 
 
 # 缓存seed文件，来加速后面的随机函数random_from_seed工作
