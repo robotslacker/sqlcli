@@ -142,8 +142,9 @@ class SQLCli(object):
         self.SQLMappingHandler = SQLMapping()     # 函数句柄，处理SQLMapping信息
         self.SQLExecuteHandler = SQLExecute()     # 函数句柄，具体来执行SQL
         self.SQLOptions = SQLOptions()            # 程序运行中各种参数
-        self.AppOptions = None                    # 应用程序的配置参数
         self.KafkaHandler = KafkaWrapper()        # 函数句柄，处理Kafka的消息
+        self.SpoolFileHandler = None              # 当前Spool文件句柄
+        self.AppOptions = None                    # 应用程序的配置参数
         self.prompt_app = None                    # PromptKit控制台
         self.db_conn = None                       # 当前应用的数据库连接句柄
         if WorkerName is None:
@@ -309,11 +310,19 @@ class SQLCli(object):
             hidden=False
         )
 
-        # 查看各种信息
+        # 查看各种JOB信息
         register_special_command(
             self.show_job,
             command="showjob",
             description="show informations",
+            hidden=False
+        )
+
+        # 将SQL信息Spool到指定的文件中
+        register_special_command(
+            self.spool,
+            command="spool",
+            description="spool output to a file",
             hidden=False
         )
 
@@ -375,6 +384,7 @@ class SQLCli(object):
             raise EOFError
         else:
             yield (
+                None,
                 None,
                 None,
                 None,
@@ -452,6 +462,7 @@ class SQLCli(object):
             None,
             None,
             None,
+            None,
             'Driver loaded.'
         )
 
@@ -461,6 +472,7 @@ class SQLCli(object):
         self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, arg)
         self.sqlmap = arg
         yield (
+            None,
             None,
             None,
             None,
@@ -482,6 +494,7 @@ class SQLCli(object):
                         m_bFoundJob = True
                 if not m_bFoundJob:
                     yield (
+                        None,
                         None,
                         None,
                         None,
@@ -507,6 +520,7 @@ class SQLCli(object):
                                 None,
                                 None,
                                 None,
+                                None,
                                 "Job " + str(m_Job_ID) + " Completed")
                             return
                     else:
@@ -515,6 +529,7 @@ class SQLCli(object):
                 # 继续等待
                 if not m_bFoundJob:
                     yield (
+                        None,
                         None,
                         None,
                         None,
@@ -544,6 +559,7 @@ class SQLCli(object):
                     None,
                     None,
                     None,
+                    None,
                     "No Jobs")
                 return
 
@@ -564,6 +580,7 @@ class SQLCli(object):
                 None,
                 m_Result,
                 ["JOB#", "ScriptBaseName", "Status", "Started", "End", "Finished", "LoopCount"],
+                None,
                 "Total " + str(self.m_Max_JobID) + " Jobs.")
             return
 
@@ -592,6 +609,7 @@ class SQLCli(object):
             else:
                 continue
         yield (
+            None,
             None,
             None,
             None,
@@ -794,6 +812,7 @@ class SQLCli(object):
             None,
             None,
             None,
+            None,
             str(len(m_JobLists)) + " Jobs Started.")
 
     # 提交到后台执行SQL
@@ -861,6 +880,7 @@ class SQLCli(object):
             None,
             None,
             None,
+            None,
             "Jobs Submitted. " +
             m_Script_FileName + " Will execute " +
             str(m_Execute_Copies) + " Copies. Loop " + str(m_Script_LoopCount) + " times."
@@ -874,6 +894,7 @@ class SQLCli(object):
         # 如果没有后台任务，直接退出
         if self.m_BackGround_Jobs is None:
             yield (
+                None,
                 None,
                 None,
                 None,
@@ -901,6 +922,7 @@ class SQLCli(object):
             LOCK_JOBCATALOG.release()
 
             yield (
+                None,
                 None,
                 None,
                 None,
@@ -938,9 +960,11 @@ class SQLCli(object):
                 None,
                 None,
                 None,
+                None,
                 "Job " + str(m_Job_ID) + " will shutdown.")
         else:
             yield (
+                None,
                 None,
                 None,
                 None,
@@ -954,6 +978,7 @@ class SQLCli(object):
         # 如果没有后台任务，直接退出
         if self.m_BackGround_Jobs is None:
             yield (
+                None,
                 None,
                 None,
                 None,
@@ -977,6 +1002,7 @@ class SQLCli(object):
             LOCK_JOBCATALOG.release()
 
             yield (
+                None,
                 None,
                 None,
                 None,
@@ -1009,9 +1035,11 @@ class SQLCli(object):
                 None,
                 None,
                 None,
+                None,
                 "Job " + str(m_Job_ID) + " aborted.")
         else:
             yield (
+                None,
                 None,
                 None,
                 None,
@@ -1025,6 +1053,7 @@ class SQLCli(object):
         # 如果没有后台任务，直接退出
         if self.m_BackGround_Jobs is None:
             yield (
+                None,
                 None,
                 None,
                 None,
@@ -1053,6 +1082,7 @@ class SQLCli(object):
             LOCK_JOBCATALOG.release()
 
             yield (
+                None,
                 None,
                 None,
                 None,
@@ -1090,9 +1120,11 @@ class SQLCli(object):
                 None,
                 None,
                 None,
+                None,
                 "Job " + str(m_Job_ID) + " will close.")
         else:
             yield (
+                None,
                 None,
                 None,
                 None,
@@ -1132,7 +1164,7 @@ class SQLCli(object):
                 connect_parameters[4] + '://' + connect_parameters[5] + ':' + \
                 connect_parameters[6] + ':/' + connect_parameters[7]
         elif len(connect_parameters) == 7:
-            # 数据库连接参数, 没有指定driver_type
+            # 数据库连接参数, 但是没有指定driver_type
             self.db_username = connect_parameters[0]
             self.db_password = connect_parameters[1]
             self.db_type = connect_parameters[3]
@@ -1251,10 +1283,9 @@ class SQLCli(object):
             m_JDBCURL = m_JDBCURL.replace("${port}", self.db_port)
             m_JDBCURL = m_JDBCURL.replace("${service}", self.db_service_name)
             if m_driverclass is None:
-                raise SQLCliException("Missed driver [" + self.db_type.upper() + "] in config. Database Connect Failed. ")
-            m_jaydebeapi_prop = {}
-            m_jaydebeapi_prop['user'] = self.db_username
-            m_jaydebeapi_prop['password'] = self.db_password
+                raise SQLCliException("Missed driver [" + self.db_type.upper() + "] in config. "
+                                                                                 "Database Connect Failed. ")
+            m_jaydebeapi_prop = {'user': self.db_username, 'password': self.db_password}
             if m_JDBCProp is not None:
                 for row in m_JDBCProp.strip().split(','):
                     props = row.split(':')
@@ -1288,18 +1319,20 @@ class SQLCli(object):
             None,
             None,
             None,
+            None,
             'Database connected.'
         )
 
     # 断开数据库连接
     def disconnect_db(self, arg, **_):
         if arg:
-            return [(None, None, None, "unnecessary parameter")]
+            return [(None, None, None, None, "unnecessary parameter")]
         if self.db_conn:
             self.db_conn.close()
         self.db_conn = None
         self.SQLExecuteHandler.conn = None
         yield (
+            None,
             None,
             None,
             None,
@@ -1322,6 +1355,7 @@ class SQLCli(object):
                     None,
                     None,
                     None,
+                    None,
                     "No saved sesssions."
                 )
             else:
@@ -1329,6 +1363,7 @@ class SQLCli(object):
                     "Saved Sessions",
                     m_Result,
                     ["Sesssion Name", "User Name", "URL"],
+                    None,
                     "Total " + str(len(m_Result)) + " saved sesssions."
                 )
             return
@@ -1358,22 +1393,22 @@ class SQLCli(object):
             raise SQLCliException(
                 "Wrong argument : " + "Session save/restore [session name]")
         if m_Parameters[0] == 'save':
-            yield None, None, None, "Session saved Successful."
+            yield None, None, None, None, "Session saved Successful."
         if m_Parameters[0] == 'restore':
-            yield None, None, None, "Session restored Successful."
+            yield None, None, None, None, "Session restored Successful."
         return
 
     # 休息一段时间, 如果收到SHUTDOWN或者ABORT符号的时候，立刻终止SLEEP
     def sleep(self, arg, **_):
         if not arg:
             message = "Missing required argument, sleep [seconds]."
-            return [(None, None, None, message)]
+            return [(None, None, None, None, message)]
         try:
             # 每次最多休息3秒钟，随后检查一下运行状态, 如果要求退出，就退出程序
             m_Sleep_Time = int(arg)
             if m_Sleep_Time <= 0:
                 message = "Parameter must be a valid number, sleep [seconds]."
-                return [(None, None, None, message)]
+                return [(None, None, None, None, message)]
             for m_nPos in range(0, int(arg)//3):
                 if self.m_Shutdown_Flag:
                     raise EOFError
@@ -1381,21 +1416,53 @@ class SQLCli(object):
             time.sleep(int(arg) % 3)
         except ValueError:
             message = "Parameter must be a number, sleep [seconds]."
-            return [(None, None, None, message)]
-        return [(None, None, None, None)]
+            return [(None, None, None, None, message)]
+        return [(None, None, None, None, None)]
 
     # 从文件中执行SQL
     def execute_from_file(self, arg, **_):
         if not arg:
             message = "Missing required argument, filename."
-            return [(None, None, None, message)]
+            return [(None, None, None, None, message)]
         try:
             with open(os.path.expanduser(arg), encoding="utf-8") as f:
                 query = f.read()
         except IOError as e:
-            return [(None, None, None, str(e))]
+            return [(None, None, None, None, str(e))]
 
         return self.SQLExecuteHandler.run(query, os.path.expanduser(arg))
+
+    # 将当前及随后的输出打印到指定的文件中
+    def spool(self, arg, **_):
+        if not arg:
+            message = "Missing required argument, spool [filename]|spool off."
+            return [(None, None, None, None, message)]
+        parameters = str(arg).split()
+        if parameters[0].strip().upper() == 'OFF':
+            # close spool file
+            if self.SpoolFileHandler is None:
+                message = "not spooling currently"
+                return [(None, None, None, None, message)]
+            else:
+                self.SpoolFileHandler.close()
+                self.SpoolFileHandler = None
+                self.SQLExecuteHandler.spoolfile = None
+                return [(None, None, None, None, None)]
+
+        if self.logfilename is not None:
+            # 如果当前主程序启用了日志，则spool日志的默认输出目录为logfile的目录
+            m_FileName = os.path.join(os.path.dirname(self.logfilename), parameters[0].strip())
+        else:
+            # 如果主程序没有启用日志，则输出为当前目录
+            m_FileName = parameters[0].strip()
+        if self.SpoolFileHandler is None:
+            self.SpoolFileHandler = open(m_FileName, "w", encoding="utf-8")
+            self.SQLExecuteHandler.spoolfile = self.SpoolFileHandler
+        else:
+            self.SpoolFileHandler.close()
+            self.SpoolFileHandler = open(m_FileName, "w", encoding="utf-8")
+            self.SQLExecuteHandler.spoolfile = self.SpoolFileHandler
+        return [(None, None, None, None, None)]
 
     # 设置一些选项
     def set_options(self, arg, **_):
@@ -1409,12 +1476,14 @@ class SQLCli(object):
                 "Current Options: ",
                 m_Result,
                 ["Name", "Value", "Comments"],
+                None,
                 ""
             )
         else:
             options_parameters = str(arg).split()
             if len(options_parameters) == 1:
-                raise SQLCliException("Missing required argument. set parameter parameter_value.")
+                # 如果没有设置参数，则补充一个None作为参数的值
+                options_parameters.append("")
 
             # 处理DEBUG选项
             if options_parameters[0].upper() == "DEBUG":
@@ -1434,10 +1503,12 @@ class SQLCli(object):
                     None,
                     None,
                     None,
+                    None,
                     '')
             elif self.SQLOptions.get(options_parameters[0].upper()) is not None:
                 self.SQLOptions.set(options_parameters[0].upper(), options_parameters[1])
                 yield (
+                    None,
                     None,
                     None,
                     None,
@@ -1451,7 +1522,7 @@ class SQLCli(object):
         matchObj = re.match(r"(.*)kafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             (title, result, headers, status) = self.KafkaHandler.Process_SQLCommand(arg)
-            yield title, result, headers, status
+            yield title, result, headers, None, status
             return
 
         # 创建数据文件, 根据末尾的rows来决定创建的行数
@@ -1468,6 +1539,7 @@ class SQLCli(object):
                         p_formula_str=m_formula_str,
                         p_rows=m_rows)
             yield (
+                None,
                 None,
                 None,
                 None,
@@ -1489,6 +1561,7 @@ class SQLCli(object):
                 None,
                 None,
                 None,
+                None,
                 str(m_rows) + ' rows created Successful.')
             return
 
@@ -1502,6 +1575,7 @@ class SQLCli(object):
                          p_dstfileType=str(matchObj.group(1)).strip(),
                          p_dstfilename=str(matchObj.group(2)).strip())
             yield (
+                None,
                 None,
                 None,
                 None,
@@ -1524,6 +1598,7 @@ class SQLCli(object):
                 None,
                 None,
                 None,
+                None,
                 'seed file created Successful.')
             return
 
@@ -1539,6 +1614,7 @@ class SQLCli(object):
             Create_SeedCacheFile(p_szDataType=m_DataType, p_nDataLength=m_DataLength, p_nRows=m_nRows,
                                  p_szSeedName=m_SeedFileName)
             yield (
+                None,
                 None,
                 None,
                 None,
@@ -1592,7 +1668,7 @@ class SQLCli(object):
             result = self.SQLExecuteHandler.run(text)
             # 输出显示结果
             self.formatter.query = text
-            for title, cur, headers, status in result:
+            for title, cur, headers, columntypes, status in result:
                 # 不控制每行的长度
                 max_width = None
 
@@ -1604,7 +1680,7 @@ class SQLCli(object):
                 #   vertical           分行显示，每行、每列都分行
                 #   csv                csv格式显示
                 formatted = self.format_output(
-                    title, cur, headers,
+                    title, cur, headers, columntypes,
                     self.SQLOptions.get("OUTPUT_FORMAT").lower(),
                     max_width
                 )
@@ -1832,11 +1908,18 @@ class SQLCli(object):
             click.echo(output, file=self.logfile)
 
     def echo(self, s, **kwargs):
+        # 输出目的地
+        # 1：  程序日志文件 logfile
+        # 2：  程序的logger，用于在第三方调用时候的Console显示
+        # 3：  当前屏幕控制台
+        # 4：  程序的Spool文件
         if self.logfile:
             click.echo(s, file=self.logfile)
         if self.logger is not None:
             self.logger.info(s)
         click.secho(s, **kwargs, file=self.Console)
+        if self.SpoolFileHandler is not None:
+            print(s, file=self.SpoolFileHandler)
 
     def output(self, output, status=None):
         if output:
@@ -1875,7 +1958,40 @@ class SQLCli(object):
         if status:
             self.echo(status)
 
-    def format_output(self, title, cur, headers, p_format_name, max_width=None):
+    def format_output_csv(self, headers, columntypes, cur):
+        # 将屏幕输出按照CSV格式进行输出
+        m_csv_delimiter = self.SQLOptions.get("CSV_DELIMITER")
+        m_csv_quotechar = self.SQLOptions.get("CSV_QUOTECHAR")
+        if m_csv_delimiter.find("\\t") != -1:
+            m_csv_delimiter = m_csv_delimiter.replace("\\t", '\t')
+        if m_csv_delimiter.find("\\s") != -1:
+            m_csv_delimiter = m_csv_delimiter.replace("\\s", ' ')
+
+        # 打印字段名称
+        if self.SQLOptions.get("CSV_HEADER") == "ON":
+            m_row = ""
+            for m_nPos in range(0, len(headers)):
+                m_row = m_row + str(headers[m_nPos])
+                if m_nPos != len(headers) - 1:
+                    m_row = m_row + m_csv_delimiter
+            yield str(m_row)
+
+        # 打印字段内容
+        for row in cur:
+            m_row = ""
+            for m_nPos in range(0, len(row)):
+                if columntypes is None:
+                    m_row = m_row + str(row[m_nPos])
+                else:
+                    if columntypes[m_nPos] == str:
+                        m_row = m_row + m_csv_quotechar + str(row[m_nPos]) + m_csv_quotechar
+                    else:
+                        m_row = m_row + str(row[m_nPos])
+                if m_nPos != len(row) - 1:
+                    m_row = m_row + m_csv_delimiter
+            yield str(m_row)
+
+    def format_output(self, title, cur, headers, columntypes, p_format_name, max_width=None):
         output = []
 
         output_kwargs = {
@@ -1893,13 +2009,18 @@ class SQLCli(object):
             if max_width is not None:
                 cur = list(cur)
 
-            formatted = self.formatter.format_output(
-                cur,
-                headers,
-                format_name=p_format_name,
-                column_types=None,
-                **output_kwargs
-            )
+            if p_format_name.upper() == 'CSV':
+                # 按照CSV格式输出查询结果
+                formatted = self.format_output_csv(headers, columntypes, cur)
+            else:
+                formatted = self.formatter.format_output(
+                    cur,
+                    headers,
+                    format_name=p_format_name,
+                    column_types=None,
+                    **output_kwargs
+                )
+
             if isinstance(formatted, str):
                 formatted = formatted.splitlines()
             formatted = iter(formatted)
@@ -1963,4 +2084,10 @@ def cli(
 
 
 if __name__ == "__main__":
-    cli()
+    try:
+        cli()
+    except Exception as ge:
+        if "SQLCLI_DEBUG" in os.environ:
+            print('traceback.print_exc():\n%s' % traceback.print_exc())
+            print('traceback.format_exc():\n%s' % traceback.format_exc())
+        print("Fatal Exception: " + repr(ge))

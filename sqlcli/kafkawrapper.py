@@ -4,7 +4,6 @@ from confluent_kafka.admin import AdminClient, NewTopic
 import re
 import os
 import traceback
-import time
 from .sqlinternal import parse_formula_str, get_final_string
 
 
@@ -125,7 +124,7 @@ class KafkaWrapper(object):
         if matchObj:
             m_KafkaServer = str(matchObj.group(1)).strip()
             self.__kafka_servers__ = m_KafkaServer
-            return None, None, None, "Kafka Server created successful."
+            return None, None, None, None, "Kafka Server created successful."
 
         matchObj = re.match(r"create\s+kafka\s+topic\s+(.*)\s+Partitions\s+(\d+)\s+replication_factor\s+(\d+)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
@@ -134,14 +133,14 @@ class KafkaWrapper(object):
             m_PartitionCount = int(matchObj.group(2))
             m_ReplicationFactor = int(matchObj.group(3))
             m_ReturnMessage = self.Kafka_CreateTopic(m_TopicName, m_PartitionCount, m_ReplicationFactor)
-            return None, None, None, m_ReturnMessage
+            return None, None, None, None, m_ReturnMessage
 
         matchObj = re.match(r"drop\s+kafka\s+topic\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_TopicName = str(matchObj.group(1)).strip()
             m_ReturnMessage = self.Kafka_DeleteTopic(m_TopicName)
-            return None, None, None, m_ReturnMessage
+            return None, None, None, None, m_ReturnMessage
 
         matchObj = re.match(r"get\s+kafka\s+offset\s+topic(.*)\s+partition\s+(\d+)(\s+)group\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
@@ -153,9 +152,9 @@ class KafkaWrapper(object):
                 (minOffset, maxOffset) = self.kafka_GetOffset(m_TopicName, m_PartitionID, m_GroupID)
                 m_Result = [[minOffset, maxOffset], ]
                 m_Header = ["minOffset", "maxOffset"]
-                return None, m_Result, m_Header, ""
+                return None, m_Result, m_Header, None, ""
             except KafkaException as ke:
-                return None, None, None, "Failed to get office for topic {}: {}".format(m_TopicName, repr(ke))
+                return None, None, None, None, "Failed to get office for topic {}: {}".format(m_TopicName, repr(ke))
 
         matchObj = re.match(r"create\s+kafka\s+message\s+from\s+file\s+(.*)\s+to\s+topic\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
@@ -163,7 +162,7 @@ class KafkaWrapper(object):
             m_FileName = str(matchObj.group(1)).strip()
             m_TopicName = str(matchObj.group(2)).strip()
             if not os.path.isfile(m_FileName):
-                return None, None, None, "Failed to load file {}".format(m_FileName)
+                return None, None, None, None, "Failed to load file {}".format(m_FileName)
             with open(m_FileName, 'r', encoding="utf-8") as f:
                 m_Messages = f.readlines()
             # 去掉消息中的回车换行符
@@ -174,13 +173,13 @@ class KafkaWrapper(object):
             try:
                 nTotalCount = self.kafka_Produce(m_TopicName, m_Messages, m_ProduceError)
                 if len(m_ProduceError) != 0:
-                    return None, None, None, "Total {}/{} messages send to topic {} with {} failed.". \
+                    return None, None, None, None, "Total {}/{} messages send to topic {} with {} failed.". \
                         format(nTotalCount, len(m_Messages), m_TopicName, len(m_ProduceError))
                 else:
-                    return None, None, None, "Total {}/{} messages send to topic {} Successful". \
+                    return None, None, None, None, "Total {}/{} messages send to topic {} Successful". \
                         format(nTotalCount, len(m_Messages), m_TopicName)
             except (KafkaException, KafkaWrapperException) as ke:
-                return None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
+                return None, None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
 
         matchObj = re.match(r"create\s+kafka\s+message\s+topic\s+(.*?)\((.*)\)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
@@ -195,13 +194,13 @@ class KafkaWrapper(object):
             try:
                 nTotalCount = self.kafka_Produce(m_TopicName, m_Messages, m_ProduceError)
                 if len(m_ProduceError) != 0:
-                    return None, None, None, "Total {} messages send to topic {} with {} failed.".\
+                    return None, None, None, None, "Total {} messages send to topic {} with {} failed.".\
                         format(nTotalCount, m_TopicName, len(m_ProduceError))
                 else:
-                    return None, None, None, "Total {} messages send to topic {} Successful".\
+                    return None, None, None, None, "Total {} messages send to topic {} Successful".\
                         format(nTotalCount, m_TopicName)
             except (KafkaException, KafkaWrapperException) as ke:
-                return None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
+                return None, None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
 
         matchObj = re.match(r"create\s+kafka\s+message\s+topic\s+(.*?)\((.*)\)(\s+)?rows\s+(\d+)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
@@ -227,26 +226,12 @@ class KafkaWrapper(object):
                 nTotalCount = nTotalCount + self.kafka_Produce(m_TopicName, m_Messages, m_ProduceError)
                 m_ErrorCount = m_ErrorCount + len(m_ProduceError)
                 if m_ErrorCount != 0:
-                    return None, None, None, "Total {} messages send to topic {} with {} failed.".\
+                    return None, None, None, None, "Total {} messages send to topic {} with {} failed.".\
                         format(nTotalCount, m_TopicName, m_ErrorCount)
                 else:
-                    return None, None, None, "Total {} messages send to topic {} Successful".\
+                    return None, None, None, None, "Total {} messages send to topic {} Successful".\
                         format(nTotalCount, m_TopicName)
             except (KafkaException, KafkaWrapperException) as ke:
-                return None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
+                return None, None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
 
-        return None, None, None, "Unknown kafka Command."
-
-
-if __name__ == '__main__':
-    myCommand = KafkaWrapper()
-    myCommand.Kafka_Connect("node10:9092")
-    myCommand.Kafka_CreateTopic("Hello", p_Partitons=1)
-    time.sleep(5)
-    m_ErrorList = []
-    myCommand.kafka_Produce("Hello", "从前有个山。。", m_ErrorList)
-    myCommand.kafka_Produce("Hello", ["我有一个西瓜", "就是不给你吃"], m_ErrorList)
-    time.sleep(5)
-    print("Return = " + str(myCommand.kafka_Consume("Hello", "testgroup")))
-    time.sleep(5)
-    myCommand.Kafka_DeleteTopic("Hello")
+        return None, None, None, None, "Unknown kafka Command."

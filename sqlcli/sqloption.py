@@ -9,12 +9,17 @@ class SQLOptions(object):
     def __init__(self):
         self.m_SQL_OptionList.append({"Name": "WHENEVER_SQLERROR", "Value": "CONTINUE", "Comments": '----'})
         self.m_SQL_OptionList.append({"Name": "PAGE", "Value": "OFF", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "OUTPUT_FORMAT", "Value": "ASCII", "Comments": '----'})
         self.m_SQL_OptionList.append({"Name": "ECHO", "Value": "ON", "Comments": '----'})
         self.m_SQL_OptionList.append({"Name": "TIMING", "Value": "OFF", "Comments": '----'})
         self.m_SQL_OptionList.append({"Name": "TIME", "Value": "OFF", "Comments": '----'})
+
+        self.m_SQL_OptionList.append({"Name": "OUTPUT_FORMAT", "Value": "ASCII", "Comments": '----'})
+        self.m_SQL_OptionList.append({"Name": "CSV_HEADER", "Value": "OFF", "Comments": '----'})
+        self.m_SQL_OptionList.append({"Name": "CSV_DELIMITER", "Value": ",", "Comments": '----'})
+        self.m_SQL_OptionList.append({"Name": "CSV_QUOTECHAR", "Value": "", "Comments": '----'})
         self.m_SQL_OptionList.append({"Name": "FEEDBACK", "Value": "ON", "Comments": '----'})
         self.m_SQL_OptionList.append({"Name": "TERMOUT", "Value": "ON", "Comments": '----'})
+
         self.m_SQL_OptionList.append({"Name": "ARRAYSIZE", "Value": 10000, "Comments": '----'})
         self.m_SQL_OptionList.append({"Name": "SQLREWRITE", "Value": "ON", "Comments": '----'})
         self.m_SQL_OptionList.append({"Name": "DEBUG", "Value": "OFF", "Comments": '----'})
@@ -35,13 +40,16 @@ class SQLOptions(object):
         # 对系统内置的参数进行各种处理
         for m_nPos in range(0, len(self.m_SQL_OptionList)):
             if self.m_SQL_OptionList[m_nPos]["Name"] == p_ParameterName:
-                m_ParameterValue = p_ParameterValue.strip()
-                if m_ParameterValue.upper().startswith("${ENV(") and m_ParameterValue.upper().endswith(")}"):
-                    m_EnvName = m_ParameterValue[6:-2]
-                    if m_EnvName in os.environ:
-                        m_ParameterValue = os.environ[m_EnvName]
-                    else:
-                        m_ParameterValue = None
+                if p_ParameterValue is None:
+                    m_ParameterValue = None
+                else:
+                    m_ParameterValue = p_ParameterValue.strip()
+                    if m_ParameterValue.upper().startswith("${ENV(") and m_ParameterValue.upper().endswith(")}"):
+                        m_EnvName = m_ParameterValue[6:-2]
+                        if m_EnvName in os.environ:
+                            m_ParameterValue = os.environ[m_EnvName]
+                        else:
+                            m_ParameterValue = None
                 if m_ParameterValue is None:
                     if p_ParameterDefaultValue is None:
                         m_ParameterValue = ""

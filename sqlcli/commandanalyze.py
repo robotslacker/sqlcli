@@ -124,7 +124,7 @@ def show_help():  # All the parameters are ignored.
     for _, value in sorted(COMMANDS.items()):
         if not value.hidden:
             result.append((value.command, value.description))
-    return [(None, result, headers, None)]
+    return [(None, result, headers, None, None)]
 
 
 @special_command("quit", "Quit.", arg_type=NO_QUERY)

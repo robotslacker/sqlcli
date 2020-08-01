@@ -40,6 +40,9 @@ class SQLExecute(object):
         # 当前Execute的WorkerName
         self.m_Worker_Name = None
 
+        # 程序Spool输出句柄
+        self.spoolfile = None
+
     def set_Worker_Name(self, p_szWorkerName):
         self.m_Worker_Name = p_szWorkerName
 
@@ -50,9 +53,9 @@ class SQLExecute(object):
         self.conn = p_conn
 
     def run(self, statement, p_sqlscript=None):
-        """Execute the sql in the database and return the results. The results
-        are a list of tuples. Each tuple has 4 values
-        (title, rows, headers, status).
+        """
+        返回结果包含5个方面的内容
+        (title, rows, headers, columntypes, status).
         """
         m_SQL_Status = 0             # SQL 运行结果， 0 成功， 1 失败
         m_SQL_ErrorMessage = ""      # 错误日志信息
@@ -60,7 +63,7 @@ class SQLExecute(object):
         # Remove spaces and EOL
         statement = statement.strip()
         if not statement:  # Empty string
-            yield None, None, None, None
+            yield None, None, None, None, None
 
         # 分析SQL语句
         (ret_bSQLCompleted, ret_SQLSplitResults, ret_SQLSplitResultsWithComments) = SQLAnalyze(statement)
@@ -73,6 +76,9 @@ class SQLExecute(object):
             if self.SQLOptions.get("ECHO").upper() == 'ON' \
                     and len(m_CommentSQL.strip()) != 0 and self.logfile is not None:
                 click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.logfile)
+            if self.SQLOptions.get("ECHO").upper() == 'ON' \
+                    and len(m_CommentSQL.strip()) != 0 and self.spoolfile is not None:
+                click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.spoolfile)
 
             # 如果运行在脚本模式下，需要在控制台回显SQL
             if p_sqlscript is not None:
@@ -183,7 +189,7 @@ class SQLExecute(object):
                     else:
                         self.LastAffectedRows = 0
                         self.LastSQLResult = None
-                        yield None, None, None, "Not connected. "
+                        yield None, None, None, None, "Not connected. "
 
                 # 执行正常的SQL语句
                 if cur is not None:
@@ -194,13 +200,13 @@ class SQLExecute(object):
                         cur.execute(sql)
                         rowcount = 0
                         while True:
-                            (title, result, headers, status, m_FetchStatus, m_FetchedRows) = \
+                            (title, result, headers, columntypes, status, m_FetchStatus, m_FetchedRows) = \
                                 self.get_result(cur, rowcount)
                             rowcount = m_FetchedRows
 
                             self.LastAffectedRows = rowcount
                             self.LastSQLResult = copy.copy(result)
-                            yield title, result, headers, status
+                            yield title, result, headers, columntypes, status
                             if not m_FetchStatus:
                                 break
 
@@ -247,7 +253,7 @@ class SQLExecute(object):
                             else:
                                 self.LastAffectedRows = 0
                                 self.LastSQLResult = None
-                                yield None, None, None, str(e)
+                                yield None, None, None, None, str(e)
                         else:
                             # 发生了其他不明错误
                             raise e
@@ -263,7 +269,7 @@ class SQLExecute(object):
                         print('traceback.format_exc():\n%s' % traceback.format_exc())
                     self.LastAffectedRows = 0
                     self.LastSQLResult = None
-                    yield None, None, None, str(e.message)
+                    yield None, None, None, None, str(e.message)
 
             self.m_Current_RunningSQL = None
 
@@ -272,10 +278,10 @@ class SQLExecute(object):
             self.LastElapsedTime = end - start
             if self.SQLOptions.get('TIMING').upper() == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
-                    yield None, None, None, 'Running time elapsed: %9.2f Seconds' % (end - start)
+                    yield None, None, None, None, 'Running time elapsed: %9.2f Seconds' % (end - start)
             if self.SQLOptions.get('TIME').upper() == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
-                    yield None, None, None, 'Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime())
+                    yield None, None, None, None, 'Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime())
 
     def get_Current_RunningSQL(self):
         return self.m_Current_RunningSQL
@@ -288,6 +294,7 @@ class SQLExecute(object):
         # cursor.description is not None for queries that return result sets,
         # e.g. SELECT.
         result = []
+        columntypes = []
         if cursor.description is not None:
             headers = [x[0] for x in cursor.description]
             status = "{0} row{1} selected."
@@ -296,6 +303,10 @@ class SQLExecute(object):
             if self.SQLOptions.get('TERMOUT').upper() != 'OFF':
                 for row in rowset:
                     m_row = []
+                    # 记录字段类型
+                    if len(columntypes) == 0:
+                        for column in row:
+                            columntypes.append(type(column))
                     for column in row:
                         if str(type(column)).upper().find('OBJECT[]') != -1:
                             m_ColumnValue = "STRUCTURE("
@@ -379,9 +390,9 @@ class SQLExecute(object):
         else:
             status = None
         if self.SQLOptions.get('TERMOUT').upper() == 'OFF':
-            return title, [], headers, status, m_FetchStatus, rowcount
+            return title, [], headers, columntypes, status, m_FetchStatus, rowcount
         else:
-            return title, result, headers, status, m_FetchStatus, rowcount
+            return title, result, headers, columntypes, status, m_FetchStatus, rowcount
 
     # 记录PERF信息，
     def Log_Perf(self, p_SQLResult):
