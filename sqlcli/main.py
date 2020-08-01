@@ -198,14 +198,6 @@ class SQLCli(object):
 
     def register_special_commands(self):
 
-        # 加载数据库驱动
-        register_special_command(
-            self.load_driver,
-            command="loaddriver",
-            description="load JDBC driver .",
-            hidden=False
-        )
-
         # 加载SQL映射文件
         register_special_command(
             self.load_sqlmap,
@@ -389,82 +381,6 @@ class SQLCli(object):
                 None,
                 None,
                 "Please wait all background process complete.")
-
-    # 加载JDBC驱动文件
-    def load_driver(self, arg, **_):
-        if arg is None or len(str(arg)) == 0:
-            raise SQLCliException("Missing required argument, load [driver file name] [driver class name].")
-        else:
-            load_parameters = str(arg).split()
-            m_DriverClassName = None
-            m_DatabaseType = None
-            if len(load_parameters) > 1:
-                m_DriverClassName = str(load_parameters[1]).strip()
-            # 首先尝试，绝对路径查找这个文件
-            # 如果没有找到，尝试从脚本所在的路径开始查找
-            if not os.path.exists(str(load_parameters[0])):
-                if self.sqlscript is not None:
-                    if os.path.exists(os.path.join(os.path.dirname(self.sqlscript), str(load_parameters[0]))):
-                        m_JarFullFileName = os.path.join(os.path.dirname(self.sqlscript), str(load_parameters[0]))
-                        m_JarBaseFileName = os.path.basename(m_JarFullFileName)
-                    else:
-                        raise SQLCliException("driver file [" + str(load_parameters[0]) + "] does not exist.")
-                else:
-                    # 用户在Console上输入，如果路径信息不全，则放弃
-                    raise SQLCliException("driver file [" + str(load_parameters[0]) + "] does not exist.")
-            else:
-                m_JarFullFileName = os.path.abspath(str(load_parameters[0]))
-                m_JarBaseFileName = os.path.basename(m_JarFullFileName)
-                if m_JarBaseFileName.startswith("linkoopdb"):
-                    m_DatabaseType = "linkoopdb"
-                elif m_JarBaseFileName.startswith("mysql"):
-                    m_DatabaseType = "mysql"
-                elif m_JarBaseFileName.startswith("postgresql"):
-                    m_DatabaseType = "postgresql"
-                elif m_JarBaseFileName.startswith("sqljdbc"):
-                    m_DatabaseType = "sqlserver"
-                elif m_JarBaseFileName.startswith("ojdbc"):
-                    m_DatabaseType = "oracle"
-                elif m_JarBaseFileName.startswith("terajdbc"):
-                    m_DatabaseType = "teradata"
-                elif m_JarBaseFileName.startswith("tdgssconfig"):
-                    m_DatabaseType = "teradata-gss"
-                elif m_JarBaseFileName.startswith("clickhouse"):
-                    m_DatabaseType = "clickhouse"
-                else:
-                    m_DatabaseType = "UNKNOWN"
-
-            # 将jar包信息添加到self.jar_file中
-            if self.jar_file:
-                bExitOldConfig = False
-                for m_nPos in range(0, len(self.jar_file)):
-                    if self.jar_file[m_nPos]["JarName"] == m_JarBaseFileName:
-                        m_Jar_Config = self.jar_file[m_nPos]
-                        m_Jar_Config["FullName"] = m_JarFullFileName
-                        self.jar_file[m_nPos] = m_Jar_Config
-                        bExitOldConfig = True
-                        break
-                if not bExitOldConfig:
-                    m_Jar_Config = {"JarName": m_JarBaseFileName,
-                                    "FullName": m_JarFullFileName,
-                                    "ClassName": m_DriverClassName,
-                                    "Database": m_DatabaseType}
-                    self.jar_file.append(m_Jar_Config)
-            else:
-                self.jar_file = []
-                m_Jar_Config = {"JarName": m_JarBaseFileName,
-                                "FullName": m_JarFullFileName,
-                                "ClassName": m_DriverClassName,
-                                "Database": m_DatabaseType}
-                self.jar_file.append(m_Jar_Config)
-
-        yield (
-            None,
-            None,
-            None,
-            None,
-            'Driver loaded.'
-        )
 
     # 加载数据库SQL映射
     def load_sqlmap(self, arg, **_):
@@ -1716,7 +1632,7 @@ class SQLCli(object):
     def syncdriver(self):
         # 加载程序的配置文件
         self.AppOptions = configparser.ConfigParser()
-        m_conf_filename = os.path.join(os.path.dirname(__file__), "conf", "sqlcli.conf")
+        m_conf_filename = os.path.join(os.path.dirname(__file__), "conf", "sqlcli.ini")
         if os.path.exists(m_conf_filename):
             self.AppOptions.read(m_conf_filename)
 
@@ -1775,7 +1691,7 @@ class SQLCli(object):
 
         # 加载程序的配置文件
         self.AppOptions = configparser.ConfigParser()
-        m_conf_filename = os.path.join(os.path.dirname(__file__), "conf", "sqlcli.conf")
+        m_conf_filename = os.path.join(os.path.dirname(__file__), "conf", "sqlcli.ini")
         if os.path.exists(m_conf_filename):
             self.AppOptions.read(m_conf_filename)
 
@@ -1866,11 +1782,6 @@ class SQLCli(object):
 
         # 开始依次处理SQL语句
         try:
-            # 如果环境变量中包含了SQLCLI_CONNECTION_JAR_NAME
-            # 则直接加载
-            if "SQLCLI_CONNECTION_JAR_NAME" in os.environ:
-                self.DoSQL('loaddriver ' + os.environ["SQLCLI_CONNECTION_JAR_NAME"])
-
             # 如果用户制定了用户名，口令，尝试直接进行数据库连接
             if self.logon:
                 if not self.DoSQL("connect " + str(self.logon)):
@@ -1919,7 +1830,7 @@ class SQLCli(object):
             self.logger.info(s)
         click.secho(s, **kwargs, file=self.Console)
         if self.SpoolFileHandler is not None:
-            print(s, file=self.SpoolFileHandler)
+            click.echo(s, file=self.SpoolFileHandler)
 
     def output(self, output, status=None):
         if output:

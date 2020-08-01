@@ -4,17 +4,17 @@ SQLCli 是一个命令行工具， 用来连接数据库，通过交互或者批
 SQLCli 是一个Python程序，通过jaydebeapi连接数据库的JDBC驱动。
 
 SQLCli 目前可以支持的数据库有：  
-   Oracle  
-   MySQL  
-   PostgreSQL  
-   SQLServer  
-   TeraData  
-   LinkoopDB  
-   其他符合标准JDBC规范的数据库  
+   * Oracle, MySQL, PostgreSQL， SQLServer， TeraData等通用数据库  
+   * 达梦，神通， 金仓， 南大通用，LinkoopDB等国产数据库  
+   * ClickHouse    
+   * 其他符合标准JDBC规范的数据库  
 ***
 ### 谁需要用这个文档
 
-需要通过SQL语句来查看、维护数据内容。使用的前提是你熟悉基本的SQL操作。
+需要通过SQL语句来查看、维护数据库的。  
+需要进行各种数据库功能测试、压力测试的。  
+需要用统一的方式来连接各种不同数据库的。    
+
 ***
 ### 安装
 安装的前提有：
@@ -22,12 +22,8 @@ SQLCli 目前可以支持的数据库有：
    * 能够连接到互联网上， 便于下载必要的包
    * 安装JDK8
    * 对于Windows平台，还需要提前安装微软的C++编译器（Jaydebeapi安装过程中需要动态编译jpype）  
-     在jaydebeapi 1.1.1的版本下，发现jpype必须进行降级，否则无法使用  
-     pip install --upgrade jpype1==0.6.3 --user
    * 对于Linux平台，也需要提前安装gcc编译器（Jaydebeapi安装过程中需要动态编译jpype）  
      yum install -y gcc-c++ gcc python3-devel
-     在jaydebeapi 1.1.1的版本下，发现jpype必须进行降级，否则无法使用  
-     pip install --upgrade jpype1==0.6.3 --user
    * 对于MAC平台，直接安装
 
 
@@ -37,10 +33,11 @@ SQLCli 目前可以支持的数据库有：
    * setproctitle             : Python通过setproctitle来设置进程名称，从而在多进程并发时候给以帮助
    * click                    : Python的命令行参数处理
    * prompt_toolkit           : 用于提供包括提示符功能的控制台终端的显示样式
-   * cli_helpers              : 用于提供将数据库返回结果进行表单、CSV格式化显示
+   * cli_helpers              : 用于提供将数据库返回结果进行表单格式化显示
    * fs                       : Python文件系统类库，支持内存文件系统、标准文件系统；这里主要为了满足内存文件系统需要
    * hdfs                     : HDFS类库，支持对HDFS文件操作
    * confluent_kafka          : Kafka类库，支持对Kafka操作, 这个包和kafka-python冲突，需要提前移除kafka-python
+   * wget                     : 服务器驱动下载  
 
 安装命令：
 ```
@@ -57,7 +54,73 @@ SQL>
 ```
 如果你这里看到了版本信息，那祝贺你，你的安装成功了
 ***
-### 使用
+### 驱动程序的下载和配置
+sqlcli是一个基于JDBC的数据库工具，能够操作数据库的前提当前环境下有对应的数据库连接jar包  
+#### 驱动程序的配置
+配置文件位于SQLCli的安装目录下的conf目录中，配置文件名为:sqlcli.conf  
+配置例子:
+```
+[driver]
+oracle=oracle_driver
+mysql=mysql_driver
+.... 
+
+[oracle_driver]
+filename=ojdbc8.jar
+downloadurl=http://xxxxxx/driver/ojdbc8.jar
+md5=1aa96cecf04433bc929fca57e417fd06
+driver=oracle.jdbc.driver.OracleDriver
+jdbcurl=jdbc:oracle:thin:@${host}:${port}/${service}
+
+[mysql_driver]
+filename=mysql-connector-java-8.0.20.jar
+downloadurl=http://xxxxx/driver/mysql-connector-java-8.0.20.jar
+md5=48d69b9a82cbe275af9e45cb80f6b15f
+driver=com.mysql.cj.jdbc.Driver
+jdbcurl=jdbc:mysql://${host}:${port}/${service}
+jdbcprop=socket_timeout:360000000
+```
+
+如果数据库要新增其他数据库的连接，则应仿效上述配置例子。  
+其中：  
+* 所有的数据库名称及配置项名称均应该出现在[driver]的配置项中  
+  如果某一种数据库连接需要不止一个jar包，则这里应该配置多个配置项  
+  例如：   mydb=mydb1_driver1, mydb1_driver2
+* 数据库的具体配置应该在具体的配置项中  
+  filename：      必须配置项，jar包具体的名字  
+  driver:         必须配置项，数据库连接的主类  
+  jdbcurl:        必须配置项，jdbc连接字符串，其中${host}${port}${service}分别表示数据库连接主机，端口，数据库名称  
+  downloadurl：   可选配置项，若本地不存在该文件，则文件下载需要的路径  
+  md5:            可选配置项，文件下载校验MD5    
+  jdbcprop:       可选配置项，若该数据库连接需要相应的额外参数，则在此处配置  
+* 基于这个原则，最简化的运行配置应该为：  
+```
+[driver]
+oracle=oracle_driver
+mysql=mysql_driver
+
+[oracle_driver]
+filename=ojdbc8.jar
+driver=oracle.jdbc.driver.OracleDriver
+jdbcurl=jdbc:oracle:thin:@${host}:${port}/${service}
+
+[mysql_driver]
+filename=mysql-connector-java-8.0.20.jar
+driver=com.mysql.cj.jdbc.Driver
+jdbcurl=jdbc:mysql://${host}:${port}/${service}
+```
+#### 驱动程序的下载
+基于上述参数文件的正确配置，可以使用--syncdriver的方式从服务器上来更新数据库连接需要的jar包  
+例子：    
+```
+(base) C:\Work\linkoop\sqlcli>sqlcli --syncdriver
+Checking driver [oracle] ...
+File=[ojdbc8.jar], MD5=[1aa96cecf04433bc929fca57e417fd06]
+Driver [oracle_driver] is up-to-date.
+Checking driver [mysql] ...
+File=[mysql-connector-java-8.0.20.jar], MD5=[48d69b9a82cbe275af9e45cb80f6b15f]
+Driver [mysql_driver] is up-to-date.
+```
 #### 程序的命令行参数
 ```
 (base) sqlcli --help
@@ -70,6 +133,7 @@ Options:
   --execute TEXT  Execute SQL script.
   --nologo        Execute with silent mode.
   --sqlperf TEXT  SQL performance Log.
+  --syncdriver    Download jdbc jar from file server.
   --help          Show this message and exit.
 ```  
 --version 用来显示当前工具的版本号
@@ -166,8 +230,8 @@ SQL>
 运行日志共包括如下信息：  
 1、Script       运行的脚本名称
 2、StartedTime  SQL运行开始时间，格式是：%Y-%m-%d %H:%M:%S  
-3、elapsed      SQL运行的消耗时间，这里的单位是毫秒  
-4、SQL          运行的SQL，在这个运行日志中，并不会打印SQL全文，而是只打印SQL的前40个字符  
+3、elapsed      SQL运行的消耗时间，这里的单位是秒，精确两位小数    
+4、SQL          运行的SQL    
 5、SQLStatus    SQL运行结果，0表示运行正常结束，1表示运行错误  
 6、ErrorMessage 错误日志，在SQLStatus为1的时候才有意义  
 7、thread_name  工作线程名，对于主程序，这里显示的是MAIN  
@@ -199,7 +263,6 @@ SQL> help
 | disconnect   | Disconnect database .       |
 | exit         | Exit program.               |
 | help         | Show this help.             |
-| loaddriver   | load JDBC driver .          |
 | loadsqlmap   | load SQL Mapping file .     |
 | quit         | Quit.                       |
 | set          | set options .               |
@@ -215,25 +278,6 @@ SQL> help
 标准的SQL语句并没有在这里显示出来，你可以直接在控制行内或者脚本里头执行SQL脚本。
 ```
 
-#### 加载数据库驱动
-仅在如下情况下，需要加载数据库驱动：  
-* 你需要为你的程序使用更新的jdbc驱动程序  
-
-在sqlcli命令行里头，可以通过load命令来加载数据库驱动文件。
-```
-(base) sqlcli 
-SQL*Cli Release 0.0.32
-SQL> loaddriver  xxxxx-jdbc-x.x.x.jar 
-Driver loaded.
-SQL> 
-
-这里具体的写法应查询相应数据库产品的JDBC文档  
-loaddrvier 命令的Jar包查找顺序：
-  1. 如果给出的是绝对路径，或者相对用户当前目录的相对目录，那么以这个目录为准
-  2. 如果在上述目录下没有找到文件，则会在脚本目录的相对目录开始查找
-
-如果有多个Jar包需要加载，你可能需要多次执行loadriver  
-```
 ***
 #### 连接数据库
 在sqlcli命令行里头，可以通过connect命令来连接到具体的数据库
@@ -243,7 +287,7 @@ SQL*Cli Release 0.0.32
 SQL> connect user/pass@jdbc:[数据库类型]:[数据库通讯协议]://[数据库主机地址]:[数据库端口号]/[数据库服务名] 
 Database connected.
 SQL> 
-能够成功执行connect的前提是： 数据库驱动已经被手工加载，或者通过环境变量的方式，在程序启动之前已经被默认加载
+能够成功执行connect的前提是： 数据库驱动已经放置到jlib下，并且在conf中正确配置
 
 如果已经在环境变量中指定了SQLCLI_CONNECTION_URL，连接可以简化为
 (base) sqlcli 
@@ -457,25 +501,27 @@ Mapping file loaded.
 ```
     SQL> set
     Current set options: 
-    +-------------------+----------+
-    | option            | value    |
-    +-------------------+----------+
-    | WHENEVER_SQLERROR | CONTINUE |
-    | PAGE              | OFF      |
-    | OUTPUT_FORMAT     | ASCII    |
-    | ECHO              | ON       |
-    | TIMING            | OFF      |
-    | TIME              | OFF      |
-    | TERMOUT           | ON       |
-    | FEEDBACK          | ON       |
-    | ARRAYSIZE         | 10000    |
-    | SQLREWRITE        | OFF      |
-    | DEBUG             | OFF      |
-    | KAFKA_SERVERS     | None     |
-    | LOB_LENGTH        | 20       |
-    | FLOAT_FORMAT      | %.7g     |
-    | DOUBLE_FORMAT     | %0.10g   |
-    +-------------------+----------+
+    +-------------------+----------+----------+
+    | Name              | Value    | Comments |
+    +-------------------+----------+----------+
+    | WHENEVER_SQLERROR | CONTINUE | ----     |
+    | PAGE              | OFF      | ----     |
+    | ECHO              | ON       | ----     |
+    | TIMING            | OFF      | ----     |
+    | TIME              | OFF      | ----     |
+    | OUTPUT_FORMAT     | ASCII    | ----     |
+    | CSV_HEADER        | OFF      | ----     |
+    | CSV_DELIMITER     | ,        | ----     |
+    | CSV_QUOTECHAR     |          | ----     |
+    | FEEDBACK          | ON       | ----     |
+    | TERMOUT           | ON       | ----     |
+    | ARRAYSIZE         | 10000    | ----     |
+    | SQLREWRITE        | OFF      | ----     |
+    | DEBUG             | OFF      | ----     |
+    | LOB_LENGTH        | 20       | ----     |
+    | FLOAT_FORMAT      | %.7g     | ----     |
+    | DOUBLE_FORMAT     | %.10g    | ----     |
+    +-------------------+----------+----------+
   没有任何参数的set将会列出程序所有的配置情况。
 
 ```
@@ -628,6 +674,67 @@ Mapping file loaded.
 
     类似的参数还有DOUBLE_FORMAT
 ```
+&emsp; &emsp; 9. CSV格式控制  
+```
+    CSV_HEADER        控制CSV输出中是否包括字段名称信息， 默认是OFF
+    CSV_DELIMITER     CSV输出中字段的分隔符, 默认为逗号，即,  
+    CSV_QUOTECHAR     CSV中字符类型字段的前后标记符号，默认为不标记
+
+    SQL> select * from cat where rownum<10;
+    ADATA_1000W,TABLE
+    ADATA_100W,TABLE
+    ADATA_10W,TABLE
+    ADATA_1W,TABLE
+    ADATA_2000W,TABLE
+    ADATA_500W,TABLE
+    BIN$p+HZrV/nKjTgU1ABqMCZxw==$0,TABLE
+    BIN$p+HaveUdKjzgU1ABqMC4xg==$0,TABLE
+    BIN$p+HbAAWeKlfgU1ABqMCSUg==$0,TABLE
+    
+    SQL> select 1.2+2.2 from dual
+       > union
+       > select 3+4 from dual;
+    3.4
+    7
+```
+
+#### 在SQL中使用变量信息
+&emsp; &emsp; 在一些场景中，我们需要通过变量来变化SQL的运行  
+&emsp; &emsp; 这里提供的解决办法是：   
+&emsp; &emsp; * 用set的语句来定义一个变量
+```
+    SQL> set @var1 value1
+```
+&emsp; &emsp; * 用${}的方式来引用已经定义的变量
+```
+    SQL> select ${var1} from dual;
+    REWROTED SQL> Your SQL has been changed to:
+    REWROTED    > select value1 from dual
+    -- 这里真实的表达意思是： select value1 from dual, 其中${var1}已经被其对应的变量替换
+```
+#### 在SQL中使用spool命令来将当前执行结果输出到文件中
+```
+    SQL> spool test.log
+    SQL> select 1+2 from dual;
+    3
+    1 rows selected.
+    SQL> spool off
+
+    $> type test.log
+    SQL> select 1+2 from dual;
+    3
+    1 rows selected.
+
+    -- spool [file name] 表示将从此刻开始，随后的SQL语句输出到新的文件中
+    -- spool off         表示从此刻开始，关于之前的SQL文件输出
+
+    * 在已经进行spool的过程中，spool新的文件名将导致当前文件被关闭，随后的输出切换到新文件中
+    * spool 结果的目录：
+      1. 如果程序运行过程中提供了logfile信息，则spool结果的目录和logfile的目录相同
+      2. 如果程序运行过程中没有提供logfile信息，则spool结果文件目录就是当前的文件
+```
+
+
 #### 在SQL中用内置变量来查看上一个SQL的执行结果
 &emsp; &emsp; 有一些场景通常要求我们来下一个SQL指定的时候，将上一个SQL的结果做出参数来执行  
 &emsp; &emsp; 这里提供的解决办法是： 在SQL中引入被特殊定义的标志  
@@ -915,12 +1022,22 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
 ```
 ---------- sqlcli
 --------------- __init__.py            # 包标识文件，用来记录版本信息
+--------------- commandanalyze.py      # 对用户或者脚本输入的命令进行判断，判断是否需要后续解析，或者执行内部命令
+--------------- kafkawrapper.py        # 程序中对kafka操作的相关支持
 --------------- sqlparse.py            # 用来解析SQL语句，判断注释部分，语句的分段、分行等
 --------------- sqlinternal.py         # 执行internal命令
---------------- sqlexecute.py          # 执行SQL语句
---------------- commandanalyze.py      # 对用户或者脚本输入的命令进行判断，判断是否需要后续解析，或者执行内部命令
+--------------- sqlexecute.py          # 程序主要逻辑文件，具体执行SQL语句
+--------------- sqlcliexception.py     # 自定义程序异常类
+--------------- sqloption.py           # 程序运行参数显示及控制实现
 --------------- main.py                # 主程序
----------- setup.py                    # 打包发布程序
-
-
+---------- setup.py                    # Python打包发布程序
+---------- README.md                   # 应用程序说明，由于pypi限制，这里只放置简要信息
+---------- Doc.md                      # 应用程序文档
+---------- conf                        # 配置文件目录
+--------------  sqlcli.conf            # 程序配置文件
+---------- jlib                        # 应用程序连接数据库需要的各种jar包
+--------------  xxxx1.jar              # 具体的jar包文件
+--------------  xxxx2.jar              # 具体的jar包文件
+---------- .gitignore                  # git控制文件
+---------- uploadpypi.bat              # windows平台下用来向pypi更新安装包的相关命令
 ```

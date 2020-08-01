@@ -20,7 +20,6 @@ class SQLExecute(object):
     sqlscript = None                    # 需要执行的SQL脚本
     SQLMappingHandler = None            # SQL重写处理
     SQLOptions = None                   # 程序处理参数
-    m_Current_RunningSQL = None         # 目前程序运行的当前SQL
     Console = False                     # 屏幕输出Console
     logger = None                       # 日志输出
 
@@ -78,26 +77,32 @@ class SQLExecute(object):
                 click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.logfile)
             if self.SQLOptions.get("ECHO").upper() == 'ON' \
                     and len(m_CommentSQL.strip()) != 0 and self.spoolfile is not None:
-                click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.spoolfile)
-
-            # 如果运行在脚本模式下，需要在控制台回显SQL
-            if p_sqlscript is not None:
-                click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.Console)
+                # 在spool文件中，不显示spool off的信息，以避免log比对中的不必要内容
+                if not re.match(r'spool\s+.*', m_CommentSQL.strip(), re.IGNORECASE):
+                    click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.spoolfile)
+            # 在logger中显示执行的SQL
             if self.logger is not None:
                 self.logger.info(SQLFormatWithPrefix(m_CommentSQL))
+            # 如果运行在脚本模式下，需要在控制台额外回显SQL
+            # 非脚本模式下，由于是用户自行输入，所以不需要回显输入的SQL
+            if p_sqlscript is not None:
+                click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.Console)
 
             # 如果打开了回显，并且指定了输出文件，且SQL被改写过，输出改写后的SQL
             if self.SQLOptions.get("SQLREWRITE").upper() == 'ON':
                 old_sql = sql
                 sql = self.SQLMappingHandler.RewriteSQL(p_sqlscript, old_sql)
-                if old_sql != sql:
+                if old_sql != sql:    # SQL已经发生了改变
                     if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
-                        # SQL已经发生了改变
                         click.echo(SQLFormatWithPrefix(
                             "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
-                    if p_sqlscript is not None:
-                        click.echo(SQLFormatWithPrefix(
-                            "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
+                    if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
+                        click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
+                                   file=self.spoolfile)
+                    if self.logger is not None:
+                        self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
+                    click.echo(SQLFormatWithPrefix(
+                        "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
 
             # 如果是空语句，不在执行
             if len(sql.strip()) == 0:
@@ -108,7 +113,6 @@ class SQLExecute(object):
 
             # 记录命令开始时间
             start = time.time()
-            self.m_Current_RunningSQL = sql
 
             # 检查SQL中是否包含特殊内容
             # 特殊内容都有：
@@ -123,12 +127,15 @@ class SQLExecute(object):
             if sql.find("%lastsqlresult.LastAffectedRows%") != -1:
                 sql = sql.replace("%lastsqlresult.LastAffectedRows%", str(self.LastAffectedRows))
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
-                    # SQL已经发生了改变
                     click.echo(SQLFormatWithPrefix(
                         "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
-                if p_sqlscript is not None:
-                    click.echo(SQLFormatWithPrefix(
-                        "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
+                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
+                    click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
+                               file=self.spoolfile)
+                click.echo(SQLFormatWithPrefix(
+                    "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
+                if self.logger is not None:
+                    self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
 
             # lastsqlresult.LastSQLResult[X][Y]
             matchObj = re.search(r"%lastsqlresult.LastSQLResult\[(\d+)\]\[(\d+)\]%",
@@ -145,12 +152,15 @@ class SQLExecute(object):
                     m_Result = str(self.LastSQLResult[m_nRow][m_nColumn])
                 sql = sql.replace(m_Searched, m_Result)
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
-                    # SQL已经发生了改变
                     click.echo(SQLFormatWithPrefix(
                         "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
-                if p_sqlscript is not None:
-                    click.echo(SQLFormatWithPrefix(
-                        "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
+                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
+                    click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
+                               file=self.spoolfile)
+                if self.logger is not None:
+                    self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
+                click.echo(SQLFormatWithPrefix(
+                    "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
 
             # ${var}
             bMatched = False
@@ -169,12 +179,16 @@ class SQLExecute(object):
                     break
             if bMatched:
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
-                    # SQL已经发生了改变
+                    # SQL已经发生了改变, 会将改变后的SQL信息在屏幕上单独显示出来
                     click.echo(SQLFormatWithPrefix(
                         "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
-                if p_sqlscript is not None:
-                    click.echo(SQLFormatWithPrefix(
-                        "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
+                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
+                    click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
+                               file=self.spoolfile)
+                if self.logger is not None:
+                    self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
+                click.echo(SQLFormatWithPrefix(
+                    "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
 
             # 执行SQL
             try:
@@ -271,8 +285,6 @@ class SQLExecute(object):
                     self.LastSQLResult = None
                     yield None, None, None, None, str(e.message)
 
-            self.m_Current_RunningSQL = None
-
             # 如果需要，打印语句执行时间
             end = time.time()
             self.LastElapsedTime = end - start
@@ -282,9 +294,6 @@ class SQLExecute(object):
             if self.SQLOptions.get('TIME').upper() == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
                     yield None, None, None, None, 'Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime())
-
-    def get_Current_RunningSQL(self):
-        return self.m_Current_RunningSQL
 
     def get_result(self, cursor, rowcount):
         """Get the current result's data from the cursor."""
