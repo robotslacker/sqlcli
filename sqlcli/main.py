@@ -1894,13 +1894,18 @@ class SQLCli(object):
         for row in cur:
             m_row = ""
             for m_nPos in range(0, len(row)):
-                if columntypes is None:
-                    m_row = m_row + str(row[m_nPos])
+                if row[m_nPos] is None:
+                    if columntypes is not None:
+                        if columntypes[m_nPos] == str:
+                            m_row = m_row + m_csv_quotechar + m_csv_quotechar
                 else:
-                    if columntypes[m_nPos] == str:
-                        m_row = m_row + m_csv_quotechar + str(row[m_nPos]) + m_csv_quotechar
-                    else:
+                    if columntypes is None:
                         m_row = m_row + str(row[m_nPos])
+                    else:
+                        if columntypes[m_nPos] == str:
+                            m_row = m_row + m_csv_quotechar + str(row[m_nPos]) + m_csv_quotechar
+                        else:
+                            m_row = m_row + str(row[m_nPos])
                 if m_nPos != len(row) - 1:
                     m_row = m_row + m_csv_delimiter
             yield str(m_row)
