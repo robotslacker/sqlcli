@@ -65,12 +65,17 @@ class SQLExecute(object):
             yield None, None, None, None, None
 
         # 分析SQL语句
-        (ret_bSQLCompleted, ret_SQLSplitResults, ret_SQLSplitResultsWithComments) = SQLAnalyze(statement)
+        (ret_bSQLCompleted, ret_SQLSplitResults,
+         ret_SQLSplitResultsWithComments, ret_SQLFlags) = SQLAnalyze(statement)
         for m_nPos in range(0, len(ret_SQLSplitResults)):
 
             sql = ret_SQLSplitResults[m_nPos]
             m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]
-
+            m_SQLFlag = ret_SQLFlags[m_nPos]
+            if "Feature" in m_SQLFlag.keys():
+                m_SQLFeature = m_SQLFlag["Feature"]
+            else:
+                m_SQLFeature = ""
             # 如果打开了回显，并且指定了输出文件，则在输出文件里显示SQL语句
             if self.SQLOptions.get("ECHO").upper() == 'ON' \
                     and len(m_CommentSQL.strip()) != 0 and self.logfile is not None:
@@ -220,12 +225,21 @@ class SQLExecute(object):
 
                             self.LastAffectedRows = rowcount
                             self.LastSQLResult = copy.copy(result)
+
+                            # 检查SQLFlags
+                            # 如果有order字样，对结果进行排序后再输出
+                            if "Order" in m_SQLFlag.keys():
+                                for i in range(1, len(result)):
+                                    for j in range(0, len(result) - i):
+                                        if str(result[j]) > str(result[j + 1]):
+                                            result[j], result[j + 1] = result[j + 1], result[j]
                             yield title, result, headers, columntypes, status
                             if not m_FetchStatus:
                                 break
 
                         # 记录结束时间
                         end = time.time()
+
                         # 记录SQL日志信息
                         self.Log_Perf(
                             {
@@ -233,6 +247,7 @@ class SQLExecute(object):
                                 "elapsed": end - start,
                                 "SQL": sql,
                                 "SQLStatus": m_SQL_Status,
+                                "Feature": m_SQLFeature,
                                 "ErrorMessage": m_SQL_ErrorMessage,
                                 "thread_name": self.m_Worker_Name
                             }
@@ -248,6 +263,7 @@ class SQLExecute(object):
                                 "elapsed": end - start,
                                 "SQL": sql,
                                 "SQLStatus": m_SQL_Status,
+                                "Feature": m_SQLFeature,
                                 "ErrorMessage": m_SQL_ErrorMessage,
                                 "thread_name": self.m_Worker_Name
                             }
@@ -288,6 +304,15 @@ class SQLExecute(object):
             # 如果需要，打印语句执行时间
             end = time.time()
             self.LastElapsedTime = end - start
+
+            if "TimeLimit" in m_SQLFlag.keys():
+                m_TimeLimit = m_SQLFlag["TimeLimit"]
+                m_TimeCost = '%9.0f' % ((end - start) * 1000)
+                if m_TimeLimit < (end - start) * 1000:
+                    raise SQLCliException('LinkoopSQL-Err:: ' 
+                                          'SQL elapsed time [' + m_TimeCost + '] over limit [' + str(m_TimeLimit) + ']')
+                    # yield None, None, None, None, 'SQL elapsed time over limit [' + str(m_TimeLimit) + ']'
+
             if self.SQLOptions.get('TIMING').upper() == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
                     yield None, None, None, None, 'Running time elapsed: %9.2f Seconds' % (end - start)
@@ -424,7 +449,7 @@ class SQLExecute(object):
                 self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
                 self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tSQLPrefix\t"
                                              "SQLStatus\tErrorMessage\tthread_name\t"
-                                             "Copies\tFinished\n")
+                                             "Copies\tFinished\tFeature\n")
                 self.SQLPerfFileHandle.close()
 
             if len(str(p_SQLResult["thread_name"]).split('-')) == 3:
@@ -449,7 +474,8 @@ class SQLExecute(object):
                 str(p_SQLResult["SQLStatus"]) + "\t" +
                 "'" + str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
                 "'" + str(m_ThreadName) + "'\t" +
-                str(m_Copies) + "'\t" + str(m_CurrentLoop) +
+                str(m_Copies) + "'\t" + str(m_CurrentLoop) + "\t" +
+                "'" + str(p_SQLResult["Feature"]) + "'" +
                 "\n"
             )
             self.SQLPerfFileHandle.flush()

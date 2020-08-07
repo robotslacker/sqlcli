@@ -1567,7 +1567,8 @@ class SQLCli(object):
                 else:
                     full_text = full_text + '\n' + text
                 # 判断SQL语句是否已经结束
-                (ret_bSQLCompleted, ret_SQLSplitResults, ret_SQLSplitResultsWithComments) = SQLAnalyze(full_text)
+                (ret_bSQLCompleted, ret_SQLSplitResults, ret_SQLSplitResultsWithComments, ret_SQLFlags) = \
+                    SQLAnalyze(full_text)
                 if ret_bSQLCompleted:
                     # SQL 语句已经结束
                     break

@@ -265,6 +265,12 @@ def SQLFormatWithPrefix(p_szCommentSQLScript, p_szOutputPrefix=""):
 
 
 def SQLAnalyze(p_SQLCommandPlainText):
+    """ 分析SQL语句，返回如下内容：
+        MulitLineSQLFlag                该SQL是否为完整SQL， True：完成， False：不完整，需要用户继续输入
+        SQLSplitResults                 包含所有SQL信息的一个数组，每一个SQL作为一个元素
+        SQLSplitResultsWithComments     包含注释信息的SQL语句信息，数组长度和SQLSplitResults相同
+        SQLFlags                        SQL的其他各种标志信息，根据SQLSplitResultsWithComments中的注释内容解析获得
+    """
     SQLCommands = p_SQLCommandPlainText.split('\n')
 
     # 首先备份原始的SQL
@@ -647,4 +653,36 @@ def SQLAnalyze(p_SQLCommandPlainText):
         else:
             SQLSplitResultsWithComments[m_nPos] = ""
 
-    return not m_bInMultiLineSQL, SQLSplitResults, SQLSplitResultsWithComments
+    # 解析SQLFlags
+    m_SQLFlags = []
+    m_SQLFlag = {}
+    for m_nPos in range(0, len(SQLSplitResultsWithComments)):
+        if len(SQLSplitResults[m_nPos]) == 0:
+            # 这里为一个注释信息，解析注释信息中是否包含必要的tag
+            for line in SQLSplitResultsWithComments[m_nPos].splitlines():
+                # [Tags]  LastElapsedTime less than 5
+                # [Tags]  order
+                matchObj = re.search("^(\s+)?--(\s+)?\[Flag\](\s+)?SQLElapsedTime\s+less\s+than\s+(\d+)", line,
+                                     re.IGNORECASE|re.DOTALL)
+                if matchObj:
+                    m_TimeLimit = int(matchObj.group(4))
+                    m_SQLFlag["TimeLimit"] = m_TimeLimit
+
+                matchObj = re.search("^(\s+)?--(\s+)?\[Flag\](\s+)?order", line,
+                                     re.IGNORECASE|re.DOTALL)
+                if matchObj:
+                    m_SQLFlag["Order"] = True
+
+                matchObj = re.search("^(\s+)?--(\s+)?\[Flag\](\s+)?Feature:(.*)", line,
+                                     re.IGNORECASE|re.DOTALL)
+                if matchObj:
+                    m_SQLFlag["Feature"] = matchObj.group(4)
+            m_SQLFlags.append({})
+        else:
+            # 这里是一个可执行SQL信息
+            # 将这个SQL之前所有解析注释信息送到SQL的标志中，并同时清空当前的SQL标志信息
+            m_SQLFlags.append(m_SQLFlag)
+            m_SQLFlag = {}
+
+
+    return not m_bInMultiLineSQL, SQLSplitResults, SQLSplitResultsWithComments, m_SQLFlags
