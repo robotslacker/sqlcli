@@ -1674,7 +1674,8 @@ class SQLCli(object):
                             data = fp.read()
                         file_md5 = hashlib.md5(data).hexdigest()
                         if file_md5 != m_driver_filemd5.strip():
-                            print("Driver [" + m_driversection + "] consistent check failed.")
+                            print("Driver [" + m_driversection + "] consistent check failed. "
+                                                                 "Remote MD5=[" + str(file_md5) + "]")
                         else:
                             print("Driver [" + m_driversection + "] is up-to-date.")
                     else:
