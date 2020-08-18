@@ -1467,7 +1467,7 @@ class SQLCli(object):
         if matchObj:
             m_filetype = str(matchObj.group(1)).strip()
             m_filename = str(matchObj.group(2)).strip().replace('\r', '').replace('\n', '')
-            m_formula_str = str(matchObj.group(3).replace('\r', '').replace('\n', '').strip())
+            m_formula_str = str(matchObj.group(3).strip())
             m_rows = 1
             Create_file(p_filetype=m_filetype,
                         p_filename=m_filename,

@@ -266,10 +266,10 @@ def SQLFormatWithPrefix(p_szCommentSQLScript, p_szOutputPrefix=""):
 
 def SQLAnalyze(p_SQLCommandPlainText):
     """ 分析SQL语句，返回如下内容：
-        MulitLineSQLFlag                该SQL是否为完整SQL， True：完成， False：不完整，需要用户继续输入
+        MulitLineSQLHint                该SQL是否为完整SQL， True：完成， False：不完整，需要用户继续输入
         SQLSplitResults                 包含所有SQL信息的一个数组，每一个SQL作为一个元素
         SQLSplitResultsWithComments     包含注释信息的SQL语句信息，数组长度和SQLSplitResults相同
-        SQLFlags                        SQL的其他各种标志信息，根据SQLSplitResultsWithComments中的注释内容解析获得
+        SQLHints                        SQL的其他各种标志信息，根据SQLSplitResultsWithComments中的注释内容解析获得
     """
     SQLCommands = p_SQLCommandPlainText.split('\n')
 
@@ -653,36 +653,49 @@ def SQLAnalyze(p_SQLCommandPlainText):
         else:
             SQLSplitResultsWithComments[m_nPos] = ""
 
-    # 解析SQLFlags
-    m_SQLFlags = []
-    m_SQLFlag = {}
+    # 解析SQLHints
+    m_SQLHints = []
+    m_SQLHint = {}
     for m_nPos in range(0, len(SQLSplitResultsWithComments)):
         if len(SQLSplitResults[m_nPos]) == 0:
             # 这里为一个注释信息，解析注释信息中是否包含必要的tag
             for line in SQLSplitResultsWithComments[m_nPos].splitlines():
-                # [Tags]  LastElapsedTime less than 5
-                # [Tags]  order
-                matchObj = re.search("^(\s+)?--(\s+)?\[Flag\](\s+)?SQLElapsedTime\s+less\s+than\s+(\d+)", line,
+                # [Hint]  SQLElapsedTime less than 5
+                # [Hint]  order
+                # [Hint]  Feature:XXXX
+                # [Hint]  SQLID:XXXX
+                # [Hint]  SQLGROUP:XXXX
+                matchObj = re.search("^(\s+)?--(\s+)?\[Hint\](\s+)?SQLElapsedTime\s+less\s+than\s+(\d+)", line,
                                      re.IGNORECASE|re.DOTALL)
                 if matchObj:
                     m_TimeLimit = int(matchObj.group(4))
-                    m_SQLFlag["TimeLimit"] = m_TimeLimit
+                    m_SQLHint["TimeLimit"] = m_TimeLimit
 
-                matchObj = re.search("^(\s+)?--(\s+)?\[Flag\](\s+)?order", line,
+                matchObj = re.search("^(\s+)?--(\s+)?\[Hint\](\s+)?order", line,
                                      re.IGNORECASE|re.DOTALL)
                 if matchObj:
-                    m_SQLFlag["Order"] = True
+                    m_SQLHint["Order"] = True
 
-                matchObj = re.search("^(\s+)?--(\s+)?\[Flag\](\s+)?Feature:(.*)", line,
+                matchObj = re.search("^(\s+)?--(\s+)?\[Hint\](\s+)?Feature:(.*)", line,
                                      re.IGNORECASE|re.DOTALL)
                 if matchObj:
-                    m_SQLFlag["Feature"] = matchObj.group(4)
-            m_SQLFlags.append({})
+                    m_SQLHint["Feature"] = matchObj.group(4)
+
+                matchObj = re.search("^(\s+)?--(\s+)?\[Hint\](\s+)?SQLID:(.*)", line,
+                                     re.IGNORECASE|re.DOTALL)
+                if matchObj:
+                    m_SQLHint["SQLID"] = matchObj.group(4)
+
+                matchObj = re.search("^(\s+)?--(\s+)?\[Hint\](\s+)?SQLGROUP:(.*)", line,
+                                     re.IGNORECASE|re.DOTALL)
+                if matchObj:
+                    m_SQLHint["SQLGROUP"] = matchObj.group(4)
+            m_SQLHints.append({})
         else:
             # 这里是一个可执行SQL信息
             # 将这个SQL之前所有解析注释信息送到SQL的标志中，并同时清空当前的SQL标志信息
-            m_SQLFlags.append(m_SQLFlag)
-            m_SQLFlag = {}
+            m_SQLHints.append(m_SQLHint)
+            m_SQLHint = {}
 
 
-    return not m_bInMultiLineSQL, SQLSplitResults, SQLSplitResultsWithComments, m_SQLFlags
+    return not m_bInMultiLineSQL, SQLSplitResults, SQLSplitResultsWithComments, m_SQLHints

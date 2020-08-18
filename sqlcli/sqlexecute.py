@@ -64,18 +64,27 @@ class SQLExecute(object):
         if not statement:  # Empty string
             yield None, None, None, None, None
 
+        # 记录SQLID和SQLGROUP，如果SQLID和SQLGROUP上次已经有了信息，本次没有任何信息，则保留原信息
+        m_SQLID = ''
+        m_SQLGROUP = ''
+
         # 分析SQL语句
         (ret_bSQLCompleted, ret_SQLSplitResults,
-         ret_SQLSplitResultsWithComments, ret_SQLFlags) = SQLAnalyze(statement)
+         ret_SQLSplitResultsWithComments, ret_SQLHints) = SQLAnalyze(statement)
         for m_nPos in range(0, len(ret_SQLSplitResults)):
-
-            sql = ret_SQLSplitResults[m_nPos]
-            m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]
-            m_SQLFlag = ret_SQLFlags[m_nPos]
-            if "Feature" in m_SQLFlag.keys():
-                m_SQLFeature = m_SQLFlag["Feature"]
+            m_raw_sql = ret_SQLSplitResults[m_nPos]                  # 记录原始SQL
+            sql = m_raw_sql                                          # 当前要被执行的SQL，这个SQL可能被随后的注释或者替换规则改写
+            m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]   # 记录带有注释信息的SQL
+            m_SQLHint = ret_SQLHints[m_nPos]                         # SQL提示信息，其中Feature,SQLID,SQLGROUP用作日志处理
+            if "Feature" in m_SQLHint.keys():
+                m_SQLFeature = m_SQLHint["Feature"]
             else:
                 m_SQLFeature = ""
+            if "SQLID" in m_SQLHint.keys():
+                m_SQLID = m_SQLHint['SQLID']
+            if "SQLGROUP" in m_SQLHint.keys():
+                m_SQLGROUP = m_SQLHint['SQLGROUP']
+
             # 如果打开了回显，并且指定了输出文件，则在输出文件里显示SQL语句
             if self.SQLOptions.get("ECHO").upper() == 'ON' \
                     and len(m_CommentSQL.strip()) != 0 and self.logfile is not None:
@@ -85,9 +94,11 @@ class SQLExecute(object):
                 # 在spool文件中，不显示spool off的信息，以避免log比对中的不必要内容
                 if not re.match(r'spool\s+.*', m_CommentSQL.strip(), re.IGNORECASE):
                     click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.spoolfile)
+
             # 在logger中显示执行的SQL
             if self.logger is not None:
                 self.logger.info(SQLFormatWithPrefix(m_CommentSQL))
+
             # 如果运行在脚本模式下，需要在控制台额外回显SQL
             # 非脚本模式下，由于是用户自行输入，所以不需要回显输入的SQL
             if p_sqlscript is not None:
@@ -119,7 +130,7 @@ class SQLExecute(object):
             # 记录命令开始时间
             start = time.time()
 
-            # 检查SQL中是否包含特殊内容
+            # 检查SQL中是否包含特殊内容，如果有，改写SQL
             # 特殊内容都有：
             # 1. %lastsqlresult.LastAffectedRows%
             #    上一个SQL影响的行数
@@ -202,10 +213,24 @@ class SQLExecute(object):
                     yield result
             except CommandNotFound:
                 if cur is None:
-                    # 进入到SQL执行阶段，但是没有conn，也不是特殊命令
+                    # 进入到SQL执行阶段，不是特殊命令, 数据库连接也不存在
                     if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                         raise SQLCliException("Not Connected. ")
                     else:
+                        self.Log_Perf(
+                            {
+                                "StartedTime": start,
+                                "elapsed": 0,
+                                "RAWSQL": m_raw_sql,
+                                "SQL": sql,
+                                "SQLStatus": m_SQL_Status,
+                                "Feature": m_SQLFeature,
+                                "ErrorMessage": m_SQL_ErrorMessage,
+                                "thread_name": self.m_Worker_Name,
+                                "SQLID": m_SQLID,
+                                "SQLGROUP": m_SQLGROUP
+                            }
+                        )
                         self.LastAffectedRows = 0
                         self.LastSQLResult = None
                         yield None, None, None, None, "Not connected. "
@@ -226,9 +251,8 @@ class SQLExecute(object):
                             self.LastAffectedRows = rowcount
                             self.LastSQLResult = copy.copy(result)
 
-                            # 检查SQLFlags
-                            # 如果有order字样，对结果进行排序后再输出
-                            if "Order" in m_SQLFlag.keys():
+                            # 如果Hints中有order字样，对结果进行排序后再输出
+                            if "Order" in m_SQLHint.keys():
                                 for i in range(1, len(result)):
                                     for j in range(0, len(result) - i):
                                         if str(result[j]) > str(result[j + 1]):
@@ -245,11 +269,14 @@ class SQLExecute(object):
                             {
                                 "StartedTime": start,
                                 "elapsed": end - start,
+                                "RAWSQL": m_raw_sql,
                                 "SQL": sql,
                                 "SQLStatus": m_SQL_Status,
                                 "Feature": m_SQLFeature,
                                 "ErrorMessage": m_SQL_ErrorMessage,
-                                "thread_name": self.m_Worker_Name
+                                "thread_name": self.m_Worker_Name,
+                                "SQLID": m_SQLID,
+                                "SQLGROUP": m_SQLGROUP
                             }
                         )
 
@@ -261,11 +288,14 @@ class SQLExecute(object):
                             {
                                 "StartedTime": start,
                                 "elapsed": end - start,
+                                "RAWSQL": m_raw_sql,
                                 "SQL": sql,
                                 "SQLStatus": m_SQL_Status,
                                 "Feature": m_SQLFeature,
                                 "ErrorMessage": m_SQL_ErrorMessage,
-                                "thread_name": self.m_Worker_Name
+                                "thread_name": self.m_Worker_Name,
+                                "SQLID": m_SQLID,
+                                "SQLGROUP": m_SQLGROUP
                             }
                         )
 
@@ -305,8 +335,8 @@ class SQLExecute(object):
             end = time.time()
             self.LastElapsedTime = end - start
 
-            if "TimeLimit" in m_SQLFlag.keys():
-                m_TimeLimit = m_SQLFlag["TimeLimit"]
+            if "TimeLimit" in m_SQLHint.keys():
+                m_TimeLimit = m_SQLHint["TimeLimit"]
                 m_TimeCost = '%9.0f' % ((end - start) * 1000)
                 if m_TimeLimit < (end - start) * 1000:
                     raise SQLCliException('LinkoopSQL-Err:: ' 
@@ -447,9 +477,9 @@ class SQLExecute(object):
             if not os.path.exists(self.SQLPerfFile):
                 # 如果文件不存在，创建文件，并写入文件头信息
                 self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
-                self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tSQLPrefix\t"
+                self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tRAWSQL\tSQL\t"
                                              "SQLStatus\tErrorMessage\tthread_name\t"
-                                             "Copies\tFinished\tFeature\n")
+                                             "Copies\tFinished\tFeature\tSQLID\tSQLGROUP\n")
                 self.SQLPerfFileHandle.close()
 
             if len(str(p_SQLResult["thread_name"]).split('-')) == 3:
@@ -470,12 +500,15 @@ class SQLExecute(object):
                 "'" + str(os.path.basename(self.sqlscript)) + "'\t" +
                 "'" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p_SQLResult["StartedTime"])) + "'\t" +
                 "%8.2f" % p_SQLResult["elapsed"] + "\t" +
+                "'" + str(p_SQLResult["RAWSQL"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
                 "'" + str(p_SQLResult["SQL"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
                 str(p_SQLResult["SQLStatus"]) + "\t" +
                 "'" + str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
                 "'" + str(m_ThreadName) + "'\t" +
                 str(m_Copies) + "'\t" + str(m_CurrentLoop) + "\t" +
-                "'" + str(p_SQLResult["Feature"]) + "'" +
+                "'" + str(p_SQLResult["Feature"]) + "'\t" +
+                "'" + str(p_SQLResult["SQLID"]) + "'\t" +
+                "'" + str(p_SQLResult["SQLGROUP"]) + "'" +
                 "\n"
             )
             self.SQLPerfFileHandle.flush()
