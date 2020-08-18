@@ -191,6 +191,9 @@ class SQLExecute(object):
                     m_VarValue = self.SQLOptions.get(m_VarName)
                     if m_VarValue is not None:
                         sql = matchObj.group(1) + m_VarValue + matchObj.group(3)
+                    else:
+                        # 没有定义这个变量，在SQL中把这个变量所对应的位置替换为#UNDEFINE_VAR#来避免死循环
+                        sql = matchObj.group(1) + '#UNDEFINE_VAR#' + matchObj.group(3)
                 else:
                     break
             if bMatched:
@@ -205,7 +208,6 @@ class SQLExecute(object):
                     self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
                 click.echo(SQLFormatWithPrefix(
                     "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
-
             # 执行SQL
             try:
                 # 首先假设这是一个特殊命令

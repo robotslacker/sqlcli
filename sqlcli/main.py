@@ -1787,7 +1787,7 @@ class SQLCli(object):
 
         # 开始依次处理SQL语句
         try:
-            # 如果用户制定了用户名，口令，尝试直接进行数据库连接
+            # 如果用户指定了用户名，口令，尝试直接进行数据库连接
             if self.logon:
                 if not self.DoSQL("connect " + str(self.logon)):
                     m_runCli_Result = False
