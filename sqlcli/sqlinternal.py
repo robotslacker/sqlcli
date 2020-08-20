@@ -105,6 +105,7 @@ def random_date(p_arg):
         raise SQLCliException("Invalid date format [" + str(frmt) + "] for [" + str(p_arg[0]) + "]")
     return (random.random() * (etime - stime) + stime).strftime(frmt)
 
+
 # 返回一个随机的时间戳
 # 有3个参数：
 #   stime   开始时间
@@ -121,6 +122,7 @@ def random_time(p_arg):
     except ValueError:
         raise SQLCliException("Invalid timestamp format [" + str(frmt) + "] for [" + str(p_arg[0]) + "]")
     return (random.random() * (etime - stime) + stime).strftime(frmt)[11:]
+
 
 # 返回一个随机的时间戳
 # 有3个参数：
@@ -581,7 +583,7 @@ def get_final_string(p_row_struct):
     return m_Result
 
 
-def Create_file(p_filetype, p_filename, p_formula_str, p_rows):
+def Create_file(p_filetype, p_filename, p_formula_str, p_rows, p_encoding='UTF-8'):
     try:
         m_output = None
         m_HDFS_Handler = None
@@ -589,11 +591,11 @@ def Create_file(p_filetype, p_filename, p_formula_str, p_rows):
         if p_filetype.upper() == "MEM":
             m_fs = fs.open_fs('mem://')
             m_filename = p_filename
-            m_output = m_fs.open(m_filename, 'w')
+            m_output = m_fs.open(path=m_filename, mode='w', encoding=p_encoding)
         elif p_filetype.upper() == "FS":
             m_fs = fs.open_fs('./')
             m_filename = p_filename
-            m_output = m_fs.open(m_filename, 'w')
+            m_output = m_fs.open(path=m_filename, mode='w', encoding=p_encoding)
         elif p_filetype.upper() == "HDFS":
             # HDFS 文件格式： http://node:port/xx/yy/cc.dat
             # 注意这里的node和port都是webfs端口，不是rpc端口

@@ -135,7 +135,9 @@ class SQLCli(object):
             Console=sys.stdout,
             HeadlessMode=False,
             WorkerName=None,
-            logger=None
+            logger=None,
+            clientcharset='UTF-8',
+            resultcharset='UTF-8'
     ):
         self.m_ProcessList = []                   # 所有本进程启动的子进程句柄信息
         self.db_saved_conn = {}                   # 数据库Session备s份
@@ -145,8 +147,17 @@ class SQLCli(object):
         self.KafkaHandler = KafkaWrapper()        # 函数句柄，处理Kafka的消息
         self.SpoolFileHandler = None              # 当前Spool文件句柄
         self.AppOptions = None                    # 应用程序的配置参数
+        self.Encoding = None                      # 应用程序的Encoding信息
         self.prompt_app = None                    # PromptKit控制台
         self.db_conn = None                       # 当前应用的数据库连接句柄
+        if clientcharset is None:                 # 客户端字符集
+            self.Client_Charset = 'UTF-8'
+        else:
+            self.Client_Charset = clientcharset
+        if resultcharset is None:
+            self.Result_Charset = self.Client_Charset   # 结果输出字符集
+        else:
+            self.Result_Charset = resultcharset
         if WorkerName is None:
             self.m_Worker_Name = "0"              # 当前进程名称. 对于主进程是：MAIN, 对于子进程是:JOBID-Copies-FinishedCount
         else:
@@ -1231,6 +1242,11 @@ class SQLCli(object):
                 print("jar_file = [" + str(self.jar_file) + "]")
             raise SQLCliException(repr(e))
 
+        # 将当前DB的连接字符串备份到变量中
+        self.db_url = m_JDBCURL
+        self.DoSQL("set JDBCURL " + self.db_url)
+        self.DoSQL("set JDBCPROP " + str(m_JDBCProp))
+
         yield (
             None,
             None,
@@ -1311,6 +1327,7 @@ class SQLCli(object):
         if m_Parameters[0] == 'save':
             yield None, None, None, None, "Session saved Successful."
         if m_Parameters[0] == 'restore':
+            self.DoSQL("set JDBCURL " + self.db_url)
             yield None, None, None, None, "Session restored Successful."
         return
 
@@ -1341,7 +1358,7 @@ class SQLCli(object):
             message = "Missing required argument, filename."
             return [(None, None, None, None, message)]
         try:
-            with open(os.path.expanduser(arg), encoding="utf-8") as f:
+            with open(os.path.expanduser(arg), encoding=self.Client_Charset) as f:
                 query = f.read()
         except IOError as e:
             return [(None, None, None, None, str(e))]
@@ -1371,13 +1388,11 @@ class SQLCli(object):
         else:
             # 如果主程序没有启用日志，则输出为当前目录
             m_FileName = parameters[0].strip()
-        if self.SpoolFileHandler is None:
-            self.SpoolFileHandler = open(m_FileName, "w", encoding="utf-8")
-            self.SQLExecuteHandler.spoolfile = self.SpoolFileHandler
-        else:
+        # 如果当前有打开的Spool文件，关闭它
+        if self.SpoolFileHandler is not None:
             self.SpoolFileHandler.close()
-            self.SpoolFileHandler = open(m_FileName, "w", encoding="utf-8")
-            self.SQLExecuteHandler.spoolfile = self.SpoolFileHandler
+        self.SpoolFileHandler = open(m_FileName, "w", encoding=self.Result_Charset)
+        self.SQLExecuteHandler.spoolfile = self.SpoolFileHandler
         return [(None, None, None, None, None)]
 
     # 设置一些选项
@@ -1453,7 +1468,8 @@ class SQLCli(object):
             Create_file(p_filetype=m_filetype,
                         p_filename=m_filename,
                         p_formula_str=m_formula_str,
-                        p_rows=m_rows)
+                        p_rows=m_rows,
+                        p_encoding=self.Result_Charset)
             yield (
                 None,
                 None,
@@ -1472,7 +1488,8 @@ class SQLCli(object):
             Create_file(p_filetype=m_filetype,
                         p_filename=m_filename,
                         p_formula_str=m_formula_str,
-                        p_rows=m_rows)
+                        p_rows=m_rows,
+                        p_encoding=self.Result_Charset)
             yield (
                 None,
                 None,
@@ -1703,7 +1720,7 @@ class SQLCli(object):
         # 打开输出日志, 如果打开失败，就直接退出
         try:
             if self.logfilename is not None:
-                self.logfile = open(self.logfilename, mode="w", encoding="utf-8")
+                self.logfile = open(self.logfilename, mode="w", encoding=self.Result_Charset)
                 self.SQLExecuteHandler.logfile = self.logfile
         except IOError as e:
             if "SQLCLI_DEBUG" in os.environ:
@@ -1745,6 +1762,10 @@ class SQLCli(object):
                                     m_JDBCProp = self.AppOptions.get(m_driversection, "jdbcprop")
                                 except (configparser.NoSectionError, configparser.NoOptionError):
                                     m_JDBCProp = None
+                        else:
+                            if "SQLCLI_DEBUG" in os.environ:
+                                print("Driver file does not exist! [" +
+                                      os.path.join(m_jlib_directory, m_jar_filename) + "]")
                     except (configparser.NoSectionError, configparser.NoOptionError):
                         pass
                 m_Jar_Config = {"ClassName": m_DriverName,
@@ -1964,6 +1985,8 @@ class SQLCli(object):
 @click.option("--nologo", is_flag=True, help="Execute with silent mode.")
 @click.option("--sqlperf", type=str, help="SQL performance Log.")
 @click.option("--syncdriver", is_flag=True, help="Download jdbc jar from file server.")
+@click.option("--clientcharset", type=str, help="Set client charset. Default is UTF-8.")
+@click.option("--resultcharset", type=str, help="Set result charset. Default is same to clientcharset.")
 def cli(
         version,
         logon,
@@ -1972,7 +1995,9 @@ def cli(
         sqlmap,
         nologo,
         sqlperf,
-        syncdriver
+        syncdriver,
+        clientcharset,
+        resultcharset
 ):
     if version:
         print("Version:", __version__)
@@ -1997,7 +2022,9 @@ def cli(
         sqlscript=execute,
         sqlmap=sqlmap,
         nologo=nologo,
-        sqlperf=sqlperf
+        sqlperf=sqlperf,
+        clientcharset=clientcharset,
+        resultcharset=resultcharset,
     )
 
     # 运行主程序

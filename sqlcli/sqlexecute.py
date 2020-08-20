@@ -507,7 +507,7 @@ class SQLExecute(object):
                 str(p_SQLResult["SQLStatus"]) + "\t" +
                 "'" + str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
                 "'" + str(m_ThreadName) + "'\t" +
-                str(m_Copies) + "'\t" + str(m_CurrentLoop) + "\t" +
+                str(m_Copies) + "\t" + str(m_CurrentLoop) + "\t" +
                 "'" + str(p_SQLResult["Feature"]) + "'\t" +
                 "'" + str(p_SQLResult["SQLID"]) + "'\t" +
                 "'" + str(p_SQLResult["SQLGROUP"]) + "'" +
