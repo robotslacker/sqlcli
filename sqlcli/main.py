@@ -3,8 +3,6 @@ import os
 import sys
 import threading
 import traceback
-import jaydebeapi
-import jpype
 import re
 import time
 import setproctitle
@@ -19,6 +17,13 @@ from multiprocessing import Process, Lock
 from multiprocessing.managers import BaseManager
 from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 from prompt_toolkit.shortcuts import PromptSession
+
+# 加载JDBC驱动
+import jaydebeapi
+import jpype
+
+# 加载ODBC驱动
+import pyodbc
 
 from .sqlexecute import SQLExecute
 from .sqlparse import SQLMapping
@@ -83,7 +88,7 @@ class BackGroundJobs(object):
 
 
 class SQLCli(object):
-    jar_file = None
+    connection_configs = None
 
     # 数据库连接的各种参数
     db_url = None
@@ -140,7 +145,7 @@ class SQLCli(object):
             resultcharset='UTF-8'
     ):
         self.m_ProcessList = []                   # 所有本进程启动的子进程句柄信息
-        self.db_saved_conn = {}                   # 数据库Session备s份
+        self.db_saved_conn = {}                   # 数据库Session备份
         self.SQLMappingHandler = SQLMapping()     # 函数句柄，处理SQLMapping信息
         self.SQLExecuteHandler = SQLExecute()     # 函数句柄，具体来执行SQL
         self.SQLOptions = SQLOptions()            # 程序运行中各种参数
@@ -150,6 +155,9 @@ class SQLCli(object):
         self.Encoding = None                      # 应用程序的Encoding信息
         self.prompt_app = None                    # PromptKit控制台
         self.db_conn = None                       # 当前应用的数据库连接句柄
+
+        self.db_conntype = None                   # 数据库连接方式，  JDBC或者是ODBC
+
         if clientcharset is None:                 # 客户端字符集
             self.Client_Charset = 'UTF-8'
         else:
@@ -1062,18 +1070,16 @@ class SQLCli(object):
         if arg is None or len(str(arg)) == 0:
             raise SQLCliException(
                 "Missing required argument\n." + "connect [user name]/[password]@" +
-                "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
-        elif self.jar_file is None:
+                "jdbc|odbc:[db type]:[driver type]://[host]:[port]/[service name]")
+        elif self.connection_configs is None:
             raise SQLCliException("Please load driver first.")
-
-        # 去掉为空的元素
-        # connect_parameters = re.split(r'://|:|@|/|\s+', arg)
 
         m_connect_parameterlist = shlex.shlex(arg)
         m_connect_parameterlist.whitespace = '://|:|@| '
         m_connect_parameterlist.quotes = '"'
         m_connect_parameterlist.whitespace_split = True
         connect_parameters = list(m_connect_parameterlist)
+
         for m_nPos in range(0, len(connect_parameters)):
             if connect_parameters[m_nPos].startswith('"') and connect_parameters[m_nPos].endswith('"'):
                 connect_parameters[m_nPos] = connect_parameters[m_nPos][1:-1]
@@ -1081,27 +1087,28 @@ class SQLCli(object):
             # 指定了所有的数据库连接参数
             self.db_username = connect_parameters[0]
             self.db_password = connect_parameters[1]
+            # 获取数据库连接类别
+            self.db_conntype = str(connect_parameters[2]).upper().strip()
+            if self.db_conntype not in ['ODBC', 'JDBC']:
+                raise SQLCliException("Unexpected connection type. Please use ODBC or JDBC.")
             self.db_type = connect_parameters[3]
             self.db_driver_type = connect_parameters[4]
             self.db_host = connect_parameters[5]
             self.db_port = connect_parameters[6]
             self.db_service_name = connect_parameters[7]
-            self.db_url = \
-                connect_parameters[2] + ':' + connect_parameters[3] + ':' + \
-                connect_parameters[4] + '://' + connect_parameters[5] + ':' + \
-                connect_parameters[6] + ':/' + connect_parameters[7]
         elif len(connect_parameters) == 7:
             # 数据库连接参数, 但是没有指定driver_type
             self.db_username = connect_parameters[0]
             self.db_password = connect_parameters[1]
+            # 获取数据库连接类别
+            self.db_conntype = str(connect_parameters[2]).upper().strip()
+            if self.db_conntype not in ['ODBC', 'JDBC']:
+                raise SQLCliException("Unexpected connection type. Please use ODBC or JDBC.")
             self.db_type = connect_parameters[3]
             self.db_driver_type = "tcp"
             self.db_host = connect_parameters[4]
             self.db_port = connect_parameters[5]
             self.db_service_name = connect_parameters[6]
-            self.db_url = \
-                connect_parameters[2] + ':' + connect_parameters[3] + ':' + \
-                '://' + connect_parameters[4] + ':' + connect_parameters[5] + ':/' + connect_parameters[6]
         elif len(connect_parameters) == 2:
             # 用户只指定了用户名和口令， 认为用户和上次保留一直的连接字符串信息
             self.db_username = connect_parameters[0]
@@ -1112,24 +1119,24 @@ class SQLCli(object):
                     connect_parameters = [var for var in re.split(r'//|:|@|/', os.environ['SQLCLI_CONNECTION_URL']) if
                                           var]
                     if len(connect_parameters) == 6:
+                        # 获取数据库连接类别
+                        self.db_conntype = str(connect_parameters[0]).upper().strip()
+                        if self.db_conntype not in ['ODBC', 'JDBC']:
+                            raise SQLCliException("Unexpected connection type. Please use ODBC or JDBC.")
                         self.db_type = connect_parameters[1]
                         self.db_driver_type = connect_parameters[2]
                         self.db_host = connect_parameters[3]
                         self.db_port = connect_parameters[4]
                         self.db_service_name = connect_parameters[5]
-                        self.db_url = \
-                            connect_parameters[0] + ':' + connect_parameters[1] + ':' +\
-                            connect_parameters[2] + '://' + connect_parameters[3] + ':' + \
-                            connect_parameters[4] + ':/' + connect_parameters[5]
                     elif len(connect_parameters) == 5:
+                        self.db_conntype = str(connect_parameters[0]).upper().strip()
+                        if self.db_conntype not in ['ODBC', 'JDBC']:
+                            raise SQLCliException("Unexpected connection type. Please use ODBC or JDBC.")
                         self.db_type = connect_parameters[1]
                         self.db_driver_type = 'tcp'
                         self.db_host = connect_parameters[2]
                         self.db_port = connect_parameters[3]
                         self.db_service_name = connect_parameters[4]
-                        self.db_url = \
-                            connect_parameters[0] + ':' + connect_parameters[1] + ':' + \
-                            '://' + connect_parameters[2] + ':' + connect_parameters[3] + ':/' + connect_parameters[4]
                     else:
                         if "SQLCLI_DEBUG" in os.environ:
                             print("db_type = [" + str(self.db_type) + "]")
@@ -1138,7 +1145,7 @@ class SQLCli(object):
                             print("db_service_name = [" + str(self.db_service_name) + "]")
                             print("db_url = [" + str(self.db_url) + "]")
                         raise SQLCliException("Unexpeced env SQLCLI_CONNECTION_URL\n." +
-                                              "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
+                                              "jdbc|odbc:[db type]:[driver type]://[host]:[port]/[service name]")
                 else:
                     # 用户第一次连接，而且没有指定环境变量
                     raise SQLCliException("Missed SQLCLI_CONNECTION_URL in env.")
@@ -1153,15 +1160,14 @@ class SQLCli(object):
                         connect_parameters = [var for var in re.split(r'//|:|@|/',
                                                                       os.environ['SQLCLI_CONNECTION_URL']) if var]
                         if len(connect_parameters) == 6:
+                            self.db_conntype = str(connect_parameters[0]).upper().strip()
+                            if self.db_conntype not in ['ODBC', 'JDBC']:
+                                raise SQLCliException("Unexpected connection type. Please use ODBC or JDBC.")
                             self.db_type = connect_parameters[1]
                             self.db_driver_type = connect_parameters[2]
                             self.db_host = connect_parameters[3]
                             self.db_port = connect_parameters[4]
                             self.db_service_name = connect_parameters[5]
-                            self.db_url = \
-                                connect_parameters[0] + ':' + connect_parameters[1] + ':' +\
-                                connect_parameters[2] + '://' + connect_parameters[3] + ':' + \
-                                connect_parameters[4] + ':/' + connect_parameters[5]
                         else:
                             if "SQLCLI_DEBUG" in os.environ:
                                 print("db_type = [" + str(self.db_type) + "]")
@@ -1170,7 +1176,7 @@ class SQLCli(object):
                                 print("db_service_name = [" + str(self.db_service_name) + "]")
                                 print("db_url = [" + str(self.db_url) + "]")
                             raise SQLCliException("Unexpeced env SQLCLI_CONNECTION_URL\n." +
-                                                  "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
+                                                  "jdbc|odbc:[db type]:[driver type]://[host]:[port]/[service name]")
                     else:
                         # 用户第一次连接，而且没有指定环境变量
                         raise SQLCliException("Missed SQLCLI_CONNECTION_URL in env.")
@@ -1179,53 +1185,77 @@ class SQLCli(object):
             if "SQLCLI_DEBUG" in os.environ:
                 print("DEBUG:: Connect Str =[" + str(connect_parameters) + "]")
             raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
-                                  "jdbc:[db type]:[driver type]://[host]:[port]/[service name]")
+                                  "jdbc|odbc:[db type]:[driver type]://[host]:[port]/[service name]")
 
         # 连接数据库
         try:
-            # https://github.com/jpype-project/jpype/issues/290
-            # jpype bug, when run jpype in multithread
-            if jpype.isJVMStarted() and not jpype.isThreadAttachedToJVM():
-                jpype.attachThreadToJVM()
-                jpype.java.lang.Thread.currentThread().setContextClassLoader(
-                    jpype.java.lang.ClassLoader.getSystemClassLoader())
+            if self.db_conntype == 'JDBC':   # JDBC 连接数据库
+                # https://github.com/jpype-project/jpype/issues/290
+                # jpype bug, when run jpype in multithread
+                if jpype.isJVMStarted() and not jpype.isThreadAttachedToJVM():
+                    jpype.attachThreadToJVM()
+                    jpype.java.lang.Thread.currentThread().setContextClassLoader(
+                        jpype.java.lang.ClassLoader.getSystemClassLoader())
 
-            # 加载所有的Jar包， jaydebeapi将根据class的名字加载指定的文件
-            m_JarList = []
-            m_driverclass = ""
-            m_JDBCURL = ""
-            m_JDBCProp = ""
-            for m_Jar_Config in self.jar_file:
-                m_JarList.extend(m_Jar_Config["FullName"])
-            for m_Jar_Config in self.jar_file:
-                if m_Jar_Config["Database"].upper() == self.db_type.upper():
-                    m_driverclass = m_Jar_Config["ClassName"]
-                    m_JDBCURL = m_Jar_Config["JDBCURL"]
-                    m_JDBCProp = m_Jar_Config["JDBCProp"]
-                    break
-            if m_JDBCURL is None:
-                raise SQLCliException("Unknown database [" + self.db_type.upper() + "]. Database Connect Failed. \n" +
-                                      "Maybe you forgot download jlib files. ")
-            m_JDBCURL = m_JDBCURL.replace("${host}", self.db_host)
-            m_JDBCURL = m_JDBCURL.replace("${port}", self.db_port)
-            m_JDBCURL = m_JDBCURL.replace("${service}", self.db_service_name)
-            if m_driverclass is None:
-                raise SQLCliException("Missed driver [" + self.db_type.upper() + "] in config. "
-                                                                                 "Database Connect Failed. ")
-            m_jaydebeapi_prop = {'user': self.db_username, 'password': self.db_password}
-            if m_JDBCProp is not None:
-                for row in m_JDBCProp.strip().split(','):
-                    props = row.split(':')
-                    if len(props) == 2:
-                        m_PropName = str(props[0]).strip()
-                        m_PropValue = str(props[1]).strip()
-                        m_jaydebeapi_prop[m_PropName] = m_PropValue
-            self.db_conn = jaydebeapi.connect(m_driverclass,
-                                              m_JDBCURL,
-                                              m_jaydebeapi_prop,
-                                              m_JarList)
+                # 加载所有的Jar包， jaydebeapi将根据class的名字加载指定的文件
+                m_JarList = []
+                m_driverclass = ""
+                m_JDBCURL = ""
+                m_JDBCProp = ""
+                for m_Jar_Config in self.connection_configs:
+                    m_JarList.extend(m_Jar_Config["FullName"])
+                for m_Jar_Config in self.connection_configs:
+                    if m_Jar_Config["Database"].upper() == self.db_type.upper():
+                        m_driverclass = m_Jar_Config["ClassName"]
+                        m_JDBCURL = m_Jar_Config["JDBCURL"]
+                        m_JDBCProp = m_Jar_Config["JDBCProp"]
+                        break
+                if m_JDBCURL is None:
+                    raise SQLCliException("Unknown database [" + self.db_type.upper() + "]. Connect Failed. \n" +
+                                          "Maybe you forgot download jlib files. ")
+                m_JDBCURL = m_JDBCURL.replace("${host}", self.db_host)
+                m_JDBCURL = m_JDBCURL.replace("${port}", self.db_port)
+                m_JDBCURL = m_JDBCURL.replace("${service}", self.db_service_name)
+                if m_driverclass is None:
+                    raise SQLCliException("Missed driver [" + self.db_type.upper() + "] in config. "
+                                                                                     "Database Connect Failed. ")
+                m_jaydebeapi_prop = {'user': self.db_username, 'password': self.db_password}
+                if m_JDBCProp is not None:
+                    for row in m_JDBCProp.strip().split(','):
+                        props = row.split(':')
+                        if len(props) == 2:
+                            m_PropName = str(props[0]).strip()
+                            m_PropValue = str(props[1]).strip()
+                            m_jaydebeapi_prop[m_PropName] = m_PropValue
+                self.db_conn = jaydebeapi.connect(m_driverclass,
+                                                  m_JDBCURL,
+                                                  m_jaydebeapi_prop,
+                                                  m_JarList)
+                self.db_url = m_JDBCURL
+                self.SQLExecuteHandler.set_connection(self.db_conn)
+                # 将当前DB的连接字符串备份到变量中
+                self.SQLOptions.set("CONNURL", str(self.db_url))
+                self.SQLOptions.set("CONNPROP", str(m_JDBCProp))
+            if self.db_conntype == 'ODBC':   # ODBC 连接数据库
+                m_ODBCURL = ""
+                for m_Connection_Config in self.connection_configs:
+                    if m_Connection_Config["Database"].upper() == self.db_type.upper():
+                        m_ODBCURL = m_Connection_Config["ODBCURL"]
+                        break
+                if m_ODBCURL is None:
+                    raise SQLCliException("Unknown database [" + self.db_type.upper() + "]. Connect Failed. \n" +
+                                          "Maybe you have a bad config file. ")
+                m_ODBCURL = m_ODBCURL.replace("${host}", self.db_host)
+                m_ODBCURL = m_ODBCURL.replace("${port}", self.db_port)
+                m_ODBCURL = m_ODBCURL.replace("${service}", self.db_service_name)
+                m_ODBCURL = m_ODBCURL.replace("${username}", self.db_username)
+                m_ODBCURL = m_ODBCURL.replace("${password}", self.db_password)
 
-            self.SQLExecuteHandler.set_connection(self.db_conn)
+                self.db_conn = pyodbc.connect(m_ODBCURL)
+                self.db_url = m_ODBCURL
+                self.SQLExecuteHandler.set_connection(self.db_conn)
+                # 将当前DB的连接字符串备份到变量中
+                self.SQLOptions.set("CONNURL", str(self.db_url))
         except SQLCliException as se:  # Connecting to a database fail.
             raise se
         except Exception as e:  # Connecting to a database fail.
@@ -1239,13 +1269,8 @@ class SQLCli(object):
                 print("db_port = [" + str(self.db_port) + "]")
                 print("db_service_name = [" + str(self.db_service_name) + "]")
                 print("db_url = [" + str(self.db_url) + "]")
-                print("jar_file = [" + str(self.jar_file) + "]")
+                print("jar_file = [" + str(self.connection_configs) + "]")
             raise SQLCliException(repr(e))
-
-        # 将当前DB的连接字符串备份到变量中
-        self.db_url = m_JDBCURL
-        self.DoSQL("set JDBCURL " + self.db_url)
-        self.DoSQL("set JDBCPROP " + str(m_JDBCProp))
 
         yield (
             None,
@@ -1732,48 +1757,57 @@ class SQLCli(object):
 
         # 加载已经被隐式包含的数据库驱动，文件放置在SQLCli\jlib下
         m_jlib_directory = os.path.join(os.path.dirname(__file__), "jlib")
-        if self.jar_file is None:
-            self.jar_file = []
+        if self.connection_configs is None:
+            self.connection_configs = []
         if self.AppOptions is not None:
             for row in self.AppOptions.items("driver"):
                 m_DriverName = None
                 m_JarFullFileName = []
                 m_JDBCURL = None
+                m_ODBCURL = None
                 m_JDBCProp = None
+                m_jar_filename = None
                 m_DatabaseType = row[0].strip()
                 for m_driversection in str(row[1]).split(','):
                     m_driversection = m_driversection.strip()
-                    try:
-                        m_jar_filename = self.AppOptions.get(m_driversection, "filename")
-                        if os.path.exists(os.path.join(m_jlib_directory, m_jar_filename)):
-                            m_JarFullFileName.append(os.path.join(m_jlib_directory, m_jar_filename))
-                            if m_DriverName is None:
-                                try:
-                                    m_DriverName = self.AppOptions.get(m_driversection, "driver")
-                                except (configparser.NoSectionError, configparser.NoOptionError):
-                                    m_DriverName = None
-                            if m_JDBCURL is None:
-                                try:
-                                    m_JDBCURL = self.AppOptions.get(m_driversection, "jdbcurl")
-                                except (configparser.NoSectionError, configparser.NoOptionError):
-                                    m_JDBCURL = None
-                            if m_JDBCProp is None:
-                                try:
-                                    m_JDBCProp = self.AppOptions.get(m_driversection, "jdbcprop")
-                                except (configparser.NoSectionError, configparser.NoOptionError):
-                                    m_JDBCProp = None
-                        else:
-                            if "SQLCLI_DEBUG" in os.environ:
-                                print("Driver file does not exist! [" +
-                                      os.path.join(m_jlib_directory, m_jar_filename) + "]")
-                    except (configparser.NoSectionError, configparser.NoOptionError):
-                        pass
+                    if m_ODBCURL is None:
+                        try:
+                            m_ODBCURL = self.AppOptions.get(m_driversection, "odbcurl")
+                        except (configparser.NoSectionError, configparser.NoOptionError):
+                            m_ODBCURL = None
+                    if m_DriverName is None:
+                        try:
+                            m_DriverName = self.AppOptions.get(m_driversection, "driver")
+                        except (configparser.NoSectionError, configparser.NoOptionError):
+                            m_DriverName = None
+                    if m_JDBCURL is None:
+                        try:
+                            m_JDBCURL = self.AppOptions.get(m_driversection, "jdbcurl")
+                        except (configparser.NoSectionError, configparser.NoOptionError):
+                            m_JDBCURL = None
+                    if m_JDBCProp is None:
+                        try:
+                            m_JDBCProp = self.AppOptions.get(m_driversection, "jdbcprop")
+                        except (configparser.NoSectionError, configparser.NoOptionError):
+                            m_JDBCProp = None
+                    if m_jar_filename is None:
+                        try:
+                            m_jar_filename = self.AppOptions.get(m_driversection, "filename")
+                            if os.path.exists(os.path.join(m_jlib_directory, m_jar_filename)):
+                                m_JarFullFileName.append(os.path.join(m_jlib_directory, m_jar_filename))
+                            else:
+                                if "SQLCLI_DEBUG" in os.environ:
+                                    print("Driver file does not exist! [" +
+                                          os.path.join(m_jlib_directory, m_jar_filename) + "]")
+                        except (configparser.NoSectionError, configparser.NoOptionError):
+                            m_jar_filename = None
                 m_Jar_Config = {"ClassName": m_DriverName,
                                 "FullName": m_JarFullFileName,
                                 "JDBCURL": m_JDBCURL,
                                 "JDBCProp": m_JDBCProp,
-                                "Database": m_DatabaseType}
-                self.jar_file.append(m_Jar_Config)
+                                "Database": m_DatabaseType,
+                                "ODBCURL": m_ODBCURL}
+                self.connection_configs.append(m_Jar_Config)
 
         # 处理传递的映射文件
         if self.sqlmap is not None:   # 如果传递的参数，有Mapping，以参数为准，先加载参数中的Mapping文件

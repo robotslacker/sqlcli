@@ -34,11 +34,12 @@ readme = open_file("README.md")
 setup(
     name='robotslacker-sqlcli',
     version=version,
-    description='SQL Command test tool, use JDBC, jaydebeapi',
+    description='SQL Command test tool, use JDBC/ODBC',
     long_description=readme,
-    keywords='sql command test jaydebeapi',
+    keywords='sql command test tool',
     platforms='any',
-    install_requires=['jaydebeapi', 'setproctitle', 'click', 'prompt_toolkit',
+    install_requires=['jaydebeapi', 'pyodbc',
+                      'setproctitle', 'click', 'prompt_toolkit',
                       'cli_helpers', 'fs', 'hdfs', 'confluent_kafka', 'wget'],
 
     author='RobotSlacker',

@@ -28,8 +28,8 @@ class SQLOptions(object):
         self.m_SQL_OptionList.append({"Name": "FLOAT_FORMAT", "Value": "%.7g", "Comments": '----'})
         self.m_SQL_OptionList.append({"Name": "DOUBLE_FORMAT", "Value": "%.10g", "Comments": '----'})
 
-        self.m_SQL_OptionList.append({"Name": "JDBCURL", "Value": "", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "JDBCPROP", "Value": "", "Comments": '----'})
+        self.m_SQL_OptionList.append({"Name": "CONNURL", "Value": "", "Comments": 'Connection URL'})
+        self.m_SQL_OptionList.append({"Name": "CONNPROP", "Value": "", "Comments": 'Connection Props'})
 
     def get(self, p_ParameterName):
         """根据参数名称返回参数，若不存在该参数，返回None."""

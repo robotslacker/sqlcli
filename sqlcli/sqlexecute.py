@@ -13,6 +13,8 @@ from time import strftime, localtime
 from multiprocessing import Lock
 import traceback
 
+import pyodbc
+
 
 class SQLExecute(object):
     conn = None                         # 数据库连接
@@ -302,6 +304,8 @@ class SQLExecute(object):
                         )
 
                         if (
+                                isinstance(e, pyodbc.Error) or                              # ODBC Error 错误
+                                isinstance(e, pyodbc.ProgrammingError) or                   # ODBC ProgrammingError 错误
                                 str(e).find("SQLSyntaxErrorException") != -1 or
                                 str(e).find("SQLException") != -1 or
                                 str(e).find("SQLDataException") != -1 or
