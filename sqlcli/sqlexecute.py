@@ -99,7 +99,9 @@ class SQLExecute(object):
 
             # 在logger中显示执行的SQL
             if self.logger is not None:
-                self.logger.info(SQLFormatWithPrefix(m_CommentSQL))
+                m_LoggerMessage = SQLFormatWithPrefix(m_CommentSQL)
+                if m_LoggerMessage is not None:
+                    self.logger.info(m_LoggerMessage)
 
             # 如果运行在脚本模式下，需要在控制台额外回显SQL
             # 非脚本模式下，由于是用户自行输入，所以不需要回显输入的SQL
@@ -210,6 +212,7 @@ class SQLExecute(object):
                     self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
                 click.echo(SQLFormatWithPrefix(
                     "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
+
             # 执行SQL
             try:
                 # 首先假设这是一个特殊命令

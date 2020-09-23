@@ -1,10 +1,19 @@
 # -*- coding: UTF-8 -*-
-from confluent_kafka import Producer, Consumer, TopicPartition, KafkaException
-from confluent_kafka.admin import AdminClient, NewTopic
 import re
 import os
+import platform
 import traceback
 from .sqlinternal import parse_formula_str, get_final_string
+if platform.system() == 'Linux':
+    from confluent_kafka import Producer, Consumer, TopicPartition, KafkaException
+    from confluent_kafka.admin import AdminClient, NewTopic
+else:
+    try:
+        from confluent_kafka import Producer, Consumer, TopicPartition, KafkaException
+        from confluent_kafka.admin import AdminClient, NewTopic
+    except ImportError:
+        # Windows 目前安装confluent_kafka 存在问题，计划废弃
+        pass
 
 
 class KafkaWrapperException(Exception):

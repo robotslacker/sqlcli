@@ -155,7 +155,7 @@ class SQLCli(object):
         self.Encoding = None                      # 应用程序的Encoding信息
         self.prompt_app = None                    # PromptKit控制台
         self.db_conn = None                       # 当前应用的数据库连接句柄
-
+        self.SessionName = None                   # 当前会话的Session的名字
         self.db_conntype = None                   # 数据库连接方式，  JDBC或者是ODBC
 
         if clientcharset is None:                 # 客户端字符集
@@ -1210,6 +1210,8 @@ class SQLCli(object):
                         m_JDBCURL = m_Jar_Config["JDBCURL"]
                         m_JDBCProp = m_Jar_Config["JDBCProp"]
                         break
+                if "SQLCLI_DEBUG" in os.environ:
+                    print("Driver Jar List: " + str(m_JarList))
                 if m_JDBCURL is None:
                     raise SQLCliException("Unknown database [" + self.db_type.upper() + "]. Connect Failed. \n" +
                                           "Maybe you forgot download jlib files. ")
@@ -1227,15 +1229,28 @@ class SQLCli(object):
                             m_PropName = str(props[0]).strip()
                             m_PropValue = str(props[1]).strip()
                             m_jaydebeapi_prop[m_PropName] = m_PropValue
+                # 将当前DB的连接字符串备份到变量中
+                self.SQLOptions.set("CONNURL", str(self.db_url))
+                self.SQLOptions.set("CONNPROP", str(m_JDBCProp))
+                # 数据库连接
+                if self.db_conn is not None:
+                    if self.SessionName is None:
+                        # 如果之前数据库连接没有被保存，则强制断开连接
+                        self.db_conn.close()
+                        self.db_conn = None
+                        self.SQLExecuteHandler.conn = None
+                    else:
+                        if self.db_saved_conn[self.SessionName][0] is None:
+                            # 之前并没有保留数据库连接
+                            self.db_conn.close()
+                            self.db_conn = None
+                            self.SQLExecuteHandler.conn = None
                 self.db_conn = jaydebeapi.connect(m_driverclass,
                                                   m_JDBCURL,
                                                   m_jaydebeapi_prop,
                                                   m_JarList)
                 self.db_url = m_JDBCURL
                 self.SQLExecuteHandler.set_connection(self.db_conn)
-                # 将当前DB的连接字符串备份到变量中
-                self.SQLOptions.set("CONNURL", str(self.db_url))
-                self.SQLOptions.set("CONNPROP", str(m_JDBCProp))
             if self.db_conntype == 'ODBC':   # ODBC 连接数据库
                 m_ODBCURL = ""
                 for m_Connection_Config in self.connection_configs:
@@ -1300,13 +1315,24 @@ class SQLCli(object):
     def session_manage(self, arg, **_):
         if arg is None or len(str(arg)) == 0:
             raise SQLCliException(
-                "Missing required argument: " + "Session save/restore [session name]")
+                "Missing required argument: " + "Session save/saveurl/restore/release/show [session name]")
         m_Parameters = str(arg).split()
 
+        # Session_Context:
+        #   0:   Connection
+        #   1:   UserName
+        #   2:   Password
+        #   3:   URL
         if len(m_Parameters) == 1 and m_Parameters[0] == 'show':
             m_Result = []
             for m_Session_Name, m_Connection in self.db_saved_conn.items():
-                m_Result.append([str(m_Session_Name), str(m_Connection[1]), str(m_Connection[2])])
+                if m_Connection[0] is None:
+                    m_Result.append(['None', str(m_Session_Name), str(m_Connection[1]), '******', str(m_Connection[3])])
+                else:
+                    m_Result.append(['Connection', str(m_Session_Name), str(m_Connection[1]),
+                                     '******', str(m_Connection[3])])
+            if self.db_conn is not None:
+                m_Result.append(['Current', str(self.SessionName), str(self.db_username), '******', str(self.db_url)])
             if len(m_Result) == 0:
                 yield (
                     None,
@@ -1317,9 +1343,9 @@ class SQLCli(object):
                 )
             else:
                 yield (
-                    "Saved Sessions",
+                    "Saved Sessions:",
                     m_Result,
-                    ["Sesssion Name", "User Name", "URL"],
+                    ["Session", "Sesssion Name", "User Name", "Password", "URL"],
                     None,
                     "Total " + str(len(m_Result)) + " saved sesssions."
                 )
@@ -1328,21 +1354,43 @@ class SQLCli(object):
         # 要求两个参数 save/restore [session_name]
         if len(m_Parameters) != 2:
             raise SQLCliException(
-                "Wrong argument : " + "Session save/restore [session name]")
+                "Wrong argument : " + "Session save/restore/release [session name]")
 
-        if m_Parameters[0] == 'save':
+        if m_Parameters[0] == 'release':
+            if self.db_conn is None:
+                raise SQLCliException(
+                    "You don't have a saved session.")
+            m_Session_Name = m_Parameters[1]
+            del self.db_saved_conn[m_Session_Name]
+            self.SessionName = None
+        elif m_Parameters[0] == 'save':
             if self.db_conn is None:
                 raise SQLCliException(
                     "Please connect session first before save.")
             m_Session_Name = m_Parameters[1]
-            self.db_saved_conn[m_Session_Name] = [self.db_conn, self.db_username, self.db_url]
+            self.db_saved_conn[m_Session_Name] = [self.db_conn, self.db_username, self.db_password, self.db_url]
+            self.SessionName = m_Session_Name
+        elif m_Parameters[0] == 'saveurl':
+            if self.db_conn is None:
+                raise SQLCliException(
+                    "Please connect session first before save.")
+            m_Session_Name = m_Parameters[1]
+            self.db_saved_conn[m_Session_Name] = [None, self.db_username, self.db_password, self.db_url]
+            self.SessionName = m_Session_Name
         elif m_Parameters[0] == 'restore':
             m_Session_Name = m_Parameters[1]
             if m_Session_Name in self.db_saved_conn:
-                self.db_conn = self.db_saved_conn[m_Session_Name][0]
                 self.db_username = self.db_saved_conn[m_Session_Name][1]
-                self.db_url = self.db_saved_conn[m_Session_Name][2]
-                self.SQLExecuteHandler.set_connection(self.db_conn)
+                self.db_password = self.db_saved_conn[m_Session_Name][2]
+                self.db_url = self.db_saved_conn[m_Session_Name][3]
+                if self.db_saved_conn[m_Session_Name][0] is None:
+                    result = self.connect_db(self.db_username + "/" + self.db_password + "@" + self.db_url)
+                    for title, cur, headers, columntypes, status in result:
+                        yield  title, cur, headers, columntypes, status
+                else:
+                    self.db_conn = self.db_saved_conn[m_Session_Name][0]
+                    self.SQLExecuteHandler.set_connection(self.db_conn)
+                    self.SessionName = m_Session_Name
             else:
                 raise SQLCliException(
                     "Session [" + m_Session_Name + "] does not exist. Please save it first.")
@@ -1351,8 +1399,10 @@ class SQLCli(object):
                 "Wrong argument : " + "Session save/restore [session name]")
         if m_Parameters[0] == 'save':
             yield None, None, None, None, "Session saved Successful."
+        if m_Parameters[0] == 'release':
+            yield None, None, None, None, "Session release Successful."
         if m_Parameters[0] == 'restore':
-            self.DoSQL("set JDBCURL " + self.db_url)
+            self.SQLOptions.set("CONNURL", self.db_url)
             yield None, None, None, None, "Session restored Successful."
         return
 
@@ -1690,6 +1740,10 @@ class SQLCli(object):
                     m_driver_filemd5 = self.AppOptions.get(m_driversection, "md5")
 
                     m_LocalJarFile = os.path.join(os.path.dirname(__file__), "jlib", m_driver_filename)
+                    m_LocalJarPath = os.path.join(os.path.dirname(__file__), "jlib")
+                    if not os.path.isdir(m_LocalJarPath):
+                        os.makedirs(m_LocalJarPath)
+
                     if os.path.exists(m_LocalJarFile):
                         with open(m_LocalJarFile, 'rb') as fp:
                             data = fp.read()
@@ -1795,6 +1849,10 @@ class SQLCli(object):
                             m_jar_filename = self.AppOptions.get(m_driversection, "filename")
                             if os.path.exists(os.path.join(m_jlib_directory, m_jar_filename)):
                                 m_JarFullFileName.append(os.path.join(m_jlib_directory, m_jar_filename))
+                                if "SQLCLI_DEBUG" in os.environ:
+                                    print("Load jar ..! [" +
+                                          os.path.join(m_jlib_directory, m_jar_filename) + "]")
+                                m_jar_filename = None
                             else:
                                 if "SQLCLI_DEBUG" in os.environ:
                                     print("Driver file does not exist! [" +

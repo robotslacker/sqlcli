@@ -40,7 +40,7 @@ setup(
     platforms='any',
     install_requires=['jaydebeapi', 'pyodbc',
                       'setproctitle', 'click', 'prompt_toolkit',
-                      'cli_helpers', 'fs', 'hdfs', 'confluent_kafka', 'wget'],
+                      'cli_helpers', 'fs', 'hdfs', 'wget'],
 
     author='RobotSlacker',
     author_email='184902652@qq.com',
