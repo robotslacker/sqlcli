@@ -390,6 +390,12 @@ class SQLCli(object):
                 m_ExitStauts = False
                 break
 
+        # 如果当前还有数据库连接，则断开数据库连接
+        if self.db_conn:
+            self.db_conn.close()
+        self.db_conn = None
+        self.SQLExecuteHandler.conn = None
+
         # 正常退出程序
         if m_ExitStauts:
             raise EOFError
@@ -1386,7 +1392,7 @@ class SQLCli(object):
                 if self.db_saved_conn[m_Session_Name][0] is None:
                     result = self.connect_db(self.db_username + "/" + self.db_password + "@" + self.db_url)
                     for title, cur, headers, columntypes, status in result:
-                        yield  title, cur, headers, columntypes, status
+                        yield title, cur, headers, columntypes, status
                 else:
                     self.db_conn = self.db_saved_conn[m_Session_Name][0]
                     self.SQLExecuteHandler.set_connection(self.db_conn)
