@@ -1876,9 +1876,13 @@ class SQLCli(object):
         # 处理传递的映射文件
         if self.sqlmap is not None:   # 如果传递的参数，有Mapping，以参数为准，先加载参数中的Mapping文件
             self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, self.sqlmap)
+            self.SQLOptions.set("SQLREWRITE", "ON")
         elif "SQLCLI_SQLMAPPING" in os.environ:     # 如果没有参数，则以环境变量中的信息为准
             if len(os.environ["SQLCLI_SQLMAPPING"].strip()) > 0:
                 self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, os.environ["SQLCLI_SQLMAPPING"])
+                self.SQLOptions.set("SQLREWRITE", "ON")
+            else:
+                self.SQLOptions.set("SQLREWRITE", "OFF")
         else:  # 任何地方都没有sql mapping信息，设置QUERYREWRITE为OFF
             self.SQLOptions.set("SQLREWRITE", "OFF")
 
