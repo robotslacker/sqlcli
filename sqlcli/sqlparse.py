@@ -55,18 +55,6 @@ class SQLMapping(object):
                 m_SQL_MappingFullName = os.path.join(
                     os.path.dirname(m_szTestScriptFileName),
                     m_SQL_MappingFile + ".map")
-            else:
-                # 从系统目录中查找文件
-                if 'SQLCLI_HOME' in os.environ:
-                    if os.path.exists(os.path.join(
-                            os.path.join(os.environ['SQLCLI_HOME'], 'mapping'),
-                            m_SQL_MappingFile + ".map"
-                    )):
-                        m_SQL_MappingBaseName = os.path.basename(m_SQL_MappingFile)  # 不包含路径的文件名
-                        m_SQL_MappingFullName = os.path.join(
-                            os.path.join(os.environ['SQLCLI_HOME'], 'mapping'),
-                            m_SQL_MappingFile + ".map"
-                        )
             if m_SQL_MappingFullName is None or m_SQL_MappingBaseName is None:
                 # 压根没有找到这个文件
                 if "SQLCLI_DEBUG" in os.environ:

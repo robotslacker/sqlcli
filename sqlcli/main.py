@@ -88,6 +88,13 @@ class BackGroundJobs(object):
 
 
 class SQLCli(object):
+    # 连接配置信息
+    # Database
+    # ClassName
+    # FullName
+    # JDBCURL
+    # ODBCURL
+    # JDBCProp
     connection_configs = None
 
     # 数据库连接的各种参数
@@ -216,6 +223,14 @@ class SQLCli(object):
         self.SQLExecuteHandler.set_Worker_Name(p_szWorkerName)
 
     def register_special_commands(self):
+
+        # 加载SQL映射文件
+        register_special_command(
+            self.load_driver,
+            command="loaddriver",
+            description="load SQL Driver file.",
+            hidden=False
+        )
 
         # 加载SQL映射文件
         register_special_command(
@@ -407,6 +422,44 @@ class SQLCli(object):
                 None,
                 "Please wait all background process complete.")
 
+    # 加载数据库驱动
+    # 标准的默认驱动程序并不需要使用这个函数，这个函数是用来覆盖标准默认驱动程序的加载信息
+    def load_driver(self, arg, **_):
+        if arg == "":      # 显示当前的Driver配置
+            m_Result = []
+            for row in self.connection_configs:
+                m_Result.append([row["Database"], row["ClassName"], row["FullName"],
+                                 row["JDBCURL"], row["ODBCURL"], row["JDBCProp"]])
+            yield (
+                "Current Drivers: ",
+                m_Result,
+                ["Database", "ClassName", "FileName", "JDBCURL", "ODBCURL", "JDBCProp"],
+                None,
+                "Driver loaded."
+            )
+        else:
+            options_parameters = str(arg).split()
+            if len(options_parameters) == 1:
+                # 如果没有设置参数，则补充一个None作为Driver的路径信息
+                options_parameters.append("")
+            m_DriverName = str(options_parameters[0])
+            m_DriverFullName = options_parameters[1:]
+            bFound = False
+            for nPos in range(0, len(self.connection_configs)):
+                if self.connection_configs[nPos]["Database"].upper() == m_DriverName.strip().upper():
+                    m_Config = self.connection_configs[nPos]
+                    m_Config["FullName"] = m_DriverFullName
+                    bFound = True
+                    self.connection_configs[nPos] = m_Config
+            if not bFound:
+                raise SQLCliException("Driver not loaded. Please config it in configfile first.")
+            yield (
+                None,
+                None,
+                None,
+                None,
+                "Driver [" + m_DriverName.strip() + "] loaded."
+            )
     # 加载数据库SQL映射
     def load_sqlmap(self, arg, **_):
         self.SQLOptions.set("SQLREWRITE", "ON")
@@ -1873,18 +1926,15 @@ class SQLCli(object):
                                 "ODBCURL": m_ODBCURL}
                 self.connection_configs.append(m_Jar_Config)
 
-        # 处理传递的映射文件
+        # 处理传递的映射文件, 首先加载参数的部分，如果环境变量里头有设置，则环境变量部分会叠加参数部分
+        self.SQLOptions.set("SQLREWRITE", "OFF")
         if self.sqlmap is not None:   # 如果传递的参数，有Mapping，以参数为准，先加载参数中的Mapping文件
             self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, self.sqlmap)
             self.SQLOptions.set("SQLREWRITE", "ON")
-        elif "SQLCLI_SQLMAPPING" in os.environ:     # 如果没有参数，则以环境变量中的信息为准
+        if "SQLCLI_SQLMAPPING" in os.environ:     # 如果没有参数，则以环境变量中的信息为准
             if len(os.environ["SQLCLI_SQLMAPPING"].strip()) > 0:
                 self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, os.environ["SQLCLI_SQLMAPPING"])
                 self.SQLOptions.set("SQLREWRITE", "ON")
-            else:
-                self.SQLOptions.set("SQLREWRITE", "OFF")
-        else:  # 任何地方都没有sql mapping信息，设置QUERYREWRITE为OFF
-            self.SQLOptions.set("SQLREWRITE", "OFF")
 
         # 给Page做准备，PAGE显示的默认换页方式.
         if not os.environ.get("LESS"):
