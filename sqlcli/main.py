@@ -437,18 +437,44 @@ class SQLCli(object):
                 None,
                 "Driver loaded."
             )
-        else:
-            options_parameters = str(arg).split()
-            if len(options_parameters) == 1:
-                # 如果没有设置参数，则补充一个None作为Driver的路径信息
-                options_parameters.append("")
+            return
+
+        # 解析命令参数
+        options_parameters = str(arg).split()
+
+        # 只有一个参数，打印当前Database的Driver情况
+        if len(options_parameters) == 1:
             m_DriverName = str(options_parameters[0])
-            m_DriverFullName = options_parameters[1:]
+            m_Result = []
+            for row in self.connection_configs:
+                if row["Database"] == m_DriverName:
+                    m_Result.append([row["Database"], row["ClassName"], row["FullName"],
+                                     row["JDBCURL"], row["ODBCURL"], row["JDBCProp"]])
+                    break
+            yield (
+                "Current Drivers: ",
+                m_Result,
+                ["Database", "ClassName", "FileName", "JDBCURL", "ODBCURL", "JDBCProp"],
+                None,
+                "Driver loaded."
+            )
+            return
+
+        # 两个参数，替换当前Database的Driver
+        if len(options_parameters) == 2:
+            m_DriverName = str(options_parameters[0])
+            m_DriverFullName = str(options_parameters[1])
+            if self.sqlscript is None:
+                m_DriverFullName = os.path.join(sys.path[0], m_DriverFullName)
+            else:
+                m_DriverFullName = os.path.abspath(os.path.join(os.path.dirname(self.sqlscript), m_DriverFullName))
+            if not os.path.isfile(m_DriverFullName):
+                raise SQLCliException("Driver not loaded. file [" + m_DriverFullName + "] does not exist!")
             bFound = False
             for nPos in range(0, len(self.connection_configs)):
                 if self.connection_configs[nPos]["Database"].upper() == m_DriverName.strip().upper():
                     m_Config = self.connection_configs[nPos]
-                    m_Config["FullName"] = m_DriverFullName
+                    m_Config["FullName"] = [m_DriverFullName, ]
                     bFound = True
                     self.connection_configs[nPos] = m_Config
             if not bFound:
@@ -460,6 +486,10 @@ class SQLCli(object):
                 None,
                 "Driver [" + m_DriverName.strip() + "] loaded."
             )
+            return
+
+        raise SQLCliException("Bad command.  loaddriver [database] [new jar name]")
+
     # 加载数据库SQL映射
     def load_sqlmap(self, arg, **_):
         self.SQLOptions.set("SQLREWRITE", "ON")
