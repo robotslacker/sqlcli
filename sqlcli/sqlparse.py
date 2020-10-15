@@ -630,7 +630,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
         # 去掉行尾的空格
         SQLSplitResults[m_nPos] = SQLSplitResults[m_nPos].rstrip()
         # 去掉行尾的最后一个分号, “但是如果是END；结尾的，最后的；不能去掉”
-        if SQLSplitResults[m_nPos][-1:] == ';' and not SQLSplitResults[m_nPos].endswith("END;"):
+        if SQLSplitResults[m_nPos][-1:] == ';' and not SQLSplitResults[m_nPos].upper().endswith("END;"):
             SQLSplitResults[m_nPos] = SQLSplitResults[m_nPos][:-1]
 
     # 去掉注释信息中的最后一个回车换行符
