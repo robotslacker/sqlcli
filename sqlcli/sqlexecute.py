@@ -264,7 +264,10 @@ class SQLExecute(object):
                                     for j in range(0, len(result) - i):
                                         if str(result[j]) > str(result[j + 1]):
                                             result[j], result[j + 1] = result[j + 1], result[j]
-                            yield title, result, headers, columntypes, status
+                            if self.SQLOptions.get('TERMOUT').upper() != 'OFF':
+                                yield title, result, headers, columntypes, status
+                            else:
+                                yield title, [], headers, columntypes, status
                             if not m_FetchStatus:
                                 break
 
@@ -373,76 +376,75 @@ class SQLExecute(object):
             status = "{0} row{1} selected."
             m_arraysize = int(self.SQLOptions.get("ARRAYSIZE"))
             rowset = list(cursor.fetchmany(m_arraysize))
-            if self.SQLOptions.get('TERMOUT').upper() != 'OFF':
-                for row in rowset:
-                    m_row = []
-                    # 记录字段类型
-                    if len(columntypes) == 0:
-                        for column in row:
-                            columntypes.append(type(column))
+            for row in rowset:
+                m_row = []
+                # 记录字段类型
+                if len(columntypes) == 0:
                     for column in row:
-                        if str(type(column)).upper().find('OBJECT[]') != -1:
-                            m_ColumnValue = "STRUCTURE("
-                            for m_nPos in range(0, len(column)):
-                                m_ColumnType = str(type(column[m_nPos]))
-                                if m_nPos == 0:
-                                    if m_ColumnType.upper().find('STR') != -1:
-                                        m_ColumnValue = m_ColumnValue + "'" + str(column[m_nPos]) + "'"
-                                    elif m_ColumnType.upper().find('SQLDATE') != -1:
-                                        m_ColumnValue = m_ColumnValue + "DATE'" + str(column[m_nPos]) + "'"
-                                    elif str(type(column)).upper().find("FLOAT") != -1:
-                                        m_ColumnValue = m_ColumnValue + \
-                                                        self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
-                                    elif str(type(column)).upper().find("DOUBLE") != -1:
-                                        m_ColumnValue = m_ColumnValue + \
-                                                        self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
-                                    else:
-                                        m_ColumnValue = m_ColumnValue + str(column[m_nPos])
+                        columntypes.append(type(column))
+                for column in row:
+                    if str(type(column)).upper().find('OBJECT[]') != -1:
+                        m_ColumnValue = "STRUCTURE("
+                        for m_nPos in range(0, len(column)):
+                            m_ColumnType = str(type(column[m_nPos]))
+                            if m_nPos == 0:
+                                if m_ColumnType.upper().find('STR') != -1:
+                                    m_ColumnValue = m_ColumnValue + "'" + str(column[m_nPos]) + "'"
+                                elif m_ColumnType.upper().find('SQLDATE') != -1:
+                                    m_ColumnValue = m_ColumnValue + "DATE'" + str(column[m_nPos]) + "'"
+                                elif str(type(column)).upper().find("FLOAT") != -1:
+                                    m_ColumnValue = m_ColumnValue + \
+                                                    self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
+                                elif str(type(column)).upper().find("DOUBLE") != -1:
+                                    m_ColumnValue = m_ColumnValue + \
+                                                    self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
                                 else:
-                                    if m_ColumnType.upper().find('STR') != -1:
-                                        m_ColumnValue = m_ColumnValue + ",'" + str(column[m_nPos]) + "'"
-                                    elif m_ColumnType.upper().find('SQLDATE') != -1:
-                                        m_ColumnValue = m_ColumnValue + ",DATE'" + str(column[m_nPos]) + "'"
-                                    elif str(type(column)).upper().find("FLOAT") != -1:
-                                        m_ColumnValue = m_ColumnValue + "," + \
-                                                        self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
-                                    elif str(type(column)).upper().find("DOUBLE") != -1:
-                                        m_ColumnValue = m_ColumnValue + "," + \
-                                                        self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
-                                    else:
-                                        m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
-                            m_ColumnValue = m_ColumnValue + ")"
-                            m_row.append(m_ColumnValue)
-                        elif str(type(column)).upper().find('JDBCCLOBCLIENT') != -1:
-                            m_Length = column.length()
-                            m_ColumnValue = column.getSubString(1, int(self.SQLOptions.get("LOB_LENGTH")))
-                            if m_Length > int(self.SQLOptions.get("LOB_LENGTH")):
-                                m_ColumnValue = m_ColumnValue + "..."
-                            m_row.append(m_ColumnValue)
-                        elif str(type(column)).upper().find('JDBCBLOBCLIENT') != -1:
-                            # 对于二进制数据，用16进制数来显示
-                            # 2: 意思是去掉Hex前面的0x字样
-                            m_Length = column.length()
-                            m_ColumnValue = "".join([hex(int(i))[2:]
-                                                     for i in column.getBytes(1,
-                                                                              int(self.SQLOptions.get("LOB_LENGTH")))])
-                            if m_Length > int(self.SQLOptions.get("LOB_LENGTH")):
-                                m_ColumnValue = m_ColumnValue + "..."
-                            m_row.append(m_ColumnValue)
-                        elif str(type(column)).upper().find("FLOAT") != -1:
-                            m_row.append(self.SQLOptions.get("FLOAT_FORMAT") % column)
-                        elif str(type(column)).upper().find("DOUBLE") != -1:
-                            m_row.append(self.SQLOptions.get("DOUBLE_FORMAT") % column)
-                        elif str(type(column)).upper().find('STR') != -1:
-                            # 对于二进制数据，其末尾用0x00表示，这里进行截断
-                            m_0x00Start = column.find(chr(0))
-                            if m_0x00Start != -1:
-                                column = column[0:m_0x00Start]
-                            m_row.append(column)
-                        else:
-                            m_row.append(column)
-                    m_row = tuple(m_row)
-                    result.append(m_row)
+                                    m_ColumnValue = m_ColumnValue + str(column[m_nPos])
+                            else:
+                                if m_ColumnType.upper().find('STR') != -1:
+                                    m_ColumnValue = m_ColumnValue + ",'" + str(column[m_nPos]) + "'"
+                                elif m_ColumnType.upper().find('SQLDATE') != -1:
+                                    m_ColumnValue = m_ColumnValue + ",DATE'" + str(column[m_nPos]) + "'"
+                                elif str(type(column)).upper().find("FLOAT") != -1:
+                                    m_ColumnValue = m_ColumnValue + "," + \
+                                                    self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
+                                elif str(type(column)).upper().find("DOUBLE") != -1:
+                                    m_ColumnValue = m_ColumnValue + "," + \
+                                                    self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
+                                else:
+                                    m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
+                        m_ColumnValue = m_ColumnValue + ")"
+                        m_row.append(m_ColumnValue)
+                    elif str(type(column)).upper().find('JDBCCLOBCLIENT') != -1:
+                        m_Length = column.length()
+                        m_ColumnValue = column.getSubString(1, int(self.SQLOptions.get("LOB_LENGTH")))
+                        if m_Length > int(self.SQLOptions.get("LOB_LENGTH")):
+                            m_ColumnValue = m_ColumnValue + "..."
+                        m_row.append(m_ColumnValue)
+                    elif str(type(column)).upper().find('JDBCBLOBCLIENT') != -1:
+                        # 对于二进制数据，用16进制数来显示
+                        # 2: 意思是去掉Hex前面的0x字样
+                        m_Length = column.length()
+                        m_ColumnValue = "".join([hex(int(i))[2:]
+                                                 for i in column.getBytes(1,
+                                                                          int(self.SQLOptions.get("LOB_LENGTH")))])
+                        if m_Length > int(self.SQLOptions.get("LOB_LENGTH")):
+                            m_ColumnValue = m_ColumnValue + "..."
+                        m_row.append(m_ColumnValue)
+                    elif str(type(column)).upper().find("FLOAT") != -1:
+                        m_row.append(self.SQLOptions.get("FLOAT_FORMAT") % column)
+                    elif str(type(column)).upper().find("DOUBLE") != -1:
+                        m_row.append(self.SQLOptions.get("DOUBLE_FORMAT") % column)
+                    elif str(type(column)).upper().find('STR') != -1:
+                        # 对于二进制数据，其末尾用0x00表示，这里进行截断
+                        m_0x00Start = column.find(chr(0))
+                        if m_0x00Start != -1:
+                            column = column[0:m_0x00Start]
+                        m_row.append(column)
+                    else:
+                        m_row.append(column)
+                m_row = tuple(m_row)
+                result.append(m_row)
             rowcount = rowcount + len(rowset)
             if len(rowset) < m_arraysize:
                 # 已经没有什么可以取的了, 游标结束
@@ -462,10 +464,7 @@ class SQLExecute(object):
             status = status.format(rowcount, "" if rowcount == 1 else "s")
         else:
             status = None
-        if self.SQLOptions.get('TERMOUT').upper() == 'OFF':
-            return title, [], headers, columntypes, status, m_FetchStatus, rowcount
-        else:
-            return title, result, headers, columntypes, status, m_FetchStatus, rowcount
+        return title, result, headers, columntypes, status, m_FetchStatus, rowcount
 
     # 记录PERF信息，
     def Log_Perf(self, p_SQLResult):

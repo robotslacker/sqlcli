@@ -12,6 +12,7 @@ import click
 import configparser
 import wget
 import hashlib
+import codecs
 from urllib.error import URLError, HTTPError
 from multiprocessing import Process, Lock
 from multiprocessing.managers import BaseManager
@@ -1374,8 +1375,10 @@ class SQLCli(object):
                 print("db_service_name = [" + str(self.db_service_name) + "]")
                 print("db_url = [" + str(self.db_url) + "]")
                 print("jar_file = [" + str(self.connection_configs) + "]")
-            raise SQLCliException(repr(e))
-
+            if str(e).find("SQLInvalidAuthorizationSpecException") != -1:
+                raise SQLCliException(str(jpype.java.sql.SQLInvalidAuthorizationSpecException(e).getCause()))
+            else:
+                raise SQLCliException(repr(e))
         yield (
             None,
             None,
@@ -1526,7 +1529,12 @@ class SQLCli(object):
                 query = f.read()
         except IOError as e:
             return [(None, None, None, None, str(e))]
-
+        if ord(query[0]) == 0xFEFF:
+            # 去掉SQL文件可能包含的UTF-BOM
+            query = query[1:]
+        if query[:3] == codecs.BOM_UTF8:
+            # 去掉SQL文件可能包含的UTF-BOM
+            query = query[3:]
         return self.SQLExecuteHandler.run(query, os.path.expanduser(arg))
 
     # 将当前及随后的输出打印到指定的文件中
