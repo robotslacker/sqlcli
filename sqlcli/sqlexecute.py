@@ -158,7 +158,7 @@ class SQLExecute(object):
                     self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
 
             # lastsqlresult.LastSQLResult[X][Y]
-            matchObj = re.search(r"%lastsqlresult.LastSQLResult\[(\d+)\]\[(\d+)\]%",
+            matchObj = re.search(r"%lastsqlresult.LastSQLResult\[(\d+)]\[(\d+)]%",
                                  sql, re.IGNORECASE | re.DOTALL)
             if matchObj:
                 m_Searched = matchObj.group(0)
@@ -185,7 +185,7 @@ class SQLExecute(object):
             # ${var}
             bMatched = False
             while True:
-                matchObj = re.search(r"(.*)\${([0-9A-Za-z_\-]+)\}(.*)?",
+                matchObj = re.search(r"(.*)\${([0-9A-Za-z_\-]+)}(.*)?",
                                      sql, re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     bMatched = True
