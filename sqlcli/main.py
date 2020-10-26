@@ -1624,8 +1624,8 @@ class SQLCli(object):
         # 处理kafka数据
         matchObj = re.match(r"(.*)kafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            (title, result, headers, status) = self.KafkaHandler.Process_SQLCommand(arg)
-            yield title, result, headers, None, status
+            (title, result, headers, columntypes, status) = self.KafkaHandler.Process_SQLCommand(arg)
+            yield title, result, headers, columntypes, status
             return
 
         # 创建数据文件, 根据末尾的rows来决定创建的行数

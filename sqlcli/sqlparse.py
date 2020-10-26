@@ -653,29 +653,29 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 # [Hint]  Feature:XXXX
                 # [Hint]  SQLID:XXXX
                 # [Hint]  SQLGROUP:XXXX
-                matchObj = re.search("^(\s+)?--(\s+)?\[Hint\](\s+)?SQLElapsedTime\s+less\s+than\s+(\d+)", line,
-                                     re.IGNORECASE|re.DOTALL)
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?SQLElapsedTime\s+less\s+than\s+(\d+)", line,
+                                     re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_TimeLimit = int(matchObj.group(4))
                     m_SQLHint["TimeLimit"] = m_TimeLimit
 
-                matchObj = re.search("^(\s+)?--(\s+)?\[Hint\](\s+)?order", line,
-                                     re.IGNORECASE|re.DOTALL)
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?order", line,
+                                     re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_SQLHint["Order"] = True
 
-                matchObj = re.search("^(\s+)?--(\s+)?\[Hint\](\s+)?Feature:(.*)", line,
-                                     re.IGNORECASE|re.DOTALL)
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?Feature:(.*)", line,
+                                     re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_SQLHint["Feature"] = matchObj.group(4)
 
-                matchObj = re.search("^(\s+)?--(\s+)?\[Hint\](\s+)?SQLID:(.*)", line,
-                                     re.IGNORECASE|re.DOTALL)
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?SQLID:(.*)", line,
+                                     re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_SQLHint["SQLID"] = matchObj.group(4)
 
-                matchObj = re.search("^(\s+)?--(\s+)?\[Hint\](\s+)?SQLGROUP:(.*)", line,
-                                     re.IGNORECASE|re.DOTALL)
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?SQLGROUP:(.*)", line,
+                                     re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_SQLHint["SQLGROUP"] = matchObj.group(4)
             m_SQLHints.append({})
@@ -684,6 +684,5 @@ def SQLAnalyze(p_SQLCommandPlainText):
             # 将这个SQL之前所有解析注释信息送到SQL的标志中，并同时清空当前的SQL标志信息
             m_SQLHints.append(m_SQLHint)
             m_SQLHint = {}
-
 
     return not m_bInMultiLineSQL, SQLSplitResults, SQLSplitResultsWithComments, m_SQLHints
