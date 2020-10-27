@@ -227,6 +227,10 @@ def random_ascii_letters_and_digits(p_arg):
     return ba.decode('ascii')
 
 
+# 返回一个自增长序列
+# 有1个参数：
+#   start   即自正常序列的开始值
+#   步长目前没有支持，都是1
 def identity(p_arg):
     nStart = int(p_arg[0])
     if not hasattr(identity, 'x'):
@@ -236,13 +240,49 @@ def identity(p_arg):
     return str(identity.x)
 
 
+# 返回一个自增长的时间戳
+# 有3个参数：
+#   stime   开始时间
+#     若stime写作current_timestamp, 则自增上从当前时间开始
+#   frmt    日期格式，可以忽略，默认为%Y-%m-%d %H:%M:%S
+#   step    步长，可以用ms或者s来表示，默认情况下是ms
+def identity_timestamp(p_arg):
+    if len(p_arg) == 2:
+        ptime = str(p_arg[0])
+        frmt = "%Y-%m-%d %H:%M:%S"
+        step = str(p_arg[1])
+    elif len(p_arg) == 3:
+        ptime = str(p_arg[0])
+        frmt = str(p_arg[1])
+        if len(frmt) == 0:
+            frmt = "%Y-%m-%d %H:%M:%S"
+        step = str(p_arg[2])
+    else:
+        raise SQLCliException("Parameter error [" + str(p_arg[0]) + "].  Please use 2 or 3 parameters. double check it")
+    if not hasattr(identity_timestamp, 'x'):
+        if ptime == "current_timestamp":
+            identity_timestamp.x = datetime.datetime.now()
+        else:
+            identity_timestamp.x = datetime.datetime.strptime(ptime, frmt)
+    else:
+        # 判断步长单位，默认是毫秒，可以是s,ms
+        if step.endswith("ms"):
+            identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(milliseconds=int(step[:-2])))
+        elif step.endswith("s"):
+            identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(seconds=int(step[:-1])))
+        else:
+            identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(milliseconds=int(step)))
+    return identity_timestamp.x.strftime(frmt)
+
+
+# 将传递的SQL字符串转换成一个带有函数指针的数组
 def parse_formula_str(p_formula_str):
     m_row_struct = re.split('[{}]', p_formula_str)
     m_return_row_struct = []
 
     for m_nRowPos in range(0, len(m_row_struct)):
         if re.search('random_ascii_lowercase|random_ascii_uppercase|random_ascii_letters' +
-                     '|random_digits|identity|random_ascii_letters_and_digits|random_from_seed' +
+                     '|random_digits|identity|identity_timestamp|random_ascii_letters_and_digits|random_from_seed' +
                      '|random_date|random_timestamp|random_time|random_boolean|current_timestamp|value',
                      m_row_struct[m_nRowPos], re.IGNORECASE):
             m_function_struct = re.split(r'[(,)]', m_row_struct[m_nRowPos])
@@ -333,6 +373,26 @@ def parse_formula_str(p_formula_str):
                     raise SQLCliException("Invalid pattern. "
                                           "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(random_digits)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append(m_ColumnName)
+            elif m_function_struct[0].upper() == "IDENTITY_TIMESTAMP":
+                m_call_out_struct.append(identity_timestamp)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append("__NO_NAME__")
+            elif re.search(r"(.*):IDENTITY_TIMESTAMP", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):IDENTITY_TIMESTAMP", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                m_call_out_struct.append(identity_timestamp)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "IDENTITY":
@@ -644,6 +704,8 @@ def Create_file(p_filetype, p_filename, p_formula_str, p_rows, p_encoding='UTF-8
             # 重置identity的序列号，保证下次从开头开始
             if hasattr(identity, 'x'):
                 delattr(identity, 'x')
+            if hasattr(identity_timestamp, 'x'):
+                delattr(identity_timestamp, 'x')
     except SQLCliException as e:
         raise SQLCliException(e.message)
     except Exception as e:
