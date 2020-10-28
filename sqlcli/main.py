@@ -42,9 +42,6 @@ from .sqlparse import SQLAnalyze
 
 import itertools
 
-click.disable_unicode_literals_warning = True
-
-PACKAGE_ROOT = os.path.abspath(os.path.dirname(__file__))
 # 进程锁, 用来控制对BackGround_Jobs的修改
 LOCK_JOBCATALOG = Lock()
 
@@ -159,12 +156,14 @@ class SQLCli(object):
         self.SQLOptions = SQLOptions()            # 程序运行中各种参数
         self.KafkaHandler = KafkaWrapper()        # 函数句柄，处理Kafka的消息
         self.SpoolFileHandler = None              # 当前Spool文件句柄
+        self.EchoFileHandler = None               # 当前回显文件句柄
         self.AppOptions = None                    # 应用程序的配置参数
         self.Encoding = None                      # 应用程序的Encoding信息
         self.prompt_app = None                    # PromptKit控制台
         self.db_conn = None                       # 当前应用的数据库连接句柄
         self.SessionName = None                   # 当前会话的Session的名字
         self.db_conntype = None                   # 数据库连接方式，  JDBC或者是ODBC
+        self.echofilename = None                  # 当前回显文件的文件名称
 
         if clientcharset is None:                 # 客户端字符集
             self.Client_Charset = 'UTF-8'
@@ -350,6 +349,14 @@ class SQLCli(object):
             self.spool,
             command="spool",
             description="spool output to a file",
+            hidden=False
+        )
+
+        # ECHO 回显信息到指定的文件中
+        register_special_command(
+            self.echo_input,
+            command="echo",
+            description="ECHO input into file",
             hidden=False
         )
 
@@ -572,6 +579,22 @@ class SQLCli(object):
             raise SQLCliException("Argument error. waitjob [all|job#].")
 
     # 显示当前正在执行的JOB
+    # 返回的信息包括：
+    #    JOB#                JOB的编号
+    #    ScriptBaseName      脚本的文件名称（不包含路径）
+    #    Status              JOB当前状态
+    #                             Starting                  启动中
+    #                             RUNNING                   正在运行
+    #                             CLOSING                   正在正常关闭中
+    #                             SHUTDOWNING               正在强制关闭中
+    #                             WAITINGFOR_SHUTDOWN       等待强制关闭完成
+    #                             WAITINGFOR_CLOSE          等待正常关闭结束
+    #                             CLOSED                    已经关闭
+    #   StartedTime           进程启动时间
+    #   EndTime               进程结束时间
+    #   Finished              已经完成的任务数量
+    #   LoopCount             已经循环的次数
+    #   Failed                已经失败的任务数量
     def show_job(self, arg, **_):
         if arg is None or len(str(arg).strip()) == 0:
             raise SQLCliException("Missing required argument. showjob [all|job#].")
@@ -599,12 +622,14 @@ class SQLCli(object):
                         m_BackGround_Job["EndTime"],
                         m_BackGround_Job["Finished"],
                         m_BackGround_Job["LoopCount"],
+                        m_BackGround_Job["Failed"],
+
                     ]
                 )
             yield (
                 None,
                 m_Result,
-                ["JOB#", "ScriptBaseName", "Status", "Started", "End", "Finished", "LoopCount"],
+                ["JOB#", "ScriptBaseName", "Status", "Started", "End", "Finished", "LoopCount", "Failed"],
                 None,
                 "Total " + str(self.m_Max_JobID) + " Jobs.")
             return
@@ -630,6 +655,7 @@ class SQLCli(object):
                            "  EndTime = [" + str(m_BackGround_Job["EndTime"]) + "]\n" + \
                            "  Finished = [" + str(m_BackGround_Job["Finished"]) + "]\n" + \
                            "  LoopCount = [" + str(m_BackGround_Job["LoopCount"]) + "]\n" + \
+                           "  Failed = [" + str(m_BackGround_Job["Failed"]) + "]\n" + \
                            "  Current_SQL = " + m_Current_SQL
             else:
                 continue
@@ -894,7 +920,8 @@ class SQLCli(object):
                     "Logfile": None,
                     "Finished": str(0),
                     "Copies": str(m_Execute_Copies),
-                    "LoopCount": str(m_Script_LoopCount)
+                    "LoopCount": str(m_Script_LoopCount),
+                    "Failed": str(0)
                 }
             )
 
@@ -1567,6 +1594,33 @@ class SQLCli(object):
         self.SQLExecuteHandler.spoolfile = self.SpoolFileHandler
         return [(None, None, None, None, None)]
 
+    # 将当前及随后的屏幕输入存放到脚本文件中
+    def echo_input(self, arg, **_):
+        if not arg:
+            message = "Missing required argument, echo [filename]|echo off."
+            return [(None, None, None, None, message)]
+        parameters = str(arg).split()
+        if parameters[0].strip().upper() == 'OFF':
+            # close echo file
+            if self.EchoFileHandler is None:
+                message = "not echo currently"
+                return [(None, None, None, None, message)]
+            else:
+                self.EchoFileHandler.close()
+                self.EchoFileHandler = None
+                self.SQLExecuteHandler.echofile = None
+                return [(None, None, None, None, None)]
+
+        # ECHO的输出默认为程序的工作目录
+        m_FileName = parameters[0].strip()
+
+        # 如果当前有打开的Spool文件，关闭它
+        if self.EchoFileHandler is not None:
+            self.EchoFileHandler.close()
+        self.EchoFileHandler = open(m_FileName, "w", encoding=self.Result_Charset)
+        self.SQLExecuteHandler.echofile = self.EchoFileHandler
+        return [(None, None, None, None, None)]
+
     # 设置一些选项
     def set_options(self, arg, **_):
         if arg is None:
@@ -1772,6 +1826,7 @@ class SQLCli(object):
             self.m_Current_RunningSQL = text
             self.m_Current_RunningStarted = time.time()
             result = self.SQLExecuteHandler.run(text)
+
             # 输出显示结果
             self.formatter.query = text
             for title, cur, headers, columntypes, status in result:

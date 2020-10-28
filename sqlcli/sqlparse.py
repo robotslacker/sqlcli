@@ -264,10 +264,22 @@ def SQLAnalyze(p_SQLCommandPlainText):
     # 首先备份原始的SQL
     SQLCommandsWithComments = copy.copy(SQLCommands)
 
-    # 从SQLCommands中删除所有的注释信息
-    m_bInCommentBlock = False
+    # 从SQLCommands中删除所有的注释信息，但是不能删除ECHO中的注释信息
+    m_bInCommentBlock = False         # 是否在多行注释内
+    m_bInEchoSQL = False              # 是否在ECHO语句内部
     for m_nPos in range(0, len(SQLCommands)):
         while True:  # 不排除一行内多个注释的问题
+            # 首先处理特殊的ECHO信息
+            if m_bInEchoSQL:
+                # ECHO信息已经结束
+                if re.match(r'echo\s+off', SQLCommands[m_nPos], re.IGNORECASE):
+                    m_bInEchoSQL = False
+                break
+            # 如果当前是ECHO文件开头，进入ECHO模式
+            if re.match(r'echo\s+.*', SQLCommands[m_nPos], re.IGNORECASE):
+                m_bInEchoSQL = True
+                break
+
             # 如果存在行内的块注释, 且当前不是在注释中
             if not m_bInCommentBlock:
                 # 如果存在行注释
@@ -331,16 +343,48 @@ def SQLAnalyze(p_SQLCommandPlainText):
     m_bInBlockSQL = False
     # 是否在多行语句内部
     m_bInMultiLineSQL = False
+    # 是否在ECHO语句内部
+    m_bInEchoSQL = False
 
     # 拼接好的SQL
     m_NewSQL = None
     # 拼接好的SQL，包含了注释信息
     m_NewSQLWithComments = None
+    # 当前的Echo信息
+    m_EchoMessages = None
 
     # 下一段注释将从m_NewSQLWithCommentPos的m_NewSQLWithCommentsLastPos字符开始
     m_NewSQLWithCommentsLastPos = 0            # 注释已经截止到的行中列位置
     m_NewSQLWithCommentPos = 0                 # 注释已经截止到的行号
+
     for m_nPos in range(0, len(SQLCommands)):
+        # 首先处理特殊的ECHO信息
+        if m_bInEchoSQL:
+            # ECHO信息已经结束
+            if re.match(r'echo\s+off', SQLCommands[m_nPos], re.IGNORECASE):
+                # 添加ECHO信息到解析后的SQL中
+                SQLSplitResults.append(m_EchoMessages)
+                SQLSplitResultsWithComments.append(m_EchoMessages)
+                SQLSplitResults.append(SQLCommands[m_nPos])
+                SQLSplitResultsWithComments.append(SQLCommands[m_nPos])
+                m_EchoMessages = None
+                m_bInEchoSQL = False
+                continue
+            # 当前是一段ECHO信息
+            if m_EchoMessages is None:
+                m_EchoMessages = SQLCommands[m_nPos]
+                continue
+            else:
+                m_EchoMessages = m_EchoMessages + "\n" + SQLCommands[m_nPos]
+                continue
+        # 如果当前是ECHO文件开头，则当前的ECHO语句作为一个SQL返回，随后进入ECHO模式
+        if re.match(r'echo\s+.*', SQLCommands[m_nPos], re.IGNORECASE):
+            SQLSplitResults.append(SQLCommands[m_nPos])
+            SQLSplitResultsWithComments.append(SQLCommands[m_nPos])
+            m_bInEchoSQL = True
+            continue
+
+        # 正常处理其他SQL
         if not m_bInMultiLineSQL:  # 没有在多行语句中
             # 这是一个单行语句, 要求单行结束， 属于内部执行，需要去掉其中的注释信息
             if re.match(r'^(\s+)?loaddriver\s|^(\s+)?connect\s|^(\s+)?start\s|^(\s+)?set\s|'

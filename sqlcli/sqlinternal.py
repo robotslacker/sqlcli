@@ -245,7 +245,7 @@ def identity(p_arg):
 #   stime   开始时间
 #     若stime写作current_timestamp, 则自增上从当前时间开始
 #   frmt    日期格式，可以忽略，默认为%Y-%m-%d %H:%M:%S
-#   step    步长，可以用ms或者s来表示，默认情况下是ms
+#   step    步长，可以用ms,us,s来表示，默认情况下是ms
 def identity_timestamp(p_arg):
     if len(p_arg) == 2:
         ptime = str(p_arg[0])
@@ -266,12 +266,18 @@ def identity_timestamp(p_arg):
             identity_timestamp.x = datetime.datetime.strptime(ptime, frmt)
     else:
         # 判断步长单位，默认是毫秒，可以是s,ms
-        if step.endswith("ms"):
-            identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(milliseconds=int(step[:-2])))
-        elif step.endswith("s"):
-            identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(seconds=int(step[:-1])))
+        if step.endswith("s"):
+            if step.endswith("ms"):
+                # end with ms 毫秒
+                identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(milliseconds=float(step[:-2])))
+            elif step.endswith("us"):
+                # end with us 微妙
+                identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(microseconds=float(step[:-2])))
+            else:
+                # end with s 秒
+                identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(seconds=float(step[:-1])))
         else:
-            identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(milliseconds=int(step)))
+            identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(milliseconds=float(step)))
     return identity_timestamp.x.strftime(frmt)
 
 

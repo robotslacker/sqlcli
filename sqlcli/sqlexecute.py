@@ -44,6 +44,9 @@ class SQLExecute(object):
         # 程序Spool输出句柄
         self.spoolfile = None
 
+        # 程序Echo输出句柄
+        self.echofile = None
+
     def set_Worker_Name(self, p_szWorkerName):
         self.m_Worker_Name = p_szWorkerName
 
@@ -75,6 +78,20 @@ class SQLExecute(object):
          ret_SQLSplitResultsWithComments, ret_SQLHints) = SQLAnalyze(statement)
         for m_nPos in range(0, len(ret_SQLSplitResults)):
             m_raw_sql = ret_SQLSplitResults[m_nPos]                  # 记录原始SQL
+            # 如果当前是在回显一个文件，并且不是echo off，则不再做任何处理
+            if self.echofile is not None and \
+                    not re.match(r'echo\s+off', m_raw_sql, re.IGNORECASE):
+                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
+                    click.echo(m_raw_sql, file=self.logfile)
+                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
+                    click.echo(m_raw_sql, file=self.spoolfile)
+                if self.logger is not None:
+                    if m_raw_sql is not None:
+                        self.logger.info(m_raw_sql)
+                click.echo(m_raw_sql, file=self.echofile)
+                yield None, None, None, None, m_raw_sql
+                continue
+
             sql = m_raw_sql                                          # 当前要被执行的SQL，这个SQL可能被随后的注释或者替换规则改写
             m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]   # 记录带有注释信息的SQL
             m_SQLHint = ret_SQLHints[m_nPos]                         # SQL提示信息，其中Feature,SQLID,SQLGROUP用作日志处理
@@ -215,7 +232,7 @@ class SQLExecute(object):
 
             # 执行SQL
             try:
-                # 首先假设这是一个特殊命令
+                # 首先尝试这是一个特殊命令，如果返回CommandNotFound，则认为其是一个标准SQL
                 for result in execute(cur, sql):
                     yield result
             except CommandNotFound:
