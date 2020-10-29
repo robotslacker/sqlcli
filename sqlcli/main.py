@@ -1445,14 +1445,18 @@ class SQLCli(object):
             raise SQLCliException(
                 "Missing OS command\n." + "host xxx")
         Commands = str(arg)
-        startupinfo = subprocess.STARTUPINFO()
         if 'win32' in str(sys.platform).lower():
+            startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags = subprocess.CREATE_NEW_CONSOLE | subprocess.STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = subprocess.SW_HIDE
-        p = subprocess.Popen(Commands,
-                             shell=True,
-                             startupinfo=startupinfo,
-                             stdout=subprocess.PIPE)
+            p = subprocess.Popen(Commands,
+                                 shell=True,
+                                 startupinfo=startupinfo,
+                                 stdout=subprocess.PIPE)
+        else:
+            p = subprocess.Popen(Commands,
+                                 shell=True,
+                                 stdout=subprocess.PIPE)
         try:
             for output in p.stdout.readlines():
                 yield (

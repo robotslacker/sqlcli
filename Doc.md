@@ -1,10 +1,16 @@
 # SQLCli 快速说明
 
-SQLCli 是一个命令行工具， 用来连接数据库，通过交互或者批处理的方式来执行SQL语句。  
-SQLCli 是一个Python程序，通过jaydebeapi连接数据库的JDBC驱动。
+SQLCli 是一个命令行的测试工具，设计目的主要是为了满足数据库方面的相关功能测试、压力测试。  
+通过SQLCli，你可以执行通用的SQL数据库脚本，记录执行结果。  
+也可以把SQLCli当作一个命令行的日常使用工具，来完成你数据库的相关维护工作。  
+
+SQLCli是一个Python程序，其中大部分代码都是用Python完成的。  
+可以通过jaydebeapi连接数据库的JDBC驱动，这个时候需要安装相关的包，Windows平台上可能还需要进行相关的编译工作。  
+也可以通过ODBC标准连接数据库的ODBC驱动，但是这部分并没有经过严谨的测试。  
+
 
 SQLCli 目前可以支持的数据库有：  
-   * Oracle, MySQL, PostgreSQL， SQLServer， TeraData等通用数据库  
+   * Oracle,MySQL,PostgreSQL,SQLServer,TeraData, Hive等通用数据库  
    * 达梦，神通， 金仓， 南大通用，LinkoopDB等国产数据库  
    * ClickHouse    
    * 其他符合标准JDBC规范的数据库  
@@ -34,10 +40,10 @@ SQLCli 目前可以支持的数据库有：
    * click                    : Python的命令行参数处理
    * prompt_toolkit           : 用于提供包括提示符功能的控制台终端的显示样式
    * cli_helpers              : 用于提供将数据库返回结果进行表单格式化显示
-   * fs                       : Python文件系统类库，支持内存文件系统、标准文件系统；这里主要为了满足内存文件系统需要
    * hdfs                     : HDFS类库，支持对HDFS文件操作
-   * confluent_kafka          : Kafka类库，支持对Kafka操作, 这个包和kafka-python冲突，需要提前移除kafka-python
-   * wget                     : 服务器驱动下载  
+   * confluent_kafka          : Kafka类库，支持对Kafka操作, 这个包和kafka-python冲突，需要提前移除kafka-python。 目前不支持WIndows
+   * wget                     : JDBC驱动更新和下载  
+   * pyodbc                   : 用于连接ODBC驱动
 
 安装命令：
 ```
@@ -79,6 +85,7 @@ md5=48d69b9a82cbe275af9e45cb80f6b15f
 driver=com.mysql.cj.jdbc.Driver
 jdbcurl=jdbc:mysql://${host}:${port}/${service}
 jdbcprop=socket_timeout:360000000
+odbcurl=DRIVER={driver_name};SERVER=${host};PORT=${port};DATABASE=${service};UID=${username};PWD=${password};
 ```
 
 如果数据库要新增其他数据库的连接，则应仿效上述配置例子。  
@@ -87,12 +94,14 @@ jdbcprop=socket_timeout:360000000
   如果某一种数据库连接需要不止一个jar包，则这里应该配置多个配置项  
   例如：   mydb=mydb1_driver1, mydb1_driver2
 * 数据库的具体配置应该在具体的配置项中  
-  filename：      必须配置项，jar包具体的名字  
-  driver:         必须配置项，数据库连接的主类  
-  jdbcurl:        必须配置项，jdbc连接字符串，其中${host}${port}${service}分别表示数据库连接主机，端口，数据库名称  
+  filename：      可选配置项，jar包具体的名字  
+  driver:         可选配置项，数据库连接的主类  
+  jdbcurl:        可选配置项，jdbc连接字符串，其中${host}${port}${service}分别表示数据库连接主机，端口，数据库名称  
   downloadurl：   可选配置项，若本地不存在该文件，则文件下载需要的路径  
   md5:            可选配置项，文件下载校验MD5    
-  jdbcprop:       可选配置项，若该数据库连接需要相应的额外参数，则在此处配置  
+  jdbcprop:       可选配置项，若该数据库连接需要相应的额外参数，则在此处配置
+  odbcurl:        可选配置项，若该数据库连需要通过ODBC连接数据库，则在此处配置      
+  jdbcurl和odbcurl两个参数，至少要配置一个。若配置jdbcurl，则jdbc对应的filename,driver也需要配置  
 * 基于这个原则，最简化的运行配置应该为：  
 ```
 [driver]
@@ -134,6 +143,8 @@ Options:
   --nologo        Execute with silent mode.
   --sqlperf TEXT  SQL performance Log.
   --syncdriver    Download jdbc jar from file server.
+  --clientcharset TEXT  Set client charset. Default is UTF-8.
+  --resultcharset TEXT  Set result charset. Default is same to clientcharset.
   --help          Show this message and exit.
 ```  
 --version 用来显示当前工具的版本号
@@ -159,7 +170,8 @@ user/pass : 数据库连接的用户名和口令
 ```
 --logfile   用来记录本次命令行操作的所有过程信息  
 这里的操作过程信息包含你随后在命令行里头的所有输出信息。  
-如果你在随后的命令行里头设置了set ECHO ON，那么记录里头还包括了你所有执行的SQL语句原信息  
+如果你在随后的命令行里头设置了SET ECHO ON，那么记录里头还包括了你所有执行的SQL语句原信息  
+文件输出的字符集将根据参数resultcharset中的设置来确定    
 ```
 (base) sqlcli --logon user/pass --logfile test.log
 Version: 0.0.32
@@ -193,7 +205,8 @@ Disconnected.
 ```
 --execute 在SQLCli启动后执行特定的SQL脚本  
 为了能够批处理一些SQL语句，我们通常将这批SQL语句保存在一个特定的文件中，这个文件的习惯后缀是.sql  
-通过execute参数，可以让SQLCli来执行这个脚本，而不再需要我们一行一行的在控制台输入
+通过execute参数，可以让SQLCli来执行这个脚本，而不再需要我们一行一行的在控制台输入  
+脚本字符集将根据参数clientcharset中的设置来确定
 ```
 (base) type test.sql
 select * from test_tab;
@@ -316,6 +329,10 @@ SQLServer：
     connect username/password@jdbc:sqlserver:tcp://IP:Port/DatabaseName
 TeraData：
     connect username/password@jdbc:teradata:tcp://IP:0/DatabaseName
+Hive:
+    connect hive/hive@jdbc:hive2://IP:Port/DatabaseName
+ClickHouse:
+	connect default/""@jdbc:clickhouse:tcp://IP:Port/DatabaseName
 LinkoopDB:
     connect username/password@jdbc:linkoopdb:tcp://IP:Port/Service_Name
 ```
@@ -340,12 +357,14 @@ Database connected.
 SQL> session save sesssion1
 Session saved.
 # 这里会把当前会话信息保存到名字为session1的上下文中，session1为用户自定义的名字
+# 注意：这里并不会断开程序的Session1连接，当Restore的时候也不会重新连接
 SQL> connect user/pass@jdbc:[数据库类型]:[数据库通讯协议]://[数据库主机地址]:[数据库端口号]/[数据库服务名]
 Database connected.
 # 连接到第一个会话
 SQL> session save sesssion2
 Session saved.
 # 这里会把当前会话信息保存到名字为session2的上下文中，session2为用户自定义的名字
+# 注意：这里并不会断开程序的Session2连接，当Restore的时候也不会重新连接
 SQL> session show
 +---------------+-----------+-----------------------------------------------+
 | Sesssion Name | User Name | URL                                           |
@@ -354,12 +373,23 @@ SQL> session show
 | session2      | yyyyy     | jdbc:yyyy:xxx://xxx.xxx.xxx.xxx/yyyyy         |         
 +---------------+-----------+-----------------------------------------------+
 # 显示当前保存的所有会话信息
+
 SQL> session restore sesssion1
 Session stored.
 # 这里将恢复当前数据库连接为之前的会话1
+
 SQL> session restore sesssion2
 Session stored.
 # 这里将恢复当前数据库连接为之前的会话2
+
+SQL> session saveurl sesssion3
+Session saved.
+# 这里会把当前会话信息的URL保存到名字为session3的上下文中，session3为用户自定义的名字
+# 注意：这里并不会保持程序的Session3连接，仅仅记录了URL信息，当Restore的时候程序会自动重新连接
+
+SQL> session release sesssion3
+Session released.
+# 这里将释放之前保存的数据库连接，和针对具体一个连接的DisConnect类似
 ```
 ***
 
@@ -372,6 +402,28 @@ SQL> disconnect
 Database disconnected.
 这里的10指的是10秒，通过这个命令可以让程序暂停10秒钟。
 Sleep的做法主要用在一些定期循环反复脚本的执行上
+```
+#### 执行主机的操作命令
+```
+(base) sqlcli 
+SQL*Cli Release 0.0.32
+SQL> host date
+2020年 10月 29日 星期四 11:24:34 CST
+SQL> disconnect
+Database disconnected.
+这里的date是主机的命令，需要注意的是：在Windows和Linux上命令的不同，脚本可能因此无法跨平台执行
+```
+#### 回显指定的文件
+```
+(base) sqlcli 
+SQL*Cli Release 0.0.32
+SQL> echo subtest.sql
+-- 这里是subtest.sql
+connect admin/123456
+select * from cat
+SQL> echo off
+这里从echo开始，到echo off结束的中间内容并不会被数据库执行，而且会记录在subtest.sql中
+同样的操作，这里也可以用来生成一些简单的配置文件，简单的报告信息等
 ```
 #### 加载SQL重写配置文件
 在sqlcli命令行里头，可以通过loadsqlmap命令来加载SQL重写配置文件
