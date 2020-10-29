@@ -8,6 +8,7 @@ build/
 dist/
 *egg-info/
 htmlcov/
+.vscode/settings.json
 
 *.pyc
 *.deb
