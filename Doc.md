@@ -425,6 +425,18 @@ SQL> echo off
 这里从echo开始，到echo off结束的中间内容并不会被数据库执行，而且会记录在subtest.sql中
 同样的操作，这里也可以用来生成一些简单的配置文件，简单的报告信息等
 ```
+
+#### 加载数据库驱动
+SQLCli会默认加载所有配置在conf/sqlcli.ini中的JDBC驱动
+```
+(base) sqlcli 
+SQL*Cli Release 0.0.32
+SQL> loaddriver;
+没有任何参数的loaddriver命令将显示出所有系统已经加载的驱动程序
+SQL> loaddriver [database_name]  [jdbc_jarfile]
+将用参数中jdbc_jarfile指定的文件替换掉配置文件中的文件信息
+```
+
 #### 加载SQL重写配置文件
 在sqlcli命令行里头，可以通过loadsqlmap命令来加载SQL重写配置文件
 ```
