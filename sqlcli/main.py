@@ -13,6 +13,7 @@ import configparser
 import wget
 import hashlib
 import codecs
+import subprocess
 from urllib.error import URLError, HTTPError
 from multiprocessing import Process, Lock
 from multiprocessing.managers import BaseManager
@@ -357,6 +358,14 @@ class SQLCli(object):
             self.echo_input,
             command="echo",
             description="ECHO input into file",
+            hidden=False
+        )
+
+        # HOST 执行主机的各种命令
+        register_special_command(
+            self.host,
+            command="host",
+            description="execute OS command.",
             hidden=False
         )
 
@@ -1429,6 +1438,34 @@ class SQLCli(object):
             None,
             'Database disconnected.'
         )
+
+    # 执行主机的操作命令
+    def host(self, arg, **_):
+        if arg is None or len(str(arg)) == 0:
+            raise SQLCliException(
+                "Missing OS command\n." + "host xxx")
+        Commands = str(arg)
+        startupinfo = subprocess.STARTUPINFO()
+        if 'win32' in str(sys.platform).lower():
+            startupinfo.dwFlags = subprocess.CREATE_NEW_CONSOLE | subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+        p = subprocess.Popen(Commands,
+                             shell=True,
+                             startupinfo=startupinfo,
+                             stdout=subprocess.PIPE)
+        try:
+            for output in p.stdout.readlines():
+                yield (
+                    None,
+                    None,
+                    None,
+                    None,
+                    str(output, encoding=self.Result_Charset).replace('\r', '').replace('\n', '')
+                )
+        except UnicodeDecodeError:
+            raise SQLCliException("The character set [" + self.Result_Charset + "]" +
+                                  " does not match the terminal character set, " +
+                                  "so the terminal information cannot be output correctly.")
 
     # 数据库会话管理
     def session_manage(self, arg, **_):
