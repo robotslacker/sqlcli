@@ -1452,11 +1452,13 @@ class SQLCli(object):
             p = subprocess.Popen(Commands,
                                  shell=True,
                                  startupinfo=startupinfo,
-                                 stdout=subprocess.PIPE)
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
         else:
             p = subprocess.Popen(Commands,
                                  shell=True,
-                                 stdout=subprocess.PIPE)
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
         try:
             for output in p.stdout.readlines():
                 yield (

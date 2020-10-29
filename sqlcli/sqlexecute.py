@@ -207,14 +207,16 @@ class SQLExecute(object):
                 if matchObj:
                     bMatched = True
                     m_VarName = matchObj.group(2)
-                    if not m_VarName.startswith('@'):
-                        m_VarName = '@' + m_VarName
                     m_VarValue = self.SQLOptions.get(m_VarName)
                     if m_VarValue is not None:
                         sql = matchObj.group(1) + m_VarValue + matchObj.group(3)
-                    else:
-                        # 没有定义这个变量，在SQL中把这个变量所对应的位置替换为#UNDEFINE_VAR#来避免死循环
-                        sql = matchObj.group(1) + '#UNDEFINE_VAR#' + matchObj.group(3)
+                        continue
+                    m_VarValue = self.SQLOptions.get('@' + m_VarName)
+                    if m_VarValue is not None:
+                        sql = matchObj.group(1) + m_VarValue + matchObj.group(3)
+                        continue
+                    # 没有定义这个变量，在SQL中把这个变量所对应的位置替换为#UNDEFINE_VAR#来避免死循环
+                    sql = matchObj.group(1) + '#UNDEFINE_VAR#' + matchObj.group(3)
                 else:
                     break
             if bMatched:
