@@ -206,7 +206,7 @@ class SQLExecute(object):
                                      sql, re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     bMatched = True
-                    m_VarName = matchObj.group(2)
+                    m_VarName = str(matchObj.group(2))
                     m_VarValue = self.SQLOptions.get(m_VarName)
                     if m_VarValue is not None:
                         sql = matchObj.group(1) + m_VarValue + matchObj.group(3)
@@ -372,7 +372,6 @@ class SQLExecute(object):
                 if m_TimeLimit < (end - start) * 1000:
                     raise SQLCliException('LinkoopSQL-Err:: ' 
                                           'SQL elapsed time [' + m_TimeCost + '] over limit [' + str(m_TimeLimit) + ']')
-                    # yield None, None, None, None, 'SQL elapsed time over limit [' + str(m_TimeLimit) + ']'
 
             if self.SQLOptions.get('TIMING').upper() == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):

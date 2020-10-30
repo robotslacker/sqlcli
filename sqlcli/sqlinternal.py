@@ -153,8 +153,7 @@ def current_timestamp(p_arg):
     return datetime.datetime.now().strftime(frmt)
 
 
-# 第一个参数是seed的名字
-# 第二个参数是截取的最大长度
+# 第一个参数是seed的名字, 第二个参数是截取的最大长度
 def random_from_seed(p_arg):
     m_SeedName = str(p_arg[0])
     m_nMaxLength = int(p_arg[1])
@@ -678,8 +677,7 @@ def Create_file(p_filetype, p_filename, p_formula_str, p_rows, p_encoding='UTF-8
         m_row_struct = parse_formula_str(p_formula_str)
         buf = []
         if p_filetype.upper() == "HDFS":              # 处理HDFS文件写入
-            # 总是覆盖服务器上的文件
-            # 每10W行提交一次服务器文件, 以避免内存的OOM问题
+            # 总是覆盖服务器上的文件, 每10W行提交一次服务器文件, 以避免内存的OOM问题
             if p_rows < 100000:
                 with m_HDFS_Handler.write(hdfs_path=m_filename, overwrite=True) as m_output:
                     for i in range(0, p_rows):
@@ -719,7 +717,6 @@ def Create_file(p_filetype, p_filename, p_formula_str, p_rows, p_encoding='UTF-8
             print('traceback.print_exc():\n%s' % traceback.print_exc())
             print('traceback.format_exc():\n%s' % traceback.format_exc())
         raise SQLCliException(repr(e))
-    return
 
 
 def Convert_file(p_srcfileType, p_srcfilename, p_dstfileType, p_dstfilename):

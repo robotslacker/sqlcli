@@ -583,7 +583,6 @@ class SQLCli(object):
                         m_nLoopCount = 0
                         if len(m_Parameters) == 2 and m_Parameters[1].upper() == "SHOW":
                             self.DoSQL("showjob " + str(m_Job_ID))
-                    continue
         else:
             raise SQLCliException("Argument error. waitjob [all|job#].")
 
@@ -674,7 +673,6 @@ class SQLCli(object):
             None,
             None,
             m_Result)
-        return
 
     # 单独的进程运行指定的一个JOB
     @staticmethod
@@ -816,9 +814,7 @@ class SQLCli(object):
                 # 继续新的一轮运行
                 m_CurrentLoop = m_CurrentLoop + 1
 
-                # 修改线程的WorkerName，标记当前循环次数和并发数
-
-                continue                       # 继续当前JOB的下一次运行
+                # 继续当前JOB的下一次运行
 
     # 启动后台SQL任务
     def startjob(self, arg, **_):
@@ -1566,7 +1562,6 @@ class SQLCli(object):
         if m_Parameters[0] == 'restore':
             self.SQLOptions.set("CONNURL", self.db_url)
             yield None, None, None, None, "Session restored Successful."
-        return
 
     # 休息一段时间, 如果收到SHUTDOWN或者ABORT符号的时候，立刻终止SLEEP
     def sleep(self, arg, **_):
@@ -1955,7 +1950,7 @@ class SQLCli(object):
                         try:
                             wget.download(m_driver_downloadurl, out=m_LocalJarFile)
                             print("")
-                        except (URLError, HTTPError):
+                        except (URLError):
                             print('traceback.print_exc():\n%s' % traceback.print_exc())
                             print('traceback.format_exc():\n%s' % traceback.format_exc())
                             print("")
