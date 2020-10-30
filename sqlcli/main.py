@@ -14,7 +14,7 @@ import wget
 import hashlib
 import codecs
 import subprocess
-from urllib.error import URLError, HTTPError
+from urllib.error import URLError
 from multiprocessing import Process, Lock
 from multiprocessing.managers import BaseManager
 from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
