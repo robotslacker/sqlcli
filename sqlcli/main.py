@@ -27,6 +27,7 @@ import jpype
 # 加载ODBC驱动
 import pyodbc
 
+from .jobmanage import JOBManager
 from .sqlexecute import SQLExecute
 from .sqlparse import SQLMapping
 from .kafkawrapper import KafkaWrapper
@@ -156,6 +157,7 @@ class SQLCli(object):
         self.SQLExecuteHandler = SQLExecute()     # 函数句柄，具体来执行SQL
         self.SQLOptions = SQLOptions()            # 程序运行中各种参数
         self.KafkaHandler = KafkaWrapper()        # 函数句柄，处理Kafka的消息
+        self.JobHandler = JOBManager()            # 并发任务处理
         self.SpoolFileHandler = None              # 当前Spool文件句柄
         self.EchoFileHandler = None               # 当前回显文件句柄
         self.AppOptions = None                    # 应用程序的配置参数
@@ -1713,6 +1715,13 @@ class SQLCli(object):
 
     # 执行特殊的命令
     def execute_internal_command(self, arg, **_):
+        # 处理并发JOB
+        matchObj = re.match(r"(\s+)?job(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            (title, result, headers, columntypes, status) = self.JobHandler.Process_Command(arg)
+            yield title, result, headers, columntypes, status
+            return
+
         # 处理kafka数据
         matchObj = re.match(r"(.*)kafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
