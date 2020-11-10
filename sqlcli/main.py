@@ -27,7 +27,7 @@ import jpype
 # 加载ODBC驱动
 import pyodbc
 
-from .jobmanage import JOBManager
+from .sqlclijobmanager import JOBManager
 from .sqlexecute import SQLExecute
 from .sqlparse import SQLMapping
 from .kafkawrapper import KafkaWrapper
@@ -1960,7 +1960,7 @@ class SQLCli(object):
                         try:
                             wget.download(m_driver_downloadurl, out=m_LocalJarFile)
                             print("")
-                        except (URLError):
+                        except URLError:
                             print('traceback.print_exc():\n%s' % traceback.print_exc())
                             print('traceback.format_exc():\n%s' % traceback.format_exc())
                             print("")
