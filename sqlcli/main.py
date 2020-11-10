@@ -167,6 +167,7 @@ class SQLCli(object):
         self.SessionName = None                   # 当前会话的Session的名字
         self.db_conntype = None                   # 数据库连接方式，  JDBC或者是ODBC
         self.echofilename = None                  # 当前回显文件的文件名称
+        self.Version = __version__                # 当前程序版本
 
         if clientcharset is None:                 # 客户端字符集
             self.Client_Charset = 'UTF-8'
