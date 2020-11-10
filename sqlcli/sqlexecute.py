@@ -334,6 +334,7 @@ class SQLExecute(object):
                                 str(e).find("SQLSyntaxErrorException") != -1 or
                                 str(e).find("SQLException") != -1 or
                                 str(e).find("SQLDataException") != -1 or
+                                str(e).find("jdbc.exception") != -1 or
                                 str(e).find("SQLTransactionRollbackException") != -1 or
                                 str(e).find("SQLTransientConnectionException") != -1 or
                                 str(e).find('time data') != -1
