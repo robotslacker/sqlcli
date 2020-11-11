@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-import copy
-import time
-
 from .sqlclijob import JOB
 
-class SQLCli_GlobalSharedMemory(object):
+
+class SQLCliGlobalSharedMemory(object):
     # ================================================
     # SQLCli的所有进程共享此结构对象
 
@@ -18,23 +16,24 @@ class SQLCli_GlobalSharedMemory(object):
     def __init__(self):
         pass
 
+    # 返回当前的JOBID信息，并给JobID加1
+    def getJobID(self):
+        self.JobID = self.JobID + 1
+        return self.JobID
+
     # 返回所有的后台JOB信息
     def Get_Jobs(self):
         return self.Jobs
 
     # 返回指定的JOB信息，根据JobName来判断
-    def Get_Job(self, p_szJObName):        
+    def Get_Job(self, p_szJobName):
         # 返回指定的Job信息，如果找不到，返回None
-        if self.Jobs.has_key(p_szJObName):
-            return self.Jobs[p_szJObName]
+        if p_szJobName in self.Jobs.keys():
+            return self.Jobs[p_szJobName]
         else:
             return None
 
     # 添加或更新JOB信息
     def Update_Job(self, p_JobName: str, p_Job: JOB):
-        # 复制一个新的JOB对象
-        m_Job = copy.copy(p_Job)
-
         # 将JOB加入到数组中
-        self.Jobs[p_JobName] = m_Job
-
+        self.Jobs[p_JobName] = p_Job

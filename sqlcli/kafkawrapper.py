@@ -3,17 +3,15 @@ import re
 import os
 import platform
 import traceback
+from random import random
+
 from .sqlinternal import parse_formula_str, get_final_string
-if platform.system() == 'Linux':
+try:
     from confluent_kafka import Producer, Consumer, TopicPartition, KafkaException
     from confluent_kafka.admin import AdminClient, NewTopic
-else:
-    try:
-        from confluent_kafka import Producer, Consumer, TopicPartition, KafkaException
-        from confluent_kafka.admin import AdminClient, NewTopic
-    except ImportError:
-        # Windows 目前安装confluent_kafka 存在问题，计划废弃
-        pass
+except ImportError:
+    # Windows 目前安装confluent_kafka 存在问题，计划废弃
+    pass
 
 
 class KafkaWrapperException(Exception):
@@ -63,9 +61,18 @@ class KafkaWrapper(object):
 
     def kafka_GetOffset(self, p_szTopicName, p_nPartitionID=0, p_szGroupID=''):
         c = Consumer({'bootstrap.servers': self.__kafka_servers__, 'group.id': p_szGroupID, })
-        tp = TopicPartition(p_szTopicName, p_nPartitionID)
+        m_OffsetResults = []
         try:
-            return c.get_watermark_offsets(tp)
+            if p_nPartitionID == -1:
+                for pid in c.list_topics(topic=p_szTopicName).topics[p_szTopicName].partitions.keys():
+                    tp = TopicPartition(p_szTopicName, pid)
+                    (low, high) = c.get_watermark_offsets(tp)
+                    m_OffsetResults.append([pid, low, high])
+            else:
+                tp = TopicPartition(p_szTopicName, p_nPartitionID)
+                (low, high) = c.get_watermark_offsets(tp)
+                m_OffsetResults.append([p_nPartitionID, low, high])
+            return m_OffsetResults
         except KafkaException as ke:
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())
@@ -151,20 +158,41 @@ class KafkaWrapper(object):
             m_ReturnMessage = self.Kafka_DeleteTopic(m_TopicName)
             return None, None, None, None, m_ReturnMessage
 
-        matchObj = re.match(r"get\s+kafka\s+offset\s+topic(.*)\s+partition\s+(\d+)(\s+)group\s+(.*)(\s+)?$",
+        # 显示所有Partition的偏移数据
+        matchObj = re.match(r"get\s+kafka\s+offset\s+topic(.*)\s+group\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_TopicName = str(matchObj.group(1)).strip()
-            m_PartitionID = int(matchObj.group(2))
-            m_GroupID = str(matchObj.group(3)).strip()
+            m_GroupID = str(matchObj.group(2)).strip()
             try:
-                (minOffset, maxOffset) = self.kafka_GetOffset(m_TopicName, m_PartitionID, m_GroupID)
-                m_Result = [[minOffset, maxOffset], ]
-                m_Header = ["minOffset", "maxOffset"]
-                return None, m_Result, m_Header, None, ""
+                m_Results = self.kafka_GetOffset(m_TopicName, -1, m_GroupID)
+                m_Header = ["Partition", "minOffset", "maxOffset"]
+                m_nTotalOffset = 0
+                for m_Result in m_Results:
+                    m_nTotalOffset = m_nTotalOffset + int(m_Result[2]) - int(m_Result[1])
+                m_Message = "Total " + str(len(m_Results)) + " partitions, total offset is " + str(m_nTotalOffset) + "."
+                return None, m_Results, m_Header, None, m_Message
             except KafkaException as ke:
                 return None, None, None, None, "Failed to get office for topic {}: {}".format(m_TopicName, repr(ke))
 
+        # 显示所有Partition的偏移数据
+        matchObj = re.match(r"get\s+kafka\s+offset\s+topic(.*)(\s+)?$",
+                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_TopicName = str(matchObj.group(1)).strip()
+            m_GroupID = random.sample('zyxwvutsrqponmlkjihgfedcba', 5)
+            try:
+                m_Results = self.kafka_GetOffset(m_TopicName, -1, m_GroupID)
+                m_Header = ["Partition", "minOffset", "maxOffset"]
+                m_nTotalOffset = 0
+                for m_Result in m_Results:
+                    m_nTotalOffset = m_nTotalOffset + int(m_Result[2]) - int(m_Result[1])
+                m_Message = "Total " + str(len(m_Results)) + " partitions, total offset is " + str(m_nTotalOffset) + "."
+                return None, m_Results, m_Header, None, m_Message
+            except KafkaException as ke:
+                return None, None, None, None, "Failed to get office for topic {}: {}".format(m_TopicName, repr(ke))
+
+        # 从文件中加载消息到Kafka队列中
         matchObj = re.match(r"create\s+kafka\s+message\s+from\s+file\s+(.*)\s+to\s+topic\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
@@ -190,6 +218,7 @@ class KafkaWrapper(object):
             except (KafkaException, KafkaWrapperException) as ke:
                 return None, None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
 
+        # 创建topic
         matchObj = re.match(r"create\s+kafka\s+message\s+topic\s+(.*?)\((.*)\)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
