@@ -19,8 +19,9 @@ class JOB:
     def __init__(self):
         self.id = 0
         self.parallel = 10
-        self.starter_maxprocess = 9999
-        self.starter_interval = 0
+        self.starter_maxprocess = 9999            # starter 最多每次启动的数量
+        self.starter_interval = 0                 # starter 每次启动的时间间隔
+        self.starter_last_active_time = None      # starter 最后其次启动脚本的时间
         self.loop = 1
         self.script = None
         self.script_fullname = None
@@ -132,6 +133,14 @@ class JOB:
     # 默认9999，全部进程一起启动
     def getStarterMaxProcess(self):
         return self.starter_maxprocess
+
+    # 设置上一次Starter工作的时间
+    def setStarterLastActiveTime(self, p_LastActiveTime):
+        self.starter_last_active_time = p_LastActiveTime
+
+    # 返回上一次Starter工作的时间
+    def getStarterLastActiveTime(self):
+        return self.starter_last_active_time
 
     # 设置正在执行的脚本名称
     def setScript(self, p_Script):

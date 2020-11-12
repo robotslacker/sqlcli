@@ -1,9 +1,9 @@
 # -*- coding: UTF-8 -*-
 import re
 import os
-import platform
+import string
 import traceback
-from random import random
+import random
 
 from .sqlinternal import parse_formula_str, get_final_string
 try:
@@ -180,7 +180,7 @@ class KafkaWrapper(object):
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_TopicName = str(matchObj.group(1)).strip()
-            m_GroupID = random.sample('zyxwvutsrqponmlkjihgfedcba', 5)
+            m_GroupID = 'asdfzxcv1234'    # 一个随机的字符串
             try:
                 m_Results = self.kafka_GetOffset(m_TopicName, -1, m_GroupID)
                 m_Header = ["Partition", "minOffset", "maxOffset"]

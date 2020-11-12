@@ -42,6 +42,11 @@ class JOBManager(object):
             for Job_Name, Job_Context in m_Jobs.items():
                 # 如果有Accepted状态，且符合Starter要求的，标记为Starting
                 if Job_Context.getStatus() == "Accepted":
+                    if Job_Context.getActiveJobs() < Job_Context.getParallel():
+                        # 当前不是满载
+                        if Job_Context.getStarterLastActiveTime() is None:
+                            # 系统第一次启动
+                            pass
                     # ActiveJobs < Parallel.
                     # LastStarterTime + Starter_Interval < now
                     # 创建Task
