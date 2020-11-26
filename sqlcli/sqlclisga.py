@@ -11,6 +11,10 @@ class SQLCliGlobalSharedMemory(object):
 
     # 所有的JOB信息
     Jobs = dict()
+
+    # 当前清理进程的状态
+    WorkerStatus = "NOT-STARTED"
+
     # ================================================
 
     def __init__(self):
@@ -37,3 +41,9 @@ class SQLCliGlobalSharedMemory(object):
     def Update_Job(self, p_JobName: str, p_Job: JOB):
         # 将JOB加入到数组中
         self.Jobs[p_JobName] = p_Job
+
+    def setWorkerStatus(self, p_WorkerStatus):
+        self.WorkerStatus = p_WorkerStatus
+    #
+    def getWorkerStatus(self):
+        return self.WorkerStatus

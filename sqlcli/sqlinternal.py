@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import re
 import os
+import time
 import datetime
 import random
 from hdfs.client import Client
@@ -140,6 +141,13 @@ def random_timestamp(p_arg):
     except ValueError:
         raise SQLCliException("Invalid timestamp format [" + str(frmt) + "] for [" + str(p_arg[0]) + "]")
     return (random.random() * (etime - stime) + stime).strftime(frmt)
+
+
+# 返回系统当前时间,Unix时间戳方式
+def current_unixtimestamp(p_arg):
+    if p_arg:
+        pass
+    return str(int(time.mktime(datetime.datetime.now().timetuple())))
 
 
 # 返回系统当前时间
@@ -288,7 +296,8 @@ def parse_formula_str(p_formula_str):
     for m_nRowPos in range(0, len(m_row_struct)):
         if re.search('random_ascii_lowercase|random_ascii_uppercase|random_ascii_letters' +
                      '|random_digits|identity|identity_timestamp|random_ascii_letters_and_digits|random_from_seed' +
-                     '|random_date|random_timestamp|random_time|random_boolean|current_timestamp|value',
+                     '|random_date|random_timestamp|random_time|random_boolean|'
+                     'current_timestamp|current_unixtimestamp|value',
                      m_row_struct[m_nRowPos], re.IGNORECASE):
             m_function_struct = re.split(r'[(,)]', m_row_struct[m_nRowPos])
             for m_nPos in range(0, len(m_function_struct)):
@@ -560,6 +569,26 @@ def parse_formula_str(p_formula_str):
                 m_call_out_struct.append(current_timestamp)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
+            elif m_function_struct[0].upper() == "CURRENT_UNIXTIMESTAMP":
+                m_call_out_struct.append(current_unixtimestamp)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append("__NO_NAME__")
+            elif re.search(r"(.*):CURRENT_UNIXTIMESTAMP", m_function_struct[0].upper()):
+                matchObj = re.search(r"(.*):CURRENT_UNIXTIMESTAMP", m_function_struct[0].upper())
+                m_ColumnName = matchObj.group(1).upper().strip()
+                # 检查列名是否已经定义
+                bFound = False
+                for row in m_return_row_struct:
+                    if isinstance(row, list):
+                        if row[2] == m_ColumnName:
+                            bFound = True
+                            break
+                if bFound:
+                    raise SQLCliException("Invalid pattern. "
+                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                m_call_out_struct.append(current_unixtimestamp)
+                m_call_out_struct.append(m_function_struct[1:])
+                m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "VALUE":
                 # 必须用：开头来表示字段名称
                 if not m_function_struct[1:][0].startswith(":"):
@@ -640,7 +669,7 @@ def get_final_string(p_row_struct):
             elif col[2] == "__NO_NAME__":
                 m_Result = m_Result + col[0](col[1])
             else:
-                m_Value = col[0](col[1])
+                m_Value = col[0](col[1])              # 根据函数指针计算返回后的实际内容
                 m_Saved_ColumnData[col[2]] = m_Value
                 m_Result = m_Result + m_Value
         else:

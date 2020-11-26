@@ -193,7 +193,14 @@ class SQLMapping(object):
                 else:
                     m_Value = m_Value + str(m_row_struct[m_nRowPos])
 
-        m_ResultSQL = re.sub(p_Key, m_Value, p_szSQL, flags=re.DOTALL)
+        try:
+            m_ResultSQL = re.sub(p_Key, m_Value, p_szSQL, flags=re.DOTALL)
+        except re.error as ex:
+            print("[WARNING] Invalid regex pattern in ReplaceSQL. " +
+                  "[" + str(p_Key) + "]:[" + m_Value + "]:[" +
+                  p_szSQL + "]  " +
+                  repr(ex), file=self.Console)
+            raise ex
         return m_ResultSQL
 
     def RewriteSQL(self, p_szTestScriptFileName, p_szSQL):
@@ -217,10 +224,14 @@ class SQLMapping(object):
                 try:
                     if re.match(m_Mapping_Contents[0], m_TestScriptFileName):       # 文件名匹配
                         for (m_Key, m_Value) in m_Mapping_Contents[1]:              # 内容遍历
-                            m_New_SQL = self.ReplaceSQL(m_New_SQL, m_Key, m_Value)
+                            try:
+                                m_New_SQL = self.ReplaceSQL(m_New_SQL, m_Key, m_Value)
+                            except re.error as ex:
+                                print("[WARNING] Invalid regex pattern in ReplaceSQL. ",
+                                      file=self.Console)
                 except re.error as ex:
-                    print("[WARNING] Invalid regex pattern. " +
-                          "[" + str(m_Mapping_Contents[0]) + " : " + m_TestScriptFileName + " : " +
+                    print("[WARNING] Invalid regex pattern in filename match. " +
+                          "[" + str(m_Mapping_Contents[0]) + "]:[" + m_TestScriptFileName + "]:[" +
                           m_MappingFiles + "]  " +
                           repr(ex), file=self.Console)
                     print("[WARNING] Your mapping config has been ignored.")

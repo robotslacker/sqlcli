@@ -181,12 +181,15 @@ class SQLExecute(object):
                 m_Searched = matchObj.group(0)
                 m_nRow = int(matchObj.group(1))
                 m_nColumn = int(matchObj.group(2))
-                if m_nRow >= len(self.LastSQLResult):
-                    m_Result = ""
-                elif m_nColumn >= len(self.LastSQLResult[m_nRow]):
-                    m_Result = ""
+                if self.LastSQLResult is not None:
+                    if m_nRow >= len(self.LastSQLResult):
+                        m_Result = ""
+                    elif m_nColumn >= len(self.LastSQLResult[m_nRow]):
+                        m_Result = ""
+                    else:
+                        m_Result = str(self.LastSQLResult[m_nRow][m_nColumn])
                 else:
-                    m_Result = str(self.LastSQLResult[m_nRow][m_nColumn])
+                    m_Result = ""
                 sql = sql.replace(m_Searched, m_Result)
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
                     click.echo(SQLFormatWithPrefix(

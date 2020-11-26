@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
-import threading
 import traceback
 import re
 import time
 import setproctitle
 import shlex
-import copy
 import click
 import configparser
 import wget
@@ -15,8 +13,7 @@ import hashlib
 import codecs
 import subprocess
 from urllib.error import URLError
-from multiprocessing import Process, Lock
-from multiprocessing.managers import BaseManager
+import itertools
 from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 from prompt_toolkit.shortcuts import PromptSession
 
@@ -41,50 +38,6 @@ from .commandanalyze import CommandNotFound
 from .sqloption import SQLOptions
 from .__init__ import __version__
 from .sqlparse import SQLAnalyze
-
-import itertools
-
-# 进程锁, 用来控制对BackGround_Jobs的修改
-LOCK_JOBCATALOG = Lock()
-
-
-# BackGroundJobs 是一个共享结构，在当前主进程和随后的子进程之间共享
-class BackGroundJobs(object):
-    m_Jobs = []
-
-    # 返回所有的后台JOB信息
-    def Get_Jobs(self):
-        return self.m_Jobs
-
-    # 返回指定的JOB信息，根据JOBID来判断
-    def Get_Job(self, p_szJObID):
-        # 返回指定的Job信息，如果找不到，返回None
-        for m_nPos in range(0, len(self.m_Jobs)):
-            if str(self.m_Jobs[m_nPos]["JOB#"]) == str(p_szJObID):
-                return self.m_Jobs[m_nPos]
-        return None
-
-    # 根据JOBID设置指定的JOB信息
-    def Set_Job(self, p_szJObID, p_objJob):
-        # 返回指定的Job信息，如果找不到，返回None
-        for m_nPos in range(0, len(self.m_Jobs)):
-            if str(self.m_Jobs[m_nPos]["JOB#"]) == str(p_szJObID):
-                self.m_Jobs[m_nPos] = copy.copy(p_objJob)
-                return True
-        return False
-
-    # 根据JOBID设置指定的JOB状态
-    def Set_JobStatus(self, p_szJObID, p_szStatus):
-        # 返回指定的Job信息，如果找不到，返回None
-        for m_nPos in range(0, len(self.m_Jobs)):
-            if str(self.m_Jobs[m_nPos]["JOB#"]) == str(p_szJObID):
-                self.m_Jobs[m_nPos]["Status"] = p_szStatus
-                return True
-        return False
-
-    # 在队列中追加一个JOB信息
-    def Append_Job(self, p_objJob):
-        self.m_Jobs.append(p_objJob)
 
 
 class SQLCli(object):
@@ -196,6 +149,14 @@ class SQLCli(object):
             self.Console = HeadLessConsole
         self.logger = logger
 
+        # 设置self.JobHandler， 默认情况下，子进程启动的进程进程信息来自于父进程
+        self.JobHandler.setProcessContextInfo("logon", self.logon)
+        self.JobHandler.setProcessContextInfo("nologo", self.nologo)
+        self.JobHandler.setProcessContextInfo("sqlmap", self.sqlmap)
+        self.JobHandler.setProcessContextInfo("sqlperf", sqlperf)
+        self.JobHandler.setProcessContextInfo("logfilename", self.logfilename)
+        self.JobHandler.setProcessContextInfo("sqlscript", self.sqlscript)
+
         # 设置其他的变量
         self.SQLExecuteHandler.sqlscript = sqlscript
         self.SQLExecuteHandler.SQLMappingHandler = self.SQLMappingHandler
@@ -292,62 +253,6 @@ class SQLCli(object):
             hidden=False
         )
 
-        # 提交后台SQL任务
-        register_special_command(
-            self.submit_job,
-            command="Submitjob",
-            description="Submit Jobs",
-            hidden=False
-        )
-
-        # 开始运行后台SQL任务
-        register_special_command(
-            self.startjob,
-            command="StartJob",
-            description="Start Jobs",
-            hidden=False
-        )
-
-        # 立即关闭后台SQL任务
-        register_special_command(
-            self.shutdown_job,
-            command="shutdownjob",
-            description="Shutdown Jobs",
-            hidden=False
-        )
-
-        # 平和关闭后台SQL任务
-        register_special_command(
-            self.close_job,
-            command="closejob",
-            description="Close Jobs",
-            hidden=False
-        )
-
-        # 等待JOB完成
-        register_special_command(
-            self.wait_job,
-            command="waitjob",
-            description="Wait Job complete",
-            hidden=False
-        )
-
-        # 强制关闭后台SQL任务
-        register_special_command(
-            self.abort_job,
-            command="abortjob",
-            description="Abort Jobs",
-            hidden=False
-        )
-
-        # 查看各种JOB信息
-        register_special_command(
-            self.show_job,
-            command="showjob",
-            description="show informations",
-            hidden=False
-        )
-
         # 将SQL信息Spool到指定的文件中
         register_special_command(
             self.spool,
@@ -399,48 +304,35 @@ class SQLCli(object):
             # 不处理任何exit的参数信息
             pass
 
-        # 没有后台作业
-        if self.m_BackGround_Jobs is None:
-            raise EOFError
-
-        # 如果运行在脚本模式下，则一直等待子进程退出后再退出
         if self.sqlscript is not None:
+            # 运行在脚本模式下，会一直等待所有子进程退出后，再退出本程序
             while True:
-                m_ExitStauts = True
-                # 如果后面还有需要的作业完成没有完成，拒绝退出应用程序
-                for m_Process in self.m_ProcessList:
-                    if m_Process["ProcessHandle"].is_alive():
-                        m_ExitStauts = False
-                        break
-                if m_ExitStauts:
-                    # 所有子进程都已经退出了
+                if not self.JobHandler.isAllJobClosed():
+                    # 如果还有没有退出的进程，则不会直接退出程序，会继续等待进程退出
+                    time.sleep(3)
+                else:
                     break
-                time.sleep(3)
-
-        # 检查是否所有进程都已经退出
-        m_ExitStauts = True
-        # 如果后面还有需要的作业完成没有完成，拒绝退出应用程序
-        for m_Process in self.m_ProcessList:
-            if m_Process["ProcessHandle"].is_alive():
-                m_ExitStauts = False
-                break
-
-        # 如果当前还有数据库连接，则断开数据库连接
-        if self.db_conn:
-            self.db_conn.close()
-        self.db_conn = None
-        self.SQLExecuteHandler.conn = None
-
-        # 正常退出程序
-        if m_ExitStauts:
+            # 断开数据库连接
+            if self.db_conn:
+                self.db_conn.close()
+            self.db_conn = None
+            self.SQLExecuteHandler.conn = None
+            # 取消进程共享服务的注册信息
+            self.JobHandler.unregister()
+            # 退出应用程序
             raise EOFError
         else:
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "Please wait all background process complete.")
+            # 运行在控制台模式下
+            if not self.JobHandler.isAllJobClosed():
+                yield (
+                    None,
+                    None,
+                    None,
+                    None,
+                    "Please wait all background process complete.")
+            else:
+                # 退出应用程序
+                raise EOFError
 
     # 加载数据库驱动
     # 标准的默认驱动程序并不需要使用这个函数，这个函数是用来覆盖标准默认驱动程序的加载信息
@@ -676,519 +568,6 @@ class SQLCli(object):
             None,
             None,
             m_Result)
-
-    # 单独的进程运行指定的一个JOB
-    @staticmethod
-    def runJob(p_args, p_Job):
-        def runJobInThread(p_SQLCli):
-            p_SQLCli.run_cli()
-
-        # 对共享的进程状态信息加锁
-        LOCK_JOBCATALOG.acquire()
-
-        m_JobID = str(p_args["JOB#"])
-        m_CurrentJob = p_Job.Get_Job(p_args["JOB#"])
-        if m_CurrentJob is None:
-            print("JOB [" + str(p_args["JOB#"]) + "] does not exist!")
-            return
-
-        # 设置进程的标题，随后开始运行程序
-        setproctitle.setproctitle('SQLCli Worker:' + str(m_JobID) + " Script:" + str(m_CurrentJob["ScriptBaseName"]))
-
-        # 标记JOB开始时间
-        if m_CurrentJob["Status"] != "Starting":
-            # 任务不需要启动，对共享的进程状态信息解锁
-            LOCK_JOBCATALOG.release()
-            return
-
-        m_CurrentJob["Status"] = "RUNNING"
-        m_CurrentJob["PID"] = os.getpid()
-        m_CurrentLoop = int(m_CurrentJob["Finished"])
-        p_Job.Set_Job(m_JobID, m_CurrentJob)
-
-        # 对共享的进程状态信息解锁
-        LOCK_JOBCATALOG.release()
-
-        while True:           # 循环执行JOB，考虑有可能JOB需要重复多次
-            # 启动Worker线程
-            # 默认的logfilename和当前文件的logfile文件目录一致
-            # 如果运行在终端模式下，则在当前目录下生成日志文件
-            if p_args["logfilename"] is not None:
-                m_logfilename = os.path.join(
-                    os.path.dirname(p_args["logfilename"]),
-                    m_CurrentJob["ScriptBaseName"].split('.')[0] + "_" + m_JobID + "-" + str(m_CurrentLoop) + ".log")
-            else:
-                m_logfilename = \
-                    m_CurrentJob["ScriptBaseName"].split('.')[0] + "_" + m_JobID + "-" + str(m_CurrentLoop) + ".log"
-            HeadLessConsole = open(os.devnull, "w")
-            m_SQLCli = SQLCli(
-                sqlscript=m_CurrentJob["ScriptFullName"],
-                logon=p_args["logon"],
-                logfilename=m_logfilename,
-                sqlmap=p_args["sqlmap"],
-                nologo=p_args["nologo"],
-                breakwitherror=p_args["breakwitherror"],
-                Console=HeadLessConsole,
-                HeadlessMode=True,
-                sqlperf=p_args["sqlperf"]
-            )
-            m_SQLCli.set_Worker_Name(
-                str(p_args["Parent_WorkerName"])+":"+str(m_JobID) + "-" +
-                str(m_CurrentJob["Copies"]) + "-" +
-                str(m_CurrentJob["Finished"]))
-            m_WorkerThread = threading.Thread(target=runJobInThread, args=(m_SQLCli,))
-            m_WorkerThread.start()
-
-            # 循环检查Worker的状态
-            m_OldCurrentSQL = ""
-            while m_WorkerThread.is_alive():
-                # 对共享的进程状态信息加锁
-                LOCK_JOBCATALOG.acquire()
-
-                # 如果要求程序停止，则设置停止标志
-                if p_Job.Get_Job(m_JobID)["Status"] == "WAITINGFOR_SHUTDOWN":
-                    m_SQLCli.Shutdown()        # 标记Shutdown标记
-                    m_CurrentJob["Status"] = "SHUTDOWNING"
-                    p_Job.Set_Job(m_JobID, m_CurrentJob)
-                if p_Job.Get_Job(m_JobID)["Status"] == "WAITINGFOR_CLOSE":
-                    m_CurrentJob["Status"] = "CLOSING"
-                    p_Job.Set_Job(m_JobID, m_CurrentJob)
-                # 更新Current_SQL
-                m_CurrentSQL = m_SQLCli.m_Current_RunningSQL
-                if m_OldCurrentSQL != m_CurrentSQL:
-                    m_CurrentJob["Current_SQL"] = m_CurrentSQL
-                    m_OldCurrentSQL = m_CurrentSQL
-                    p_Job.Set_Job(m_JobID, m_CurrentJob)
-
-                # 对共享的进程状态信息解锁
-                LOCK_JOBCATALOG.release()
-
-                # 3秒后再检查
-                time.sleep(3)
-
-            # 清理僵死进程
-            m_WorkerThread.join()
-
-            # 任务已经完成，检查Loop次数
-            m_CurrentLoopCount = int(m_CurrentJob["Finished"])
-            m_ToDoLoopCount = int(m_CurrentJob["LoopCount"])
-            m_CurrentJob["Finished"] = str(m_CurrentLoopCount + 1)
-            m_SQLCli.set_Worker_Name(str(m_JobID) + "-" +
-                                     str(m_CurrentJob["Copies"]) + "-" +
-                                     str(m_CurrentJob["Finished"]))
-            if (m_CurrentLoopCount + 1) >= m_ToDoLoopCount:              # 所有任务都已经完成
-                # 对共享的进程状态信息加锁
-                LOCK_JOBCATALOG.acquire()
-
-                m_CurrentJob["EndTime"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
-                m_CurrentJob["Status"] = "STOPPED"
-                p_Job.Set_Job(m_JobID, m_CurrentJob)
-
-                # 对共享的进程状态信息解锁
-                LOCK_JOBCATALOG.release()
-                break                          # 运行已经全部结束
-            else:
-                # 如果已经关闭，则直接退出，标志CLOSED
-                if m_CurrentJob["Status"] == "CLOSING":
-                    # 对共享的进程状态信息加锁
-                    LOCK_JOBCATALOG.acquire()
-
-                    m_CurrentJob["EndTime"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
-                    m_CurrentJob["Status"] = "CLOSED"
-                    p_Job.Set_Job(m_JobID, m_CurrentJob)
-
-                    # 对共享的进程状态信息解锁
-                    LOCK_JOBCATALOG.release()
-                    break  # 运行已经全部结束
-
-                # 如果已经关闭，则直接退出，标志SHUTDOWN
-                if m_CurrentJob["Status"] == "SHUTDOWNING":
-                    # 对共享的进程状态信息加锁
-                    LOCK_JOBCATALOG.acquire()
-
-                    m_CurrentJob["EndTime"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
-                    m_CurrentJob["Status"] = "SHUTDOWN"
-                    p_Job.Set_Job(m_JobID, m_CurrentJob)
-
-                    # 对共享的进程状态信息解锁
-                    LOCK_JOBCATALOG.release()
-                    break  # 运行已经全部结束
-
-                # 继续新的一轮运行
-                m_CurrentLoop = m_CurrentLoop + 1
-
-                # 继续当前JOB的下一次运行
-
-    # 启动后台SQL任务
-    def startjob(self, arg, **_):
-        if arg is None or len(str(arg).strip()) == 0:
-            raise SQLCliException("Missing required argument. startjob [job#|all].")
-
-        # 对共享的进程状态信息加锁
-        LOCK_JOBCATALOG.acquire()
-
-        # 如果参数中有all信息，启动全部的JOB，否则启动输入的JOB
-        m_JobLists = []
-        m_Parameters = str(arg).split()
-        for m_Parameter in m_Parameters:
-            if m_Parameter.upper() == 'ALL':
-                if self.m_BackGround_Jobs is None:
-                    raise SQLCliException("No Jobs to start.")
-                m_JobLists.clear()
-                for m_BackGround_Job in self.m_BackGround_Jobs.Get_Jobs():
-                    if m_BackGround_Job["Status"] in "Not Started":
-                        m_JobLists.append(m_BackGround_Job)
-                        m_BackGround_Job["StartedTime"] = \
-                            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
-                        m_BackGround_Job["Status"] = "Starting"
-                        self.m_BackGround_Jobs.Set_Job(m_BackGround_Job["JOB#"], m_BackGround_Job)
-                break
-            else:
-                for m_BackGround_Job in self.m_BackGround_Jobs.Get_Jobs():
-                    if str(m_BackGround_Job["JOB#"]) == str(m_Parameter):
-                        if m_BackGround_Job["Status"] in "Not Started":
-                            m_JobLists.append(m_BackGround_Job)
-                            m_BackGround_Job["StartedTime"] = \
-                                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
-                            m_BackGround_Job["Status"] = "Starting"
-                            self.m_BackGround_Jobs.Set_Job(m_BackGround_Job["JOB#"], m_BackGround_Job)
-
-        # 启动JOB
-        for m_Job in m_JobLists:
-            m_args = {"JOB#": m_Job["JOB#"], "logon": self.logon, "sqlmap": self.sqlmap, "nologo": self.nologo,
-                      "breakwitherror": (self.SQLOptions.get("WHENEVER_SQLERROR").upper() == "EXIT"),
-                      "logfilename": self.logfilename, "sqlperf": self.m_SQLPerf,
-                      "Parent_WorkerName": self.m_Worker_Name,
-                      "PID": 0, "exitcode": 0}
-            m_Process = Process(target=self.runJob, args=(m_args, self.m_BackGround_Jobs))
-            m_Process.start()
-            self.m_ProcessList.append({"ProcessHandle": m_Process, "JOB#": m_Job["JOB#"]})
-
-        # 对共享的进程状态信息解锁
-        LOCK_JOBCATALOG.release()
-
-        yield (
-            None,
-            None,
-            None,
-            None,
-            str(len(m_JobLists)) + " Jobs Started.")
-
-    # 提交到后台执行SQL
-    def submit_job(self, arg, **_):
-        if arg is None or len(str(arg).strip()) == 0:
-            raise SQLCliException(
-                "Missing required argument, SubmitJob <Script Name 1> <Copies> <Loop Count>.")
-        m_ParameterLists = str(arg).split()
-
-        m_Script_FileName = m_ParameterLists[0]
-        m_Execute_Copies = 1
-        m_Script_LoopCount = 1
-        if len(m_ParameterLists) > 1:
-            if m_ParameterLists[1].isnumeric():
-                m_Execute_Copies = int(m_ParameterLists[1])
-        if len(m_ParameterLists) > 2:
-            if m_ParameterLists[2].isnumeric():
-                m_Script_LoopCount = int(m_ParameterLists[2])
-
-        # 命令里头的是全路径名，或者是基于当前目录的相对文件名
-        if os.path.isfile(m_Script_FileName):
-            m_SQL_ScriptBaseName = os.path.basename(m_Script_FileName)
-            m_SQL_ScriptFullName = os.path.abspath(m_Script_FileName)
-        else:
-            # 从脚本所在的目录开始查找
-            if self.sqlscript is None:
-                # 并非在脚本模式下
-                raise SQLCliException(
-                    "File [" + m_Script_FileName + "] does not exist! Submit failed.")
-            if os.path.isfile(os.path.join(os.path.dirname(self.sqlscript), m_Script_FileName)):
-                m_SQL_ScriptBaseName = \
-                    os.path.basename(os.path.join(os.path.dirname(self.sqlscript), m_Script_FileName))
-                m_SQL_ScriptFullName = \
-                    os.path.abspath(os.path.join(os.path.dirname(self.sqlscript), m_Script_FileName))
-            else:
-                raise SQLCliException(
-                    "File [" + m_Script_FileName + "] does not exist! Submit failed.")
-
-        # 对共享的进程状态信息加锁
-        LOCK_JOBCATALOG.acquire()
-
-        # 给所有的Job增加一个编号，随后放入到数组中
-        for m_nPos in range(0, m_Execute_Copies):
-            self.m_Max_JobID = self.m_Max_JobID + 1
-            self.m_BackGround_Jobs.Append_Job(
-                {
-                    "JOB#": self.m_Max_JobID,
-                    "ScriptBaseName": m_SQL_ScriptBaseName,
-                    "ScriptFullName": m_SQL_ScriptFullName,
-                    "Current_SQL": None,
-                    "StartedTime": None,
-                    "Status": "Not Started",
-                    "EndTime": None,
-                    "Logfile": None,
-                    "Finished": str(0),
-                    "Copies": str(m_Execute_Copies),
-                    "LoopCount": str(m_Script_LoopCount),
-                    "Failed": str(0)
-                }
-            )
-
-        # 对共享的进程状态信息解锁
-        LOCK_JOBCATALOG.release()
-
-        yield (
-            None,
-            None,
-            None,
-            None,
-            "Jobs Submitted. " +
-            m_Script_FileName + " Will execute " +
-            str(m_Execute_Copies) + " Copies. Loop " + str(m_Script_LoopCount) + " times."
-        )
-
-    # 平和关闭正在运行的进程
-    def shutdown_job(self, arg, **_):
-        if arg is None or len(str(arg).strip()) == 0:
-            raise SQLCliException("Missing required argument. shutdownjob [all|job job_id].")
-
-        # 如果没有后台任务，直接退出
-        if self.m_BackGround_Jobs is None:
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "No Jobs")
-            return
-
-        m_Parameters = str(arg).split()
-        m_nCount = 0
-        if m_Parameters[0].upper() == "ALL":
-            # 对共享的进程状态信息加锁
-            LOCK_JOBCATALOG.acquire()
-
-            for m_BackGround_Job in self.m_BackGround_Jobs.Get_Jobs():
-                if str(m_BackGround_Job["Status"]) in ("RUNNING", "WAITINGFOR_CLOSE"):
-                    m_BackGround_Job["Status"] = "WAITINGFOR_SHUTDOWN"
-                    m_nCount = m_nCount + 1
-                    self.m_BackGround_Jobs.Set_Job(m_BackGround_Job["JOB#"], m_BackGround_Job)
-                if str(m_BackGround_Job["Status"]) in "Not Started":
-                    # 对于没有启动的JOB，直接关闭
-                    m_BackGround_Job["Status"] = "SHUTDOWN"
-                    m_nCount = m_nCount + 1
-                    self.m_BackGround_Jobs.Set_Job(m_BackGround_Job["JOB#"], m_BackGround_Job)
-
-            # 对共享的进程状态信息解锁
-            LOCK_JOBCATALOG.release()
-
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "Total " + str(m_nCount) + " Jobs will shutdown.")
-            return
-
-        # 如果不是closejob all，第一个参数必须是整数的JOB#
-        if m_Parameters[0].upper().isnumeric():
-            m_Job_ID = int(m_Parameters[0].upper())
-        else:
-            raise SQLCliException("Argument error. shutdown job [job#].")
-        # 遍历JOB，找到需要的那条信息
-        m_Result = False
-        # 对共享的进程状态信息加锁
-        LOCK_JOBCATALOG.acquire()
-
-        for m_BackGround_Job in self.m_BackGround_Jobs.Get_Jobs():
-            if int(m_BackGround_Job["JOB#"]) == m_Job_ID:
-                if str(m_BackGround_Job["Status"]) in ("RUNNING", "WAITINGFOR_CLOSE"):
-                    m_BackGround_Job["Status"] = "WAITINGFOR_SHUTDOWN"
-                    self.m_BackGround_Jobs.Set_Job(m_BackGround_Job["JOB#"], m_BackGround_Job)
-                    m_Result = True
-                if str(m_BackGround_Job["Status"]) in "Not Started":
-                    # 对于没有启动的JOB，直接关闭
-                    m_BackGround_Job["Status"] = "SHUTDOWN"
-                    self.m_BackGround_Jobs.Set_Job(m_BackGround_Job["JOB#"], m_BackGround_Job)
-                    m_Result = True
-                break
-
-        # 对共享的进程状态信息解锁
-        LOCK_JOBCATALOG.release()
-
-        if m_Result:
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "Job " + str(m_Job_ID) + " will shutdown.")
-        else:
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "Job " + str(m_Job_ID) + " does not exist or does not need shutdown.")
-
-    # 强制关闭正在运行的进程
-    def abort_job(self, arg, **_):
-        if arg is None or len(str(arg).strip()) == 0:
-            raise SQLCliException("Missing required argument. abortjob [all|job job_id].")
-
-        # 如果没有后台任务，直接退出
-        if self.m_BackGround_Jobs is None:
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "No Jobs")
-            return
-
-        m_Parameters = str(arg).split()
-        if m_Parameters[0].upper() == "ALL":
-            # 对共享的进程状态信息加锁
-            LOCK_JOBCATALOG.acquire()
-
-            m_nCount = 0
-            for m_Process in self.m_ProcessList:
-                if m_Process["ProcessHandle"].is_alive():
-                    m_Process["ProcessHandle"].terminate()
-                    m_Process["ProcessHandle"].join()
-                    self.m_BackGround_Jobs.Set_JobStatus(m_Process["JOB#"], "ABORTED")
-                    m_nCount = m_nCount + 1
-
-            # 对共享的进程状态信息解锁
-            LOCK_JOBCATALOG.release()
-
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "Total " + str(m_nCount) + " Jobs will close.")
-            return
-
-        # 如果不是closejob all，第一个参数必须是整数的JOB#
-        if m_Parameters[0].upper().isnumeric():
-            m_Job_ID = int(m_Parameters[0].upper())
-        else:
-            raise SQLCliException("Argument error. close job [job#].")
-        # 遍历JOB，找到需要的那条信息
-        m_Result = False
-        # 对共享的进程状态信息加锁
-        LOCK_JOBCATALOG.acquire()
-
-        for m_Process in self.m_ProcessList:
-            if int(m_Process["JOB#"]) == m_Job_ID:
-                if m_Process["ProcessHandle"].is_alive():
-                    m_Process["ProcessHandle"].terminate()
-                    self.m_BackGround_Jobs.Set_JobStatus(m_Process["JOB#"], "ABORTED")
-                    m_Result = True
-                break
-
-        # 对共享的进程状态信息解锁
-        LOCK_JOBCATALOG.release()
-
-        if m_Result:
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "Job " + str(m_Job_ID) + " aborted.")
-        else:
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "Job " + str(m_Job_ID) + " does not exist or does not need abort.")
-
-    # 平和关闭正在运行的进程
-    def close_job(self, arg, **_):
-        if arg is None or len(str(arg).strip()) == 0:
-            raise SQLCliException("Missing required argument. closejob [all|job job_id].")
-
-        # 如果没有后台任务，直接退出
-        if self.m_BackGround_Jobs is None:
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "No Jobs")
-            return
-
-        m_Parameters = str(arg).split()
-        m_nCount = 0
-        if m_Parameters[0].upper() == "ALL":
-            # 对共享的进程状态信息加锁
-            LOCK_JOBCATALOG.acquire()
-
-            for m_BackGround_Job in self.m_BackGround_Jobs.Get_Jobs():
-                # 所有RUNNING状态的程序，都标记为WAITINGFOR_STOP
-                if str(m_BackGround_Job["Status"]) in "RUNNING":
-                    m_BackGround_Job["Status"] = "WAITINGFOR_CLOSE"
-                    m_nCount = m_nCount + 1
-                    self.m_BackGround_Jobs.Set_Job(m_BackGround_Job["JOB#"], m_BackGround_Job)
-                if str(m_BackGround_Job["Status"]) in "Not Started":
-                    # 对于没有启动的JOB，直接关闭
-                    m_BackGround_Job["Status"] = "CLOSED"
-                    m_nCount = m_nCount + 1
-                    self.m_BackGround_Jobs.Set_Job(m_BackGround_Job["JOB#"], m_BackGround_Job)
-
-            # 对共享的进程状态信息解锁
-            LOCK_JOBCATALOG.release()
-
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "Total " + str(m_nCount) + " Jobs will close.")
-            return
-
-        # 如果不是closejob all，第一个参数必须是整数的JOB#
-        if m_Parameters[0].upper().isnumeric():
-            m_Job_ID = int(m_Parameters[0].upper())
-        else:
-            raise SQLCliException("Argument error. close job [job#].")
-        # 遍历JOB，找到需要的那条信息
-        m_Result = False
-        # 对共享的进程状态信息加锁
-        LOCK_JOBCATALOG.acquire()
-
-        for m_BackGround_Job in self.m_BackGround_Jobs.Get_Jobs():
-            if int(m_BackGround_Job["JOB#"]) == m_Job_ID:
-                if str(m_BackGround_Job["Status"]) in "RUNNING":
-                    m_BackGround_Job["Status"] = "WAITINGFOR_CLOSE"
-                    self.m_BackGround_Jobs.Set_Job(m_BackGround_Job["JOB#"], m_BackGround_Job)
-                    m_Result = True
-                if str(m_BackGround_Job["Status"]) in "Not Started":
-                    # 对于没有启动的JOB，直接关闭
-                    m_BackGround_Job["Status"] = "CLOSED"
-                    self.m_BackGround_Jobs.Set_Job(m_BackGround_Job["JOB#"], m_BackGround_Job)
-                    m_Result = True
-                break
-
-        # 对共享的进程状态信息解锁
-        LOCK_JOBCATALOG.release()
-
-        if m_Result:
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "Job " + str(m_Job_ID) + " will close.")
-        else:
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "Job " + str(m_Job_ID) + " does not exist or does not need close.")
 
     # 连接数据库
     def connect_db(self, arg, **_):
@@ -2091,14 +1470,6 @@ class SQLCli(object):
         if self.sqlscript is None and not self.HeadlessMode:
             self.prompt_app = PromptSession()
 
-        # 加载多进程管理
-        # 一定要在start前注册，不然就注册无效
-        manager = BaseManager()
-        manager.register('BackGroundJobs', callable=BackGroundJobs)
-        manager.start()
-        func = getattr(manager, 'BackGroundJobs')
-        self.m_BackGround_Jobs = func()
-
         # 开始依次处理SQL语句
         try:
             # 如果用户指定了用户名，口令，尝试直接进行数据库连接
@@ -2126,9 +1497,6 @@ class SQLCli(object):
         except (SQLCliException, EOFError):
             # SQLCliException只有在被设置了WHENEVER_SQLERROR为EXIT的时候，才会被捕获到
             self.echo("Disconnected.")
-
-        # 当前进程关闭后退出RPC的Manager
-        manager.shutdown()
 
         # 返回运行结果, True 运行成功。 False运行失败
         return m_runCli_Result
