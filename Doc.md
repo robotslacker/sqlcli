@@ -890,7 +890,7 @@ Mapping file loaded.
 
    注意：
      如果需要发送数据到kafka, 必须提前设置kafka服务器的地址, 设置的方法是：
-     SQL>  set KAFKA_SERVERS [kafka Server地址]:[kafka 端口号]
+     SQL>  connect KAFKA_SERVERS [kafka Server地址]:[kafka 端口号]
 
 
    例子：
@@ -916,39 +916,57 @@ Mapping file loaded.
    会从HDFS上下载一个文件def.txt, 并保存到本地文件系统的abc.txt中
 
 
-   SQL> __internal__ create kafka server [bootstrap_server];
-   创建一个Kafka服务器的配置信息，这个配置信息将用于随后的操作，格式位nodex:port1,nodey:port2....
+   SQL> __internal__ connect kafka server [bootstrap_server];
+   连接一个Kafka服务器，格式位nodex:port1,nodey:port2....
+   注意，这里并没有校验服务器的实际信息是否正确。
 
-   SQL> __internal__ create kafka topic [topic name] Partitions [number of partitions] replication_factor [number of replication factor];
-   创建一个kafka的Topic，Topic的具体参数参考[topic name]， [number of partitions]， [number of replication factor]
-   例子： __internal__ create kafka topic mytopic Partitions 16 replication_factor 1;
-   注意： 由于kafka的机制，创建topic总是会立即成功的，但立即成功并不代表立即可用
-         如果脚本中随后要立刻用到刚刚创建的topic，则需要休息一点时间后在进行尝试。比如sleep 3 
+   SQL> __internal__ create kafka topic [topic name] Partitions [number of partitions] replication_factor [number of replication factor] timeout [timeout of creation];
+   创建一个kafka的Topic，Topic的具体参数参考[topic name]， [number of partitions]， [number of replication factor] [timeout of creation]
+   其中： timeout of creation 可以省略， 默认是60
+         number of partitions 可以省略， 默认是16
+         number of replication factor 可以省略， 默认是1
+   例子： __internal__ create kafka topic mytopic Partitions 16 replication_factor 1 timeout 10;
+   
+   SQL> __internal__ get kafka Offset topic [topic name] group [gruop id];
+   其中： group id 可以省略
+   获得消息队列的高水位线和低水位线
+    +-----------+-----------+-----------+
+    | Partition | minOffset | maxOffset |
+    +-----------+-----------+-----------+
+    | 0         | 0         | 1         |
+    | 1         | 0         | 1         |
+    +-----------+-----------+-----------+
+   例子： __internal__ get kafka Offset topic mytopic Partition 0 group abcd;
 
-   SQL> __internal__ get kafka Offset topic [topic name] Partition [Partition id] group [gruop id];
-   获得指定分区的高水位线和低水位线
-    +-----------+-----------+
-    | minOffset | maxOffset |
-    +-----------+-----------+
-    | 0         | 57        |
-    +-----------+-----------+
-   例子： __internal__ get kafka Offset topic mytopic Partition 0 group “”;
-
-   SQL> __internal__ create kafka message from file [text file name] to topic [topic name];
+   SQL> __internal__ produce kafka message from file [text file name] to topic [topic name];
    将指定文本文件中所有内容按行发送到Kafka指定的Topic中
-   例子： __internal__ create kafka message from file Doc.md to topic Hello;
+   例子： __internal__ produce kafka message from file Doc.md to topic Hello;
 
-    SQL> __internal__ create kafka message topic [topic name]
+   SQL> __internal__ produce kafka message topic [topic name]
        > (
        >    [message item1]
        >    [message item2] 
        >    [message item3]
-       》 );
-    将SQL中包含的Message item发送到kafka指定的topic中
-    上述的例子，将发送3条消息到服务器。
+       > );
+   将SQL中包含的Message item发送到kafka指定的topic中
+   上述的例子，将发送3条消息到服务器。
 
-    SQL> __internal__ drop kafka topic [topic name];
-    删除指定的topic
+   SQL> __internal__ produce kafka message topic [topic name]
+       > (
+       >    [message part1]
+       >    [message part2] 
+       >    [message part3]
+       > ) rows [num of rowcount]
+       > frequency [num of frequency];   
+   将SQL中包含的Message part重复num of rowcount发送到kafka指定的topic中
+   上述的例子，将发送num of rowcount条消息到服务器。
+   其中: num of frequency 表示每秒最多发送的消息数量。 可以省略，省略表示不对发送频率进行限制
+        具体message part的写法参考前面描述的创建数据文件的例子
+   注意：frequency的计数器并不是精准计数器，不排除1~2秒的误差
+
+   SQL> __internal__ drop kafka topic [topic name] timeout [timeout of deletion];
+   其中： timeout of deletion 可以省略， 默认是1800
+   删除指定的topic
 ```
 
 ***    
