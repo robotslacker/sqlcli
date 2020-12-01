@@ -841,9 +841,7 @@ Mapping file loaded.
 
 ```  
 
-#### 执行特殊的内部语句
-   这里指的内部语句是说不需要后台SQL引擎完成，而是通过在SQLCli程序中扩展代码来支持的语句。  
-   目前支持的扩展语句有：
+#### 用SQLCli来产生测试数据文件
 ```
    SQL> __internal__ CREATE [string|integer] SEEDDATAFILE [SeedName] LENGTH [row length] ROWS [row number]  
    SQL> WITH NULL ROWS [null rows number];
@@ -873,22 +871,39 @@ Mapping file loaded.
    这里语句的开头：  __internal__ 是必须的内容，固定写法
    宏代码的格式包括：
      {identity(start_number)}                  表示一个自增字段，起始数字为start_number
+     {identity_timestamp(start_time,fmt,step)} 表示一个自增的时间戳
+                                               起始数字为start_time，格式位fmt（可以省略，默认是%Y-%m-%d %H:%M:%S)，
+                                               每次自增长度为Step， Step的单位可以是s,ms,ns (默认为ms)
+                                               s: 秒 ;  ms: 毫秒； ns: 纳秒
      {random_ascii_letters(length)}            表示一个随机的ascii字符串，可能大写，可能小写，最大长度为length
      {random_ascii_lowercase(length)}          表示一个随机的ascii字符串，只能是大写字母，最大长度为length
      {random_ascii_uppercase(length)}          表示一个随机的ascii字符串，只能是小写字母，最大长度为length
      {random_digits(length)}                   表示一个随机的数字，可能数字，最大长度为length
      {random_ascii_letters_and_digits(length)} 表示一个随机的ascii字符串，可能大写，可能小写，可能数字，最大长度为length
-     {random_from_seed(seedname,length}        表示从seed文件中随机选取一个内容，并且最大长度限制在length, 此时seedname不要引号
      {random_date(start, end, frmt)}           表示一个随机的日期， 日期区间为 start到end，日期格式为frmt
                                                frmt可以不提供，默认为%Y-%M-%D
+     {random_time(start, end, frmt)}           表示一个随机的时间， 时间区间为 start到end，时间格式为frmt
+                                               frmt可以不提供，默认为%H:%M:%S
      {random_timestamp(start, end, frmt)}      表示一个随机的时间戳， 时间区间为 start到end，日期格式为frmt
                                                frmt可以不提供，默认为%Y-%M-%D %H:%M%S
      {random_boolean())                        表示一个随机的Boolean，可能为0，也可能为1
+     {current_unixtimestamp()}                 unix时间戳格式表示的系统当前时间
+
+     {column_name: macro()}                    一个带有列名的宏定义，其中macro()的写法参考前面的写法
+     {value(:column_name)}                     根据列名，引用之前的一个定义
+
+     {random_from_seed(seedname,length)}                  表示从seed文件中随机选取一个内容，并且最大长度限制在length, 此时seedname不要引号
+     {random_from_seed(seedname,start_pos, length)}       表示从seed文件中随机选取一个内容，内容从start_pos开始， 并且最大长度限制在length, 此时seedname不要引号
+     使用random_from_seed需要用到seed文件，必须提前准备到$SQLCLI_HOME/data下，用来后续的随机函数  
 
     __internal__ CREATE [MEM|FS|HDFS] FILE [From file] FROM [MEM|FS|HDFS] FILE [To file] 
     这里将完成一个文件复制。 
+```
+#### 用SQLCli工具操作Kafka
+```
+   SQLCli工具可以操作Kafka，建立、删除Topic，查看Topic的状态，给Topic发送信息
 
-   注意：
+   提前准备：
      如果需要发送数据到kafka, 必须提前设置kafka服务器的地址, 设置的方法是：
      SQL>  connect KAFKA_SERVERS [kafka Server地址]:[kafka 端口号]
 

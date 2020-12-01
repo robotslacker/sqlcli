@@ -161,10 +161,19 @@ def current_timestamp(p_arg):
     return datetime.datetime.now().strftime(frmt)
 
 
-# 第一个参数是seed的名字, 第二个参数是截取的最大长度
+# 第一个参数是seed的名字,
+# 第二个参数是开始截取的位置，可以省略。 如果指定，这里的开始位置从0开始计算
+# 第三个参数是截取的最大长度
 def random_from_seed(p_arg):
     m_SeedName = str(p_arg[0])
-    m_nMaxLength = int(p_arg[1])
+    if len(p_arg) == 3:
+        # 从指定位置开始截取数据内容
+        m_StartPos = int(p_arg[1])
+        m_nMaxLength = int(p_arg[2])
+    else:
+        # 从头开始截取文件内容
+        m_StartPos = 0
+        m_nMaxLength = int(p_arg[1])
 
     # 如果还没有加载种子，就先加载
     n = len(seed_cache)
@@ -175,11 +184,7 @@ def random_from_seed(p_arg):
     if m_SeedName in seed_cache:
         n = len(seed_cache[m_SeedName])
         m_RandomRow = seed_cache[m_SeedName][random.randint(0, n - 1)]
-        if len(m_RandomRow) < m_nMaxLength:
-            m_RandomResult = m_RandomRow
-        else:
-            m_RandomResult = m_RandomRow[0:m_nMaxLength]
-        return m_RandomResult
+        return m_RandomRow[m_StartPos:m_StartPos+m_nMaxLength]
     else:
         raise SQLCliException("Unknown seed [" + str(p_arg[0]) + "].  Please create it first.")
 
@@ -325,7 +330,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(random_ascii_lowercase)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -345,7 +350,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(random_ascii_uppercase)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -365,7 +370,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(random_ascii_letters)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -385,7 +390,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(random_digits)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -405,7 +410,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(identity_timestamp)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -425,7 +430,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(identity)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -445,7 +450,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(random_ascii_letters_and_digits)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -465,7 +470,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(random_from_seed)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -485,7 +490,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(random_date)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -505,7 +510,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(random_timestamp)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -525,7 +530,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(random_time)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -545,7 +550,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(random_boolean)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -565,7 +570,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(current_timestamp)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -585,7 +590,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(current_unixtimestamp)
                 m_call_out_struct.append(m_function_struct[1:])
                 m_call_out_struct.append(m_ColumnName)
@@ -608,7 +613,7 @@ def parse_formula_str(p_formula_str):
                         if isinstance(row, list):
                             m_ValidColumn = m_ValidColumn + row[2] + "|"
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is valid.\n" +
+                                          "Please make sure column [" + m_ColumnName + "] is valid.\n" +
                                           "Valid Column=[" + m_ValidColumn + "]")
                 m_call_out_struct.append(None)
                 m_call_out_struct.append(m_ColumnName)
@@ -625,7 +630,7 @@ def parse_formula_str(p_formula_str):
                             break
                 if bFound:
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is not duplicate.")
+                                          "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 # 必须用：开头来表示字段名称
                 if not m_function_struct[1:][0].startswith(":"):
                     raise SQLCliException("Invalid pattern. Please use Value(:ColumnName).")
@@ -644,7 +649,7 @@ def parse_formula_str(p_formula_str):
                         if isinstance(row, list):
                             m_ValidColumn = m_ValidColumn + row[2] + "|"
                     raise SQLCliException("Invalid pattern. "
-                                          "Please make sure columename [" + m_ColumnName + "] is valid.\n" +
+                                          "Please make sure column [" + m_ColumnName + "] is valid.\n" +
                                           "Valid Column=[" + m_ValidColumn + "]")
                 m_call_out_struct.append(None)
                 m_call_out_struct.append(m_ColumnName)

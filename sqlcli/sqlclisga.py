@@ -37,13 +37,14 @@ class SQLCliGlobalSharedMemory(object):
         else:
             return None
 
-    # 添加或更新JOB信息
+    # 更新JOB信息
     def Update_Job(self, p_JobName: str, p_Job: JOB):
         # 将JOB加入到数组中
         self.Jobs[p_JobName] = p_Job
 
     def setWorkerStatus(self, p_WorkerStatus):
         self.WorkerStatus = p_WorkerStatus
+
     #
     def getWorkerStatus(self):
         return self.WorkerStatus

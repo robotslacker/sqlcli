@@ -312,6 +312,7 @@ class SQLCli(object):
                     time.sleep(3)
                 else:
                     break
+            self.JobHandler.waitjob("all")
             # 断开数据库连接
             if self.db_conn:
                 self.db_conn.close()

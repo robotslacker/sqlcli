@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+import copy
+import time
+import datetime
+
+
 class Transaction:
     def __init__(self):
         self.max_transaction_time = 0
@@ -7,11 +12,24 @@ class Transaction:
         self.transaction_standard_eviation = 0
 
 
+class TaskHistory:
+    def __init__(self):
+        self.TaskHandler_ID = 0        # 任务处理器编号，范围是0 - (parallel-1)
+        self.ProcessInfo = 0           # 进程信息，这里存放的是进程PID
+        self.start_time = None         # 进程开始时间，这里存放的是UnixTimeStamp
+        self.end_time = None           # 进程结束时间，这里存放的是UnixTimeStamp
+        self.Finished_Status = None    # 进程结束状态，有FINISHED, FAILED, ABORTED, SHUTDOWNED,
+        self.exit_code = 0             # 进程退出代码
+
+
 class Task:
     def __init__(self):
-        self.ProcessInfo = None
-        self.start_time = None
-        self.end_time = None
+        self.TaskHandler_ID = 0        # 任务处理器编号，范围是1-parallel
+        self.ProcessInfo = 0           # 进程信息，这里存放的是进程PID，如果没有进程存在，这里是0
+        self.start_time = None         # 进程开始时间，这里存放的是UnixTimeStamp
+        self.end_time = None           # 进程结束时间，这里存放的是UnixTimeStamp
+        self.exit_code = 0             # 进程退出状态
+        self.Finished_Status = ""      # 进程结束状态，有FINISHED, ABORTED, SHUTDOWN,
 
 
 class JOB:
@@ -30,6 +48,7 @@ class JOB:
         self.failed_jobs = 0                      # 已经失败的次数
         self.finished_jobs = 0                    # 已经完成的次数
         self.started_jobs = 0                     # 已经启动的次数
+        self.active_jobs = 0                      # 当前活动的JOB数量
 
         self.error_message = None                 # 错误失败原因
 
@@ -45,7 +64,8 @@ class JOB:
         self.blowout_threshold_percent = 100
         self.blowout_threshold_count = 9999
         self.status = "Submitted"
-        self.tasks = []
+        self.tasks = []               # 当前任务的具体进程信息
+        self.taskhistory = []         # 当前任务的进程信息备份
         self.transactions = []
 
     # 返回JOB的编号信息
@@ -72,9 +92,13 @@ class JOB:
     def setStatus(self, p_Status: str):
         self.status = p_Status
 
+    # 设置当前正在运行的JOB数量
+    def setActiveJobs(self, p_active_jobs: int):
+        self.active_jobs = p_active_jobs
+
     # 返回当前正在运行的JOB数量
     def getActiveJobs(self):
-        return len(self.tasks)
+        return self.active_jobs
 
     # 返回当前已经失败的JOB数量
     def setFailedJobs(self, p_FailedJobs):
@@ -101,16 +125,16 @@ class JOB:
         return self.finished_jobs
 
     # 设置任务开始的时间
-    def setStartTime(self, p_StartTime):
-        self.start_time = p_StartTime
+    def setStartTime(self, p_Start_Time):
+        self.start_time = p_Start_Time
 
     # 返回任务开始的时间
     def getStartTime(self):
         return self.start_time
 
     # 设置任务结束的时间
-    def setEndTime(self, p_EndTime):
-        self.end_time = p_EndTime
+    def setEndTime(self, p_End_Time):
+        self.end_time = p_End_Time
 
     # 返回任务结束的时间
     def getEndTime(self):
@@ -248,11 +272,95 @@ class JOB:
     def getTransactions(self):
         return self.transactions
 
-    # 添加一个具体的任务
-    def addTask(self, p_objTask):
-        self.tasks.append(p_objTask)
+    # 初始化Task列表
+    def initTaskList(self):
+        # 根据并发度在start后直接创建全部的Task列表
+        for nPos in range(0, self.parallel):
+            m_Task = Task()
+            m_Task.TaskHandler_ID = nPos
+            m_Task.ProcessInfo = 0
+            self.tasks.append(copy.copy(m_Task))
+
+    # 启动作业
+    # 返回一个包含TaskHandlerID的列表
+    def getTaskStarter(self):
+        currenttime = int(time.mktime(datetime.datetime.now().timetuple()))
+        m_IDLEHandlerIDList = []
+        if self.active_jobs >= self.parallel:
+            # 如果当前活动进程数量已经超过了并发要求，直接退出
+            return m_IDLEHandlerIDList
+        if self.started_jobs >= self.loop:
+            # 如果到目前位置，已经启动的进程数量超过了总数要求，直接退出
+            return m_IDLEHandlerIDList
+        if self.starter_interval !=0 and self.started_jobs < self.parallel:
+            # 如果上一个批次启动时间到现在还不到限制时间要求，则不再启动
+            if self.starter_last_active_time + self.starter_interval > currenttime:
+                # 还不到可以启动进程的时间, 返回空列表
+                return m_IDLEHandlerIDList
+        # 循环判断每个JOB信息，考虑think_time以及starter_interval
+        for nPos in range(0, self.parallel):
+            if self.tasks[nPos].ProcessInfo == 0:  # 进程当前空闲
+                if self.think_time != 0:
+                    # 需要考虑think_time
+                    if self.tasks[nPos].end_time + self.think_time > currenttime:
+                        # 还不满足ThinkTime的限制要求，跳过
+                        continue
+                else:
+                    # 不需要考虑think_time, 假设可以启动
+                    m_IDLEHandlerIDList.append(nPos)
+                    if len(m_IDLEHandlerIDList) >= (self.parallel - self.active_jobs):
+                        # 如果已经要启动的进程已经满足最大进程数限制，则不再考虑新进程
+                        break
+                    if self.starter_interval != 0 and len(m_IDLEHandlerIDList) >= self.starter_maxprocess:
+                        # 如果已经达到了每个批次能够启动进程的最多限制，则不再启动
+                        break
+            else:
+                # 进程当前不空闲
+                continue
+        # 更新批次启动时间的时间
+        if self.starter_interval != 0:
+            self.starter_last_active_time = currenttime
+        return m_IDLEHandlerIDList
+
+    # 启动作业任务
+    def StartTask(self, p_TaskHandlerID: int, p_ProcessID: int):
+        self.tasks[p_TaskHandlerID].ProcessInfo = p_ProcessID
+        self.tasks[p_TaskHandlerID].start_time = int(time.mktime(datetime.datetime.now().timetuple()))
+        self.tasks[p_TaskHandlerID].end_time = None
+        self.active_jobs = self.active_jobs + 1
         self.started_jobs = self.started_jobs + 1
 
-    # 删除一个具体的任务
-    def delTask(self, p_objTask):
-        self.tasks.remove(p_objTask)
+    # 备份任务
+    def FinishTask(self, p_TaskHandler_ID, p_Task_ExitCode: int, p_Task_FinishedStatus: str):
+        # 备份Task信息
+        m_TaskHistory = TaskHistory()
+        m_TaskHistory.TaskHandler_ID = p_TaskHandler_ID
+        m_TaskHistory.start_time = self.tasks[p_TaskHandler_ID].start_time
+        m_TaskHistory.end_time = int(time.mktime(datetime.datetime.now().timetuple()))
+        m_TaskHistory.exit_code = self.tasks[p_TaskHandler_ID].exit_code
+        m_TaskHistory.ProcessInfo = self.tasks[p_TaskHandler_ID].ProcessInfo
+        if p_Task_FinishedStatus == "ABORTED":
+            m_TaskHistory.Finished_Status = "ABORTED"
+            # 进程被强行终止
+            self.failed_jobs = self.failed_jobs + 1
+            self.finished_jobs = self.finished_jobs + 1
+        elif p_Task_FinishedStatus == "SHUTDOWNED":
+            m_TaskHistory.Finished_Status = "SHUTDOWNED"
+            # 进程正常结束
+            self.finished_jobs = self.finished_jobs + 1
+        elif p_Task_ExitCode != 0:
+            # 任务不正常退出
+            m_TaskHistory.Finished_Status = "FAILED"
+            self.failed_jobs = self.failed_jobs + 1
+            self.finished_jobs = self.finished_jobs + 1
+        else:
+            m_TaskHistory.Finished_Status = "FINISHED"
+            self.finished_jobs = self.finished_jobs + 1
+        self.taskhistory.append(copy.copy(m_TaskHistory))
+
+        # 清空当前Task, 这里不会清空End_Time，以保持Think_time的判断逻辑
+        self.tasks[p_TaskHandler_ID].start_time = None
+        self.tasks[p_TaskHandler_ID].exit_code = 0
+        self.tasks[p_TaskHandler_ID].ProcessInfo = 0
+        self.tasks[p_TaskHandler_ID].Finished_Status = ""
+        self.active_jobs = self.active_jobs - 1
