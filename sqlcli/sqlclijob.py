@@ -55,13 +55,10 @@ class JOB:
         self.script = None
         self.script_fullname = None
         self.think_time = 0
-        self.timeout = 3600  # 秒
-        self.shutdown_mode = "CLOSE"
-        self.fail_mode = "EXIT"
+        self.timeout = 0                          # 超时的秒数限制，0表示不限制
         self.submit_time = None
         self.start_time = None
         self.end_time = None
-        self.blowout_threshold_percent = 100
         self.blowout_threshold_count = 9999
         self.status = "Submitted"
         self.tasks = []               # 当前任务的具体进程信息
@@ -230,35 +227,9 @@ class JOB:
     def getTimeOut(self):
         return self.timeout
 
-    # 设置进程关闭的方式，SHUTDOWN，ABORT
-    def setShutdownMode(self, p_ShutdownMode):
-        self.shutdown_mode = p_ShutdownMode
-
-    # 返回进程关闭的方式，SHUTDOWN，ABORT
-    # SHUTDOWN  当前JOB正常结束，不进行下一个循环
-    # ABORT     当前JOB被强行关闭，事务终止
-    def getShutdownMode(self):
-        return self.shutdown_mode
-
-    # 设置进程在发生失败时的处理方式EXIT, CONTINUE
-    def setFailMode(self, p_FailMode):
-        self.fail_mode = p_FailMode
-
-    # 返回进程在发生失败时的处理方式EXIT, CONTINUE
-    def getFailMode(self):
-        return self.fail_mode
-
-    # 设置Blowout失败的百分比阈值
-    def setBlowoutThresHoldPrecent(self, p_BlowoutThresHoldPrecent):
-        self.blowout_threshold_percent = p_BlowoutThresHoldPrecent
-
     # 设置Blowout失败的数量阈值
     def setBlowoutThresHoldCount(self, p_BlowoutThresHoldCount):
         self.blowout_threshold_count = p_BlowoutThresHoldCount
-
-    # 返回Blowout失败的百分比阈值
-    def getBlowoutThresHoldPrecent(self):
-        return self.blowout_threshold_percent
 
     # 返回Blowout失败的数量阈值
     def getBlowoutThresHoldCount(self):
@@ -339,7 +310,12 @@ class JOB:
         m_TaskHistory.end_time = int(time.mktime(datetime.datetime.now().timetuple()))
         m_TaskHistory.exit_code = self.tasks[p_TaskHandler_ID].exit_code
         m_TaskHistory.ProcessInfo = self.tasks[p_TaskHandler_ID].ProcessInfo
-        if p_Task_FinishedStatus == "ABORTED":
+        if p_Task_FinishedStatus == "TIMEOUT":
+            m_TaskHistory.Finished_Status = "TIMEOUT"
+            # 进程被强行终止
+            self.failed_jobs = self.failed_jobs + 1
+            self.finished_jobs = self.finished_jobs + 1
+        elif p_Task_FinishedStatus == "ABORTED":
             m_TaskHistory.Finished_Status = "ABORTED"
             # 进程被强行终止
             self.failed_jobs = self.failed_jobs + 1

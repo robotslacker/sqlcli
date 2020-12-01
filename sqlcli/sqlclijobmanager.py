@@ -9,7 +9,7 @@ from multiprocessing.managers import BaseManager
 
 from .sqlcliexception import SQLCliException
 from .sqlclisga import SQLCliGlobalSharedMemory
-from .sqlclijob import JOB, Task
+from .sqlclijob import JOB
 
 
 # JOB任务的管理
@@ -67,12 +67,15 @@ class JOBManager(object):
             # 循环处理工作JOB
             m_Jobs = self.SharedProcessInfoHandler.Get_Jobs()
             for Job_Name, Job_Context in m_Jobs.items():
-                if Job_Context.getStatus() == "Failed":
+                if Job_Context.getStatus() in ("FAILED", "SHUTDOWNED", "FINISHED", "ABORTED"):
                     # 已经失败的Case不再处理
                     continue
-                if Job_Context.getStatus() == "Running":
-                    # 依次检查的状态
+                if Job_Context.getStatus() in ("RUNNING", "WAITINGFOR_SHUTDOWN", "WAITINGFOR_ABORT"):
+                    # 依次检查Task的状态
+                    # 即使已经处于WAITINGFOR_SHUTDOWN或者WAITINGFOR_ABORT中，也不排除还有没有完成的作业
                     m_TaskList = Job_Context.getTasks()
+                    currenttime = int(time.mktime(datetime.datetime.now().timetuple()))
+                    bAllTaskFinished = True
                     for m_Task in m_TaskList:
                         m_ProcessID = m_Task.ProcessInfo
                         if m_ProcessID != 0:
@@ -87,11 +90,72 @@ class JOBManager(object):
                                 self.ProcessInfo.pop(m_ProcessID)
                             else:
                                 # 进程还在运行中
+                                if Job_Context.getTimeOut() != 0:
+                                    # 设置了超时时间，我们需要根据超时时间进行判断
+                                    if m_Task.start_time + Job_Context.getTimeOut() < currenttime:
+                                        m_Process.terminate()
+                                        self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
+                                        Job_Context.FinishTask(m_Task.TaskHandler_ID,
+                                                               m_Process.exitcode,
+                                                               "TIMEOUT")
+                                        self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
+                                        self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
+                                        # 从当前保存的进程信息中释放该进程
+                                        self.ProcessInfo.pop(m_ProcessID)
+                                    else:
+                                        if Job_Context.getStatus() == "WAITINGFOR_ABORT":
+                                            m_Process.terminate()
+                                            self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
+                                            Job_Context.FinishTask(m_Task.TaskHandler_ID,
+                                                                   m_Process.exitcode,
+                                                                   "ABORTED")
+                                            self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
+                                            self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
+                                            # 从当前保存的进程信息中释放该进程
+                                            self.ProcessInfo.pop(m_ProcessID)
+                                        bAllTaskFinished = False
+                                else:
+                                    if Job_Context.getStatus() == "WAITINGFOR_ABORT":
+                                        m_Process.terminate()
+                                        self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
+                                        Job_Context.FinishTask(m_Task.TaskHandler_ID,
+                                                               m_Process.exitcode,
+                                                               "ABORTED")
+                                        self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
+                                        self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
+                                        # 从当前保存的进程信息中释放该进程
+                                        self.ProcessInfo.pop(m_ProcessID)
+                                    bAllTaskFinished = False
                                 continue
+                    if bAllTaskFinished and Job_Context.getStatus() == "WAITINGFOR_SHUTDOWN":
+                        # 检查脚本信息，如果脚本压根不存在，则无法后续的操作
+                        self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
+                        Job_Context.setStatus("SHUTDOWNED")
+                        Job_Context.setErrorMessage("JOB has been shutdown successful.")
+                        self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
+                        self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
+                        continue
+                    if Job_Context.getStatus() == "WAITINGFOR_ABORT":
+                        # 检查脚本信息，如果脚本压根不存在，则无法后续的操作
+                        self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
+                        Job_Context.setStatus("ABORTED")
+                        Job_Context.setErrorMessage("JOB has been aborted.")
+                        self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
+                        self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
+                        continue
+                    if Job_Context.getFailedJobs() >= Job_Context.getBlowoutThresHoldCount():
+                        if bAllTaskFinished:
+                            # 已经失败的脚本实在太多，不能再继续
+                            self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
+                            Job_Context.setStatus("FAILED")
+                            Job_Context.setErrorMessage("JOB blowout, terminate.")
+                            self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
+                            self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
+                        continue
                     if Job_Context.getScript() is None:
                         # 检查脚本信息，如果脚本压根不存在，则无法后续的操作
                         self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
-                        Job_Context.setStatus("Failed")
+                        Job_Context.setStatus("FAILED")
                         Job_Context.setErrorMessage("Script parameter is null.")
                         self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
                         self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
@@ -112,7 +176,7 @@ class JOBManager(object):
                                     os.path.abspath(os.path.join(m_SQL_ScriptHomeDirectory, m_Script_FileName))
                             else:
                                 self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
-                                Job_Context.setStatus("Failed")
+                                Job_Context.setStatus("FAILED")
                                 Job_Context.setErrorMessage("Script [" + m_Script_FileName + "] does not exist.")
                                 self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
                                 self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
@@ -125,12 +189,13 @@ class JOBManager(object):
                     if Job_Context.getFinishedJobs() >= Job_Context.getLoop():
                         # 已经完成了全部的作业，标记为完成状态
                         self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
-                        Job_Context.setStatus("Finished")
+                        Job_Context.setStatus("FINISHED")
                         Job_Context.setEndTime(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time())))
                         # 将任务添加到后台进程信息中
                         self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
                         self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
                         continue
+                    # 开始陆续启动需要完成的任务
                     self.LOCK_JOBCATALOG.acquire()
                     # 获得可以启动的任务进程列表
                     m_TaskStarterList = Job_Context.getTaskStarter()
@@ -164,15 +229,7 @@ class JOBManager(object):
                         self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
                         self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
                         self.ProcessInfo[m_Process.pid] = m_Process
-
-            # 如果有WAITING_SHUTDOWN的，则不再启动，当没有活动进程的时候，标记为CLOSED
-
-            # 如果有WAITING_ABORT的，则杀掉进程
-
-            # 如果有Timeout的，则Abort
-
-            # 如果还有没完成的，且符合Think_Time约定的，启动它
-
+            # 每2秒检查一次任务
             time.sleep(2)
 
     # 返回进程信息到共享服务器，来满足进程并发使用
@@ -230,7 +287,7 @@ class JOBManager(object):
 
             max_transaction_time  avg_transaction_time min__transaction_time,
             parallel, starter_maxprocess, loop, script, script_fullname, think_time, timeout,
-            shutdown_mode, fail_mode, blowout_threshold_percent, blowout_threshold_count
+            blowout_threshold_count
         """
         # 如果输入的参数为all，则显示全部的JOB信息
         if p_szjobName.lower() == "all":
@@ -247,7 +304,7 @@ class JOBManager(object):
         else:
             strMessages = ""
             m_Job = self.SharedProcessInfoHandler.Get_Job(p_szjobName)
-            strMessages = strMessages + 'JOB_Name = [{0:15}] ; ID = [{1:8d}] ; Status = [{2:10}]\n'.\
+            strMessages = strMessages + 'JOB_Name = [{0:12}]; ID = [{1:4d}]; Status = [{2:19}]\n'.\
                 format(p_szjobName, m_Job.getJobID(), m_Job.getStatus())
             strMessages = strMessages + 'ActiveJobs/FailedJobs/FinishedJobs: [{0:10d}/{1:10d}/{2:10d}]\n'.\
                 format(m_Job.getActiveJobs(), m_Job.getFailedJobs(), m_Job.getFinishedJobs())
@@ -266,28 +323,30 @@ class JOBManager(object):
                 m_ElapsedTime = time.time() - time.mktime(time.strptime(m_Job.getStartTime(), "%Y-%m-%d %H:%M:%S"))
             strMessages = strMessages + 'Think time: [{0:10d}]; Timeout: [{1:10d}]; Elapsed: [{2:10s}]\n'.\
                 format(m_Job.getThinkTime(), m_Job.getTimeOut(), "%10.2f" % float(m_ElapsedTime))
-            strMessages = strMessages + 'Shutdown MODE: [{0:19}]; FAIL_MODE: [{1:19}]\n'.\
-                format(m_Job.getShutdownMode(), m_Job.getFailMode())
-            strMessages = strMessages + 'Blowout Threshold Percent%/Count: [{0:16d}%/{1:16d}]\n'.\
-                format(m_Job.getBlowoutThresHoldPrecent(), m_Job.getBlowoutThresHoldCount())
+            strMessages = strMessages + 'Blowout Threshold Count: [{0:43d}]\n'.\
+                format(m_Job.getBlowoutThresHoldCount())
             strMessages = strMessages + 'Error Message : [{0:52s}]\n'.format(str(m_Job.getErrorMessage()))
             strMessages = strMessages + 'Detail Tasks:\n'
-            strMessages = strMessages + ' {0:10s}|{1:10s}|{2:20s}|{3:20s}\n'.format(
+            strMessages = strMessages + '+{0:10s}+{1:10s}+{2:20s}+{3:20s}+\n'.format('-'*10, '-'*10, '-'*20, '-'*20)
+            strMessages = strMessages + '|{0:10s}|{1:10s}|{2:20s}|{3:20s}|\n'.format(
                 'Task-ID', 'PID', 'Start_Time', 'End_Time')
+            strMessages = strMessages + '+{0:10s}+{1:10s}+{2:20s}+{3:20s}+\n'.format('-'*10, '-'*10, '-'*20, '-'*20)
             for m_Task in m_Job.getTasks():
                 if m_Task.start_time is None:
-                    m_StartTime = "0000-00-00 00:00:00"
+                    m_StartTime = "****-**-** **:**:**"
                 else:
                     m_StartTime = datetime.datetime.fromtimestamp(m_Task.start_time).\
                         strftime("%Y-%m-%d %H:%M:%S")
                 if m_Task.end_time is None:
-                    m_EndTime = "0000-00-00 00:00:00"
+                    m_EndTime = "****-**-** **:**:**"
                 else:
                     m_EndTime = datetime.datetime.fromtimestamp(m_Task.end_time).\
                         strftime("%Y-%m-%d %H:%M:%S")
-                strMessages = strMessages + ' {0:10d}|{1:10d}|{2:20s}|{3:20s}'.\
+                strMessages = strMessages + '|{0:10d}|{1:10d}|{2:20s}|{3:20s}|\n'.\
                     format(m_Task.TaskHandler_ID, m_Task.ProcessInfo,
                            m_StartTime, m_EndTime)
+                strMessages = strMessages + '+{0:10s}+{1:10s}+{2:20s}+{3:20s}+\n'.\
+                    format('-' * 10, '-' * 10, '-' * 20, '-' * 20)
             return None, None, None, None, strMessages
 
     # 设置JOB的各种参数
@@ -309,10 +368,6 @@ class JOBManager(object):
             m_Job.setThinkTime(int(p_ParameterValue))
         elif p_ParameterName.strip().lower() == "timeout":
             m_Job.setTimeOut(int(p_ParameterValue))
-        elif p_ParameterName.strip().lower() == "shutdown_mode":
-            m_Job.setShutdownMode(p_ParameterValue)
-        elif p_ParameterName.strip().lower() == "fail_mode":
-            m_Job.setFailMode(p_ParameterValue)
         elif p_ParameterName.strip().lower() == "blowout_threshold_percent":
             m_Job.setBlowoutThresHoldPrecent(int(p_ParameterValue))
         elif p_ParameterName.strip().lower() == "blowout_threshold_count":
@@ -340,7 +395,7 @@ class JOBManager(object):
                 # 初始化Task列表
                 Job_Context.initTaskList()
                 # 标记Task已经开始运行
-                Job_Context.setStatus("Running")
+                Job_Context.setStatus("RUNNING")
                 # 设置Task运行开始时间
                 Job_Context.setStartTime(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time())))
                 # 将任务信息更新到后台进程信息中
@@ -363,7 +418,7 @@ class JOBManager(object):
                     break
                 m_Jobs = self.SharedProcessInfoHandler.Get_Jobs()
                 for Job_Name, Job_Context in m_Jobs.items():
-                    if Job_Context.getStatus() not in ["Finished", ]:
+                    if Job_Context.getStatus() not in ["FINISHED", "SHUTDOWNED", "ABORTED"]:
                         bAllProcessFinished = False
                         time.sleep(3)
                         continue
@@ -376,12 +431,52 @@ class JOBManager(object):
                 else:
                     time.sleep(3)
 
+    # 停止JOB作业
+    def shutdownjob(self, p_jobName: str):
+        # 将JOB从Runnning变成waitingfor_shutdown
+        # 如果输入的参数为all，则停止全部的JOB信息
+        nJobShutdowned = 0
+        if p_jobName.lower() == "all":
+            m_Jobs = self.SharedProcessInfoHandler.Get_Jobs()
+        else:
+            m_Jobs = {p_jobName: self.SharedProcessInfoHandler.Get_Job(p_jobName), }
+        for Job_Name, Job_Context in m_Jobs.items():
+            if Job_Context.getStatus() == "RUNNING":
+                nJobShutdowned = nJobShutdowned + 1
+                self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
+                # 标记Task已经开始运行
+                Job_Context.setStatus("WAITINGFOR_SHUTDOWN")
+                # 将任务信息更新到后台进程信息中
+                self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
+                self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
+        return nJobShutdowned
+
+    # 放弃JOB作业
+    def abortjob(self, p_jobName: str):
+        # 将JOB从Runnning变成waitingfor_abort
+        # 如果输入的参数为all，则放弃全部的JOB信息
+        nJobAborted = 0
+        if p_jobName.lower() == "all":
+            m_Jobs = self.SharedProcessInfoHandler.Get_Jobs()
+        else:
+            m_Jobs = {p_jobName: self.SharedProcessInfoHandler.Get_Job(p_jobName), }
+        for Job_Name, Job_Context in m_Jobs.items():
+            if Job_Context.getStatus() == "RUNNING":
+                nJobAborted = nJobAborted + 1
+                self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
+                # 标记Task已经开始运行
+                Job_Context.setStatus("WAITINGFOR_ABORT")
+                # 将任务信息更新到后台进程信息中
+                self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
+                self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
+        return nJobAborted
+
     # 判断是否所有有效的子进程都已经退出
     def isJobClosed(self, p_JobName: str):
         m_Job = self.SharedProcessInfoHandler.Get_Job(p_JobName)
         if m_Job is None:
             raise SQLCliException("Invalid JOB name. [" + str(p_JobName) + "]")
-        return m_Job.getStatus() == "Finished"
+        return m_Job.getStatus() == "FINISHED"
 
     # 判断是否所有有效的子进程都已经退出
     def isAllJobClosed(self):
@@ -432,6 +527,22 @@ class JOBManager(object):
             m_JobName = str(matchObj.group(1)).strip()
             self.waitjob(m_JobName)
             return None, None, None, None, "All jobs [" + m_JobName + "] finished."
+
+        # 终止JOB作业
+        matchObj = re.match(r"job\s+shutdown\s+(.*)$",
+                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_JobName = str(matchObj.group(1)).strip()
+            nJobShutdowned = self.shutdownjob(m_JobName)
+            return None, None, None, None, "Total [" + str(nJobShutdowned) + "] jobs shutdowned."
+
+        # 放弃JOB作业
+        matchObj = re.match(r"job\s+abort\s+(.*)$",
+                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_JobName = str(matchObj.group(1)).strip()
+            nJobAborted = self.abortjob(m_JobName)
+            return None, None, None, None, "Total [" + str(nJobAborted) + "] jobs aborted."
 
         raise SQLCliException("Invalid JOB Command [" + m_szSQL + "]")
 
