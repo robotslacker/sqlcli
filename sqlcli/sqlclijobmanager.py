@@ -143,15 +143,16 @@ class JOBManager(object):
                         self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
                         self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
                         continue
-                    if Job_Context.getFailedJobs() >= Job_Context.getBlowoutThresHoldCount():
-                        if bAllTaskFinished:
-                            # 已经失败的脚本实在太多，不能再继续
-                            self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
-                            Job_Context.setStatus("FAILED")
-                            Job_Context.setErrorMessage("JOB blowout, terminate.")
-                            self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
-                            self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
-                        continue
+                    if Job_Context.getBlowoutThresHoldCount() != 0:
+                        if Job_Context.getFailedJobs() >= Job_Context.getBlowoutThresHoldCount():
+                            if bAllTaskFinished:
+                                # 已经失败的脚本实在太多，不能再继续
+                                self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
+                                Job_Context.setStatus("FAILED")
+                                Job_Context.setErrorMessage("JOB blowout, terminate.")
+                                self.SharedProcessInfoHandler.Update_Job(Job_Name, Job_Context)
+                                self.LOCK_JOBCATALOG.release()  # 对共享的进程状态信息解锁
+                            continue
                     if Job_Context.getScript() is None:
                         # 检查脚本信息，如果脚本压根不存在，则无法后续的操作
                         self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
@@ -325,20 +326,20 @@ class JOBManager(object):
                 format(m_Job.getThinkTime(), m_Job.getTimeOut(), "%10.2f" % float(m_ElapsedTime))
             strMessages = strMessages + 'Blowout Threshold Count: [{0:43d}]\n'.\
                 format(m_Job.getBlowoutThresHoldCount())
-            strMessages = strMessages + 'Error Message : [{0:52s}]\n'.format(str(m_Job.getErrorMessage()))
-            strMessages = strMessages + 'Detail Tasks:\n'
+            strMessages = strMessages + 'Message : [{0:58s}]\n'.format(str(m_Job.getErrorMessage()))
+            strMessages = strMessages + 'Detail Tasks>>>:\n'
             strMessages = strMessages + '+{0:10s}+{1:10s}+{2:20s}+{3:20s}+\n'.format('-'*10, '-'*10, '-'*20, '-'*20)
             strMessages = strMessages + '|{0:10s}|{1:10s}|{2:20s}|{3:20s}|\n'.format(
                 'Task-ID', 'PID', 'Start_Time', 'End_Time')
             strMessages = strMessages + '+{0:10s}+{1:10s}+{2:20s}+{3:20s}+\n'.format('-'*10, '-'*10, '-'*20, '-'*20)
             for m_Task in m_Job.getTasks():
                 if m_Task.start_time is None:
-                    m_StartTime = "****-**-** **:**:**"
+                    m_StartTime = "____-__-__ __:__:__"
                 else:
                     m_StartTime = datetime.datetime.fromtimestamp(m_Task.start_time).\
                         strftime("%Y-%m-%d %H:%M:%S")
                 if m_Task.end_time is None:
-                    m_EndTime = "****-**-** **:**:**"
+                    m_EndTime = "____-__-__ __:__:__"
                 else:
                     m_EndTime = datetime.datetime.fromtimestamp(m_Task.end_time).\
                         strftime("%Y-%m-%d %H:%M:%S")
@@ -368,8 +369,6 @@ class JOBManager(object):
             m_Job.setThinkTime(int(p_ParameterValue))
         elif p_ParameterName.strip().lower() == "timeout":
             m_Job.setTimeOut(int(p_ParameterValue))
-        elif p_ParameterName.strip().lower() == "blowout_threshold_percent":
-            m_Job.setBlowoutThresHoldPrecent(int(p_ParameterValue))
         elif p_ParameterName.strip().lower() == "blowout_threshold_count":
             m_Job.setBlowoutThresHoldCount(int(p_ParameterValue))
         else:
@@ -434,6 +433,10 @@ class JOBManager(object):
     # 停止JOB作业
     def shutdownjob(self, p_jobName: str):
         # 将JOB从Runnning变成waitingfor_shutdown
+        if self.SharedProcessInfoHandler is None:
+            # Job Manager没有启动，没有可以停止的JOB
+            return 0
+
         # 如果输入的参数为all，则停止全部的JOB信息
         nJobShutdowned = 0
         if p_jobName.lower() == "all":
@@ -441,7 +444,7 @@ class JOBManager(object):
         else:
             m_Jobs = {p_jobName: self.SharedProcessInfoHandler.Get_Job(p_jobName), }
         for Job_Name, Job_Context in m_Jobs.items():
-            if Job_Context.getStatus() == "RUNNING":
+            if Job_Context.getStatus() in ("RUNNING", "Submitted"):
                 nJobShutdowned = nJobShutdowned + 1
                 self.LOCK_JOBCATALOG.acquire()  # 对共享的进程状态信息加锁
                 # 标记Task已经开始运行

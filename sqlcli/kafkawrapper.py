@@ -61,6 +61,8 @@ class KafkaWrapper(object):
                 return "Failed to create topic {}: {}".format(topic, repr(ke))
 
     def Kafka_DeleteTopic(self, p_szTopicName, p_TimeOut: int):
+        if self.__kafka_servers__ is None:
+            raise SQLCliException("Missed kafka server information. Please use set kafka server first ..")
         a = AdminClient({'bootstrap.servers': self.__kafka_servers__})
         deleted_topics = [p_szTopicName, ]
         fs = a.delete_topics(topics=deleted_topics)

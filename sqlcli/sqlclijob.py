@@ -42,7 +42,7 @@ class JOB:
         self.starter_interval = 0                 # starter 每次启动的时间间隔
         self.starter_last_active_time = None      # starter 最后启动脚本的时间，unix的时间戳
         self.starter_started_process = 0          # starter 已经启动的进程数
-        self.parallel = 10                        # 程序并发度
+        self.parallel = 1                         # 程序并发度
 
         self.loop = 1                             # 需要循环的次数
         self.failed_jobs = 0                      # 已经失败的次数
@@ -59,10 +59,10 @@ class JOB:
         self.submit_time = None
         self.start_time = None
         self.end_time = None
-        self.blowout_threshold_count = 9999
+        self.blowout_threshold_count = 0          # 完全失败阈值，若达到该阈值，认为后续继续测试没有意义。0表示不做限制
         self.status = "Submitted"
-        self.tasks = []               # 当前任务的具体进程信息
-        self.taskhistory = []         # 当前任务的进程信息备份
+        self.tasks = []                           # 当前任务的具体进程信息
+        self.taskhistory = []                     # 当前任务的进程信息备份
         self.transactions = []
 
     # 返回JOB的编号信息
@@ -263,7 +263,7 @@ class JOB:
         if self.started_jobs >= self.loop:
             # 如果到目前位置，已经启动的进程数量超过了总数要求，直接退出
             return m_IDLEHandlerIDList
-        if self.starter_interval !=0 and self.started_jobs < self.parallel:
+        if self.starter_interval != 0 and self.started_jobs < self.parallel:
             # 如果上一个批次启动时间到现在还不到限制时间要求，则不再启动
             if self.starter_last_active_time + self.starter_interval > currenttime:
                 # 还不到可以启动进程的时间, 返回空列表

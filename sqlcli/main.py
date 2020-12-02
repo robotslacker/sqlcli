@@ -74,9 +74,6 @@ class SQLCli(object):
     # 目前程序的终止状态
     m_Current_RunningStatus = None
 
-    # 程序停止标志
-    m_Shutdown_Flag = False             # 在程序的每个语句，Sleep间歇中都会判断这个标志
-
     # 后台进程队列
     m_BackGround_Jobs = None
     m_Max_JobID = 0                     # 当前的最大JOBID
@@ -293,11 +290,6 @@ class SQLCli(object):
             hidden=False
         )
 
-    # 设置停止标志。 在程序Sleep间隙或者语句执行间隙，如果收到Shutdown标志，就会停止程序继续运行
-    def Shutdown(self):
-        self.SQLExecuteHandler.m_Shutdown_Flag = True
-        self.m_Shutdown_Flag = True
-
     # 退出当前应用程序
     def exit(self, arg, **_):
         if arg:
@@ -415,160 +407,6 @@ class SQLCli(object):
             None,
             'Mapping file loaded.'
         )
-
-    # 等待JOB完成
-    def wait_job(self, arg, **_):
-        if arg is None or len(str(arg).strip()) == 0:
-            raise SQLCliException("Missing required argument. waitjob [all|job#].")
-        m_Parameters = str(arg).split()
-        m_nLoopCount = 0
-        if m_Parameters[0].upper() == "ALL":
-            # 等待所有的JOB完成
-            while True:
-                m_bFoundJob = False
-                for m_Process in self.m_ProcessList:
-                    if m_Process["ProcessHandle"].is_alive():
-                        m_bFoundJob = True
-                if not m_bFoundJob:
-                    yield (
-                        None,
-                        None,
-                        None,
-                        None,
-                        "All Job Completed")
-                    return
-                else:
-                    m_nLoopCount = m_nLoopCount + 1
-                    time.sleep(3)
-                    if m_nLoopCount == 10:
-                        m_nLoopCount = 0
-                        if len(m_Parameters) == 2 and m_Parameters[1].upper() == "SHOW":
-                            self.DoSQL("showjob all")
-        elif m_Parameters[0].upper().isnumeric():
-            # 显示指定的JOB信息
-            m_Job_ID = int(m_Parameters[0].upper())
-            while True:
-                m_bFoundJob = False
-                for m_Process in self.m_ProcessList:
-                    if m_Process["JOB#"] == m_Job_ID:
-                        m_bFoundJob = True
-                        if not m_Process["ProcessHandle"].is_alive():
-                            yield (
-                                None,
-                                None,
-                                None,
-                                None,
-                                "Job " + str(m_Job_ID) + " Completed")
-                            return
-                    else:
-                        continue
-
-                # 继续等待
-                if not m_bFoundJob:
-                    yield (
-                        None,
-                        None,
-                        None,
-                        None,
-                        "No job to wait.")
-                    return
-                else:
-                    m_nLoopCount = m_nLoopCount + 1
-                    time.sleep(3)
-                    if m_nLoopCount == 10:
-                        m_nLoopCount = 0
-                        if len(m_Parameters) == 2 and m_Parameters[1].upper() == "SHOW":
-                            self.DoSQL("showjob " + str(m_Job_ID))
-        else:
-            raise SQLCliException("Argument error. waitjob [all|job#].")
-
-    # 显示当前正在执行的JOB
-    # 返回的信息包括：
-    #    JOB#                JOB的编号
-    #    ScriptBaseName      脚本的文件名称（不包含路径）
-    #    Status              JOB当前状态
-    #                             Starting                  启动中
-    #                             RUNNING                   正在运行
-    #                             CLOSING                   正在正常关闭中
-    #                             SHUTDOWNING               正在强制关闭中
-    #                             WAITINGFOR_SHUTDOWN       等待强制关闭完成
-    #                             WAITINGFOR_CLOSE          等待正常关闭结束
-    #                             CLOSED                    已经关闭
-    #   StartedTime           进程启动时间
-    #   EndTime               进程结束时间
-    #   Finished              已经完成的任务数量
-    #   LoopCount             已经循环的次数
-    #   Failed                已经失败的任务数量
-    def show_job(self, arg, **_):
-        if arg is None or len(str(arg).strip()) == 0:
-            raise SQLCliException("Missing required argument. showjob [all|job#].")
-        m_Parameters = str(arg).split()
-
-        if m_Parameters[0].upper() == "ALL":
-            # show jobs
-            if self.m_BackGround_Jobs is None:
-                yield (
-                    None,
-                    None,
-                    None,
-                    None,
-                    "No Jobs")
-                return
-
-            m_Result = []
-            for m_BackGround_Job in self.m_BackGround_Jobs.Get_Jobs():
-                m_Result.append(
-                    [
-                        str(m_BackGround_Job["JOB#"]),
-                        m_BackGround_Job["ScriptBaseName"],
-                        m_BackGround_Job["Status"],
-                        m_BackGround_Job["StartedTime"],
-                        m_BackGround_Job["EndTime"],
-                        m_BackGround_Job["Finished"],
-                        m_BackGround_Job["LoopCount"],
-                        m_BackGround_Job["Failed"],
-
-                    ]
-                )
-            yield (
-                None,
-                m_Result,
-                ["JOB#", "ScriptBaseName", "Status", "Started", "End", "Finished", "LoopCount", "Failed"],
-                None,
-                "Total " + str(self.m_Max_JobID) + " Jobs.")
-            return
-
-        if m_Parameters[0].upper().isnumeric():
-            m_Job_ID = int(m_Parameters[0].upper())
-        else:
-            raise SQLCliException("Argument error. showjob [job#].")
-
-        # 遍历JOB，找到需要的那条信息
-        m_Result = ""
-        for m_BackGround_Job in self.m_BackGround_Jobs.Get_Jobs():
-            if int(m_BackGround_Job["JOB#"]) == m_Job_ID:
-                if m_BackGround_Job["Current_SQL"] is None:
-                    m_Current_SQL = "[None]"
-                else:
-                    m_Current_SQL = "\n" + str(m_BackGround_Job["Current_SQL"]) + "\n"
-                m_Result = "Job Describe [" + str(m_Job_ID) + "]\n" + \
-                           "  ScriptBaseName = [" + m_BackGround_Job["ScriptBaseName"] + "]\n" + \
-                           "  ScriptFullName = [" + m_BackGround_Job["ScriptFullName"] + "]\n" + \
-                           "  Status = [" + m_BackGround_Job["Status"] + "]\n" + \
-                           "  StartedTime = [" + str(m_BackGround_Job["StartedTime"]) + "]\n" + \
-                           "  EndTime = [" + str(m_BackGround_Job["EndTime"]) + "]\n" + \
-                           "  Finished = [" + str(m_BackGround_Job["Finished"]) + "]\n" + \
-                           "  LoopCount = [" + str(m_BackGround_Job["LoopCount"]) + "]\n" + \
-                           "  Failed = [" + str(m_BackGround_Job["Failed"]) + "]\n" + \
-                           "  Current_SQL = " + m_Current_SQL
-            else:
-                continue
-        yield (
-            None,
-            None,
-            None,
-            None,
-            m_Result)
 
     # 连接数据库
     def connect_db(self, arg, **_):
@@ -946,22 +784,18 @@ class SQLCli(object):
             self.SQLOptions.set("CONNURL", self.db_url)
             yield None, None, None, None, "Session restored Successful."
 
-    # 休息一段时间, 如果收到SHUTDOWN或者ABORT符号的时候，立刻终止SLEEP
-    def sleep(self, arg, **_):
+    # 休息一段时间, 如果收到SHUTDOWN信号的时候，立刻终止SLEEP
+    @staticmethod
+    def sleep(arg, **_):
         if not arg:
             message = "Missing required argument, sleep [seconds]."
             return [(None, None, None, None, message)]
         try:
-            # 每次最多休息3秒钟，随后检查一下运行状态, 如果要求退出，就退出程序
             m_Sleep_Time = int(arg)
             if m_Sleep_Time <= 0:
                 message = "Parameter must be a valid number, sleep [seconds]."
                 return [(None, None, None, None, message)]
-            for m_nPos in range(0, int(arg)//3):
-                if self.m_Shutdown_Flag:
-                    raise EOFError
-                time.sleep(3)
-            time.sleep(int(arg) % 3)
+            time.sleep(m_Sleep_Time)
         except ValueError:
             message = "Parameter must be a number, sleep [seconds]."
             return [(None, None, None, None, message)]
@@ -1215,10 +1049,6 @@ class SQLCli(object):
     # 如果执行成功，返回true
     # 如果执行失败，返回false
     def DoSQL(self, text=None):
-        # 如果程序被要求退出，则立即退出，不再执行任何SQL
-        if self.m_Shutdown_Flag:
-            raise EOFError
-
         # 判断传入SQL语句， 如果没有传递，则表示控制台程序，需要用户输入SQL语句
         if text is None:
             full_text = None

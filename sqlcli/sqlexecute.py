@@ -25,9 +25,7 @@ class SQLExecute(object):
     Console = False                     # 屏幕输出Console
     logger = None                       # 日志输出
 
-    m_PerfFileLocker = Lock()           # # 进程锁, 用来在输出perf文件的时候控制并发写文件
-
-    m_Shutdown_Flag = False             # 在程序的每个语句，Sleep间歇中都会判断这个进程终止标志
+    m_PerfFileLocker = Lock()           # 进程锁, 用来在输出perf文件的时候控制并发写文件
 
     SQLPerfFile = None                  # SQLPerf文件
     SQLPerfFileHandle = None            # SQLPerf文件句柄

@@ -898,15 +898,6 @@ Mapping file loaded.
 
     __internal__ CREATE [MEM|FS|HDFS] FILE [From file] FROM [MEM|FS|HDFS] FILE [To file] 
     这里将完成一个文件复制。 
-```
-#### 用SQLCli工具操作Kafka
-```
-   SQLCli工具可以操作Kafka，建立、删除Topic，查看Topic的状态，给Topic发送信息
-
-   提前准备：
-     如果需要发送数据到kafka, 必须提前设置kafka服务器的地址, 设置的方法是：
-     SQL>  connect KAFKA_SERVERS [kafka Server地址]:[kafka 端口号]
-
 
    例子：
    SQL> __internal__ CREATE FS FILE abc.txt
@@ -930,7 +921,12 @@ Mapping file loaded.
    SQL> __internal__ CREATE FS FILE abc.txt FROM HDFS FILE http://nodexx:port/def.txt
    会从HDFS上下载一个文件def.txt, 并保存到本地文件系统的abc.txt中
 
+```
+#### 用SQLCli工具操作Kafka
+```
+   SQLCli工具可以操作Kafka，建立、删除Topic，查看Topic的状态，给Topic发送信息
 
+   提前准备：
    SQL> __internal__ connect kafka server [bootstrap_server];
    连接一个Kafka服务器，格式位nodex:port1,nodey:port2....
    注意，这里并没有校验服务器的实际信息是否正确。
@@ -996,117 +992,122 @@ Disconnected.
 2： 脚本应用：  EXIT不会直接退出，而是会等待后台进程完成工作后再退出  
 ***
 ### 程序的并发和后台执行
-SQLCli被设计为支持并发执行脚本，支持后台执行脚本。  
-为了支持后台操作，我们这里有一系列的语句，他们是：  
-1：  SubmitJob      提交后台任务    
-2：  ShowJob        显示当前已经提交的后台任务，以及他们的运行状态  
-3：  CloseJob       关闭正在运行JOB的后续循环执行，当前正在的脚本将被继续执行完成  
-4：  ShutdownJob    终止正在运行的JOB，当前正在运行的SQL将被继续执行完成  
-5：  AbortJob       放弃正在执行的JOB，当前正在运行的SQL将被强制中断  
-6：  WaitJob        等待作业队列完成相关工作  
-7：  StartJob       开始运行后台作业  
-#### 如果提交脚本到后台任务
-在很多时候，我们需要SQLCli来帮我们来运行数据库脚本，但是又不想等待脚本的运行结束。
-我们可以通过SubmitJob的方式来将我们的脚本提交到后台  
-SubmitJob有3个参数，他们是：  
-1：  计划被执行的脚本  
-2：  脚本将会启动的份数，默认为1， 即只启动1份  
-3：  脚本将会循环执行的次数，默认为1，即执行完成1次后就会退出  
-```
-SQL> submitjob task_1.sql 3 5
-3 Jobs Submittted.
-task_1.sql：  计划后台执行的脚本。这里你可以输入全路径名，也可以输入当前脚本的相对文件名。
-3         ：  同时运行的份数，这个参数可以被忽略，如果被忽略，那么同时运行的份数是1
-5         ：  被循环执行的次数，这个参数可以被忽略，如果被忽略，那么循环运行的次数是1
-注意： SubmitJob并不会真的开始运行你提交的脚本，他只是一个记录，如果要启动他，需要用后面提到的startjob
-注意： 你当前SQL会话中的连接信息、SQL重写信息、版本显示的设置、运行日志的信息都被会子SQL继承。
-      你可以选择在task_1.sql中重写覆盖这些信息，但起默认信息来自于主程序的设置。
-SQLCli会为每一个后台任务编一个不重复的JOBID，具体的JOBID可以通过showjob来查看。
-对于前面的这个例子，启动份数是3，则在ShowJOBS里头能看见3个不同的JOBID
-```
-#### 如何查看后台任务脚本的运行情况
-通过showjob可以查看我们之前提交情况，脚本的运行情况，运行的开始时间，运行的结束时间，当前正在运行的SQL等。
-```
-SQL> showjob all
-+------+--------------------+-------------+---------------------+---------------------+----------+-----------+
-| JOB# | ScriptBaseName     | Status      | Started             | End                 | Finished | LoopCount |
-+------+--------------------+-------------+---------------------+---------------------+----------+-----------+
-| 1    | task_1.sql         | RUNNING     | 2020-05-25 17:46:28 | <null>              | 1        | 5         |
-| 2    | task_1.sql         | RUNNING     | 2020-05-25 17:46:28 | <null>              | 2        | 5         |
-| 3    | task_1.sql         | STOPPED     | 2020-05-25 17:46:28 | 2020-05-25 17:46:47 | 5        | 5         |
-| 4    | task_2.sql         | Not Started | <null>              | <null>              | 0        | 5         |
-| 5    | task_2.sql         | Not Started | <null>              | <null>              | 0        | 5         |
-+------+--------------------+-------------+---------------------+---------------------+----------+-----------+
-Total 5 Jobs.
-这里可以看到目前5个脚本已经提交，其中：
-1： 任务1，任务2 都在运行中，5次循环已经分别完成了1次和2次
-2： 任务3已经完全运行完成
-3： 任务4，任务5还完全没有开始
+SQLCli被设计为支持并发执行脚本，支持后台执行脚本。    
+为了支持后台操作，我们这里有一系列的语句，他们是：    
+1：  Create         创建后台任务      
+2：  set            设置JOB相关参数    
+3：  show           显示当前已经提交的后台任务，以及他们的运行状态    
+4：  start          开始运行后台作业    
+5：  abort          放弃正在执行的JOB，当前正在运行的SQL将被强制中断    
+6：  shutdown       停止当前正在执行的JOB，但等待当前SQL正常结束    
+7：  waitJob        等待作业队列完成相关工作    
 
-SQL> showjob 1                                                                                                                                               
-Job Describe [1]
-  ScriptBaseName = [xxx.sql]
-  ScriptFullName = [/Users/xxxxx/task_1.sql]
-  Status = [Not Started]
-  StartedTime = [None]
-  EndTime = [None]
-  Current_SQL = [None]
-这里可以看到具体对于JOB编号为1的任务的详细情况
+#### 创建后台任务脚本
+在很多时候，我们需要SQLCli来帮我们来运行数据库脚本，但是又不想等待脚本的运行结束。  
+create有1个参数，是：    
+1：  JOB的名称    
+```
+SQL> __internal__ job create jobtest;
+JOB [jobtest] create successful.
+```
+2:  设置JOB的相关参数    
+通过set，我们可以JOB的具体参数。 支持的参数有：
+```  
+script                   ：  必选参数。后台作业的脚本名称。可以用绝对路径写或者当前目录的相对路径    
+parallel                 ：  可选参数。后台作业并发度，即同时可以有几个作业在运行该脚本。默认为1  
+loop                     ：  可选参数。一共要循环完成的次数，默认为1    
+timeout                  ：  可选参数。后台作业的超时限制，单位为秒，默认为0，即不限制
+                             若设置为非零数，则在达到指定的时间后，作业会被强行终止，不再继续下去
+starter_maxprocess       ：  为减少首次启动的负载压力。每次启动作业时，单个批次最大启动多少个并行作业
+                             只在作业首次启动的时候，这个参数有意义。
+                             默认是9999，即完全不做限制
+                             例如： parallel 设置为10，starter_maxprocess为2，
+                               则：以starter_interval为间隔，每次2个启动作业，一直到满足parallel要求 
+starter_interval         ：  为减少首次启动的负载压力。每次启动作业时，单个批次的间隔时间，默认是0，即不等待
+think_time               ：  每一次作业完成后，启动下一个作业中间需要的时间间隔，默认是0，即不等待
+blowout_threshold_count  ：  完全失败阈值，若失败次数已经达到该次数，认为后续作业已经没必要运行。默认是0，即不限制   
+
+例子： 
+SQL> __internal__ job set jobtest parallel 2;
+JOB [jobtest] set successful.
+SQL> __internal__ job set jobtest loop 4;
+JOB [jobtest] set successful.
+SQL> __internal__ job set jobtest script bb.sql;
+JOB [jobtest] set successful.
+SQL>
+```
+
+#### 查看后台任务脚本的运行情况
+通过show可以查看我们之前提交情况，脚本的运行情况，运行的开始时间，运行的结束时间，当前正在运行的SQL等。
+```
+SQL> -- 查看JOB整体情况
+SQL> __internal__ job show all;
++----------+-----------+-------------+-------------+---------------+---------------------+------------+----------+
+| job_name | status    | active_jobs | failed_jobs | finished_jobs | submit_time         | start_time | end_time |
++----------+-----------+-------------+-------------+---------------+---------------------+------------+----------+
+| jobtest  | Submitted | 0           | 0           | 0             | 2020-12-02 11:00:41 | None       | None     |
++----------+-----------+-------------+-------------+---------------+---------------------+------------+----------+
+Total 1 Jobs.
+这里可以看到目前1个脚本已经提交.
+
+SQL> -- 查看JOB具体情况 
+SQL> __internal__ job show jobtest;
+JOB_Name = [jobtest     ]; ID = [   3]; Status = [Submitted          ]
+ActiveJobs/FailedJobs/FinishedJobs: [         0/         0/         0]
+Submit Time: [2020-12-02 11:00:41                                    ]
+Start Time : [None                ] ; End Time: [None                ]
+Script              : [bb.sql                                        ]
+Script Full FileName: [None                                          ]
+Parallel: [         2]; Loop: [         4]; Starter: [    9999/    0s]
+Think time: [         0]; Timeout: [         0]; Elapsed: [      0.00]
+Blowout Threshold Count: [                                       9999]
+Error Message : [None                                                ]
+Detail Tasks:
++----------+----------+--------------------+--------------------+
+|Task-ID   |PID       |Start_Time          |End_Time            |
++----------+----------+--------------------+--------------------+
+这里可以看到具体对于JOB名称为jobtst的任务的详细情况
 ```
   
 #### 如何启动后台任务脚本
-通过startJob的方式，我可以启动全部的后台任务或者只启动部分后台任务
+通过start的方式，我可以启动全部的后台任务或者只启动部分后台任务
 ```
-SQL> startjob all
-3 Jobs Started.
-这里会将你之前提交的所有后台脚本都一次性的启动起来
-SQL> startjob 1
+SQL> __internal__ job start all;
 1 Jobs Started.
-这里只会启动JOBID为1的后台任务
-随后，再次通过showjob来查看信息，可以注意到相关已经启动
+这里会将你之前提交的所有后台脚本都一次性的启动起来
+SQL> __internal__ job start jobtest;
+1 Jobs Started.
+这里只会启动JOB名称为jobtest的后台任务
+随后，再次通过show来查看信息，可以注意到相关已经启动
 ```
 #### 如何停止后台任务脚本
-在脚本运行过程中，你可以用closejob来停止某个某个任务或者全部任务，
+在脚本运行过程中，你可以用shutdown来停止某个某个任务或者全部任务，
 ```
-SQL> closejob all
-3 Jobs will close.
+SQL> __internal__ job shutdown all;
+Total [1] jobs shutdowned.
 这里会将当前运行的所有后台脚本都停止下来
-SQL> closejob 1
-Job 1 will close.
-注意： closejob并不会真的终止你当前正在运行的SQL，甚至不会干扰当前脚本的运行。但是要求循环执行的脚本在本次执行结束后不再循环。
-      只有在子任务完成当前脚本后，closejob才能完成。
-      这个意思是说，如果你有一个比较大的长SQL作业，closejob并不能很快的终止任务运行。
-```
-在脚本运行过程中，你可以用shutdownjob来停止某个某个任务或者全部任务，
-```
-SQL> shutdownjob all
-3 Jobs will shutdown.
-这里会将当前运行的所有后台脚本都停止下来
-SQL> shutdownjob 1
-Job 1 will shutdown.
-注意： shutdownjob并不会真的终止你当前正在运行的SQL，但是在这个SQL之后的所有SQL不再执行，要求循环执行的脚本也不再循环。
-      如果shutdown的时候，程序正在执行sleep，则sleep会被打断
-      只有在子任务完成当前SQL后，shutdownjob才能完成。
+SQL> __internal__ job shutdown jobtst;
+Total [1] jobs shutdowned.
+注意： shutdown并不会真的终止你当前正在运行的作业，但是在这个作业之后的所有作业不再执行，要求循环执行的脚本也不再循环。
+      只有在子任务完成当前作业后，shutdownjob才能完成。
       这个意思是说，如果你有一个比较大的长SQL作业，shutdownjob并不能很快的终止任务运行。
 ```
 #### 如何强行停止后台任务脚本
-在脚本运行过程中，你可以用abortjob来强行停止某个某个任务或者全部任务，
+在脚本运行过程中，你可以用abort来强行停止某个某个任务或者全部任务，
 ```
-SQL> abortjob all
-3 Jobs will terminate.
-这里会将当前运行的所有后台脚本都强制停止下来
-SQL> abortjob 1
-Job 1 will terminate.
-注意： abortjob并不会真的杀掉你的子进程，但是会强制断开子进程的数据库连接，用户当前执行的SQL可能会出错退出
-      这个意思是说，如果子进程正在运行一个SQL，SQL运行会报错退出
-      如果abortjob的时候，程序正在执行sleep，则sleep会被打断
-      如果你有一个比较大的长SQL作业，abortjob并不能很快的终止任务运行，但相对来说，比shutdownjob要快的多。
+SQL> __internal__ job abort all;
+Total [1] jobs aborted.
+这里会将当前运行的所有后台脚本都停止下来
+SQL> __internal__ job abort jobtst;
+Total [1] jobs aborted.
 ```
 #### 等待后台任务脚本运行结束
-在脚本运行过程中，你可以用waitjob来等待后台脚本的运行结束
+在脚本运行过程中，你可以用wait来等待后台脚本的运行结束
 ```
-SQL> waitjob all
-3 Jobs completed
+SQL> __internal__ job wait all;
+All jobs [all] finished.
+SQL> __internal__ job wait jobtest;
+All jobs [jobtest] finished.
 waitjob不会退出，而是会一直等待相关脚本结束后再退出
 ```
 
