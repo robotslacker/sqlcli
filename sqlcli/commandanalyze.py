@@ -1,12 +1,5 @@
 # -*- coding: utf-8 -*-
-import logging
 from collections import namedtuple
-
-log = logging.getLogger(__name__)
-
-NO_QUERY = 0
-PARSED_QUERY = 1
-RAW_QUERY = 2
 
 __all__ = []
 
@@ -24,18 +17,12 @@ SpecialCommand = namedtuple(
         "handler",
         "command",
         "description",
-        "arg_type",
         "hidden",
         "case_sensitive",
     ],
 )
 
 COMMANDS = {}
-
-
-@export
-class ArgumentMissing(Exception):
-    pass
 
 
 @export
@@ -55,7 +42,6 @@ def parse_special_command(sql):
 def special_command(
     command,
     description,
-    arg_type=PARSED_QUERY,
     hidden=False,                     # 是否显示在帮助信息里头
     case_sensitive=False,             # 是否忽略输入的大小写
 ):
@@ -64,7 +50,6 @@ def special_command(
             wrapped,
             command,
             description,
-            arg_type,
             hidden,
             case_sensitive,
         )
@@ -78,18 +63,17 @@ def register_special_command(
     handler,
     command,
     description,
-    arg_type=PARSED_QUERY,
     hidden=False,
     case_sensitive=False
 ):
     cmd = command.lower() if not case_sensitive else command
     COMMANDS[cmd] = SpecialCommand(
-        handler, command, description, arg_type, hidden, case_sensitive
+        handler, command, description, hidden, case_sensitive
     )
 
 
 @export
-def execute(cur, sql):
+def execute(sql):
     """Execute a special command and return the results. If the special command
     is not supported a KeyError will be raised.
     """
@@ -106,18 +90,11 @@ def execute(cur, sql):
         if special_cmd.case_sensitive:
             raise CommandNotFound("Command not found: %s" % command)
 
-    if special_cmd.arg_type == NO_QUERY:
-        return special_cmd.handler()
-    elif special_cmd.arg_type == PARSED_QUERY:
-        return special_cmd.handler(cur=cur, arg=arg, verbose=verbose)
-    elif special_cmd.arg_type == RAW_QUERY:
-        return special_cmd.handler(cur=cur, query=sql)
+    return special_cmd.handler(arg=arg)
 
 
-@special_command(
-    "help", "Show this help.", arg_type=NO_QUERY
-)
-def show_help():  # All the parameters are ignored.
+@special_command("help", "Show this help.")
+def show_help(arg):
     headers = ["Command", "Description"]
     result = []
 
@@ -127,6 +104,6 @@ def show_help():  # All the parameters are ignored.
     return [(None, result, headers, None, None)]
 
 
-@special_command("quit", "Quit.", arg_type=NO_QUERY)
-def quit_sqlcli(*_args):
+@special_command("quit", "Quit.")
+def quit_sqlcli(arg):
     raise EOFError

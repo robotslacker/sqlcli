@@ -175,14 +175,19 @@ def random_from_seed(p_arg):
         m_StartPos = 0
         m_nMaxLength = int(p_arg[1])
 
-    # 如果还没有加载种子，就先加载
-    n = len(seed_cache)
-    if n == 0:
+    # 如果还没有加载种子，就先尝试加载
+    if m_SeedName not in seed_cache:
         Load_SeedCacheFile()
 
     # 在种子中查找需要的内容
     if m_SeedName in seed_cache:
         n = len(seed_cache[m_SeedName])
+        if n == 0:
+            # 空的Seed文件，可能是由于Seed文件刚刚创建，则尝试重新加载数据
+            Load_SeedCacheFile()
+            n = len(seed_cache[m_SeedName])
+            if n == 0:
+                raise SQLCliException("Seed cache is zero. [" + str(p_arg[0]) + "].")
         m_RandomRow = seed_cache[m_SeedName][random.randint(0, n - 1)]
         return m_RandomRow[m_StartPos:m_StartPos+m_nMaxLength]
     else:

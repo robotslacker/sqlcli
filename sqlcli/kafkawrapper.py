@@ -249,7 +249,7 @@ class KafkaWrapper(object):
                 return None, None, None, None, "Failed to get office for topic {}: {}".format(m_TopicName, repr(ke))
 
         # 从文件中加载消息到Kafka队列中
-        matchObj = re.match(r"create\s+kafka\s+message\s+from\s+file\s+(.*)\s+to\s+topic\s+(.*)(\s+)?$",
+        matchObj = re.match(r"produce\s+kafka\s+message\s+from\s+file\s+(.*)\s+to\s+topic\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_FileName = str(matchObj.group(1)).strip()

@@ -236,7 +236,7 @@ class SQLExecute(object):
             # 执行SQL
             try:
                 # 首先尝试这是一个特殊命令，如果返回CommandNotFound，则认为其是一个标准SQL
-                for result in execute(cur, sql):
+                for result in execute(sql):
                     yield result
             except CommandNotFound:
                 if cur is None:
