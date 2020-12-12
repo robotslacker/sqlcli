@@ -236,8 +236,8 @@ class SQLExecute(object):
             # 执行SQL
             try:
                 # 首先尝试这是一个特殊命令，如果返回CommandNotFound，则认为其是一个标准SQL
-                for result in execute(sql):
-                    yield result
+                for (title, result, headers, columntypes, status) in execute(sql):
+                    yield title, result, headers, columntypes, status
             except CommandNotFound:
                 if cur is None:
                     # 进入到SQL执行阶段，不是特殊命令, 数据库连接也不存在
@@ -313,7 +313,14 @@ class SQLExecute(object):
                     except Exception as e:
                         end = time.time()  # 记录结束时间
                         m_SQL_Status = 1
-                        m_SQL_ErrorMessage = str(e)
+                        m_SQL_ErrorMessage = str(e).strip()
+                        for m_ErrorPrefix in ('java.sql.SQLSyntaxErrorException:',
+                                              "java.sql.SQLException:",
+                                              "java.sql.SQLInvalidAuthorizationSpecException:",
+                                              "java.sql.SQLDataException",
+                                              "java.sql.SQLTransactionRollbackException"):
+                            if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
+                                m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
                         self.Log_Perf(
                             {
                                 "StartedTime": start,
@@ -335,24 +342,31 @@ class SQLExecute(object):
                                 str(e).find("SQLSyntaxErrorException") != -1 or
                                 str(e).find("SQLException") != -1 or
                                 str(e).find("SQLDataException") != -1 or
-                                str(e).find("jdbc.exception") != -1 or
                                 str(e).find("SQLTransactionRollbackException") != -1 or
                                 str(e).find("SQLTransientConnectionException") != -1 or
+                                str(e).find("jdbc.exception") != -1 or
                                 str(e).find('time data') != -1
                         ):
                             # 发生了SQL语法错误
                             if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
-                                raise SQLCliException(str(e))
+                                raise SQLCliException(m_SQL_ErrorMessage)
                             else:
                                 self.LastAffectedRows = 0
                                 self.LastSQLResult = None
-                                yield None, None, None, None, str(e)
+                                yield None, None, None, None, m_SQL_ErrorMessage
                         else:
                             # 发生了其他不明错误
                             raise e
             except SQLCliException as e:
                 m_SQL_Status = 1
-                m_SQL_ErrorMessage = str(e.message)
+                m_SQL_ErrorMessage = str(e.message).strip()
+                for m_ErrorPrefix in ('java.sql.SQLSyntaxErrorException:',
+                                      "java.sql.SQLException:",
+                                      "java.sql.SQLInvalidAuthorizationSpecException:",
+                                      "java.sql.SQLDataException",
+                                      "java.sql.SQLTransactionRollbackException"):
+                    if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
+                        m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
                 # 如果要求出错退出，就立刻退出，否则打印日志信息
                 if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                     raise e
@@ -362,7 +376,7 @@ class SQLExecute(object):
                         print('traceback.format_exc():\n%s' % traceback.format_exc())
                     self.LastAffectedRows = 0
                     self.LastSQLResult = None
-                    yield None, None, None, None, str(e.message)
+                    yield None, None, None, None, m_SQL_ErrorMessage
 
             # 如果需要，打印语句执行时间
             end = time.time()

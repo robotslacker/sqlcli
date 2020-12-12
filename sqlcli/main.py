@@ -67,17 +67,6 @@ class SQLCli(object):
     sqlmap = None
     nologo = None
 
-    # 目前程序运行的当前SQL
-    m_Current_RunningSQL = None
-    m_Current_RunningStarted = None
-
-    # 目前程序的终止状态
-    m_Current_RunningStatus = None
-
-    # 后台进程队列
-    m_BackGround_Jobs = None
-    m_Max_JobID = 0                     # 当前的最大JOBID
-
     # 屏幕输出
     Console = None                      # 程序的控制台显示
     logfile = None                      # 程序输出日志文件
@@ -101,7 +90,6 @@ class SQLCli(object):
             clientcharset='UTF-8',
             resultcharset='UTF-8'
     ):
-        self.m_ProcessList = []                   # 所有本进程启动的子进程句柄信息
         self.db_saved_conn = {}                   # 数据库Session备份
         self.SQLMappingHandler = SQLMapping()     # 函数句柄，处理SQLMapping信息
         self.SQLExecuteHandler = SQLExecute()     # 函数句柄，具体来执行SQL
@@ -1080,9 +1068,6 @@ class SQLCli(object):
             return True
 
         try:
-            # 执行需要的SQL语句, 并记录当前运行脚本以及开始时间
-            self.m_Current_RunningSQL = text
-            self.m_Current_RunningStarted = time.time()
             result = self.SQLExecuteHandler.run(text)
 
             # 输出显示结果
@@ -1127,9 +1112,6 @@ class SQLCli(object):
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
             self.echo(repr(e), err=True, fg="red")
             return False
-        finally:
-            self.m_Current_RunningSQL = None
-            self.m_Current_RunningStarted = None
 
     # 下载程序所需要的各种Jar包
     def syncdriver(self):
