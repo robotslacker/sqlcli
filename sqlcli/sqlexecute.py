@@ -30,14 +30,18 @@ class SQLExecute(object):
     SQLPerfFile = None                  # SQLPerf文件
     SQLPerfFileHandle = None            # SQLPerf文件句柄
 
+    SQLID = ''                          # SQLID 信息，如果当前SQL指定，则重复上一个的SQLID
+    SQLGROUP = ''                       # SQLGroup 信息，如果当前没有SQL指定，则重复上一个的SQLGROUP
+    SQLFeature = ''                     # SQLFeature 信息，如果当前没有SQL指定，则重复上一个的SqlFeature
+
     def __init__(self):
         # 记录最后SQL返回的结果
         self.LastAffectedRows = 0
         self.LastSQLResult = None
         self.LastElapsedTime = 0
 
-        # 当前Execute的WorkerName
-        self.m_Worker_Name = None
+        # 当前Executeor的WorkerName
+        self.WorkerName = None
 
         # 程序Spool输出句柄
         self.spoolfile = None
@@ -45,19 +49,16 @@ class SQLExecute(object):
         # 程序Echo输出句柄
         self.echofile = None
 
-    def set_Worker_Name(self, p_szWorkerName):
-        self.m_Worker_Name = p_szWorkerName
-
-    def set_logfile(self, p_logfile):
-        self.logfile = p_logfile
-
-    def set_connection(self, p_conn):
-        self.conn = p_conn
-
     def run(self, statement, p_sqlscript=None):
         """
         返回结果包含5个方面的内容
         (title, rows, headers, columntypes, status).
+
+        支持的SQLHint包括:
+        # [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
+        # [Hint]  Feature:XXXX    -- 相关SQL的特性编号，仅仅作为日志信息供查看
+        # [Hint]  SQLID:XXXX      -- 相关SQL的SQL编号ID，仅仅作为日志信息供查看
+        # [Hint]  SQLGROUP:XXXX   -- 相关SQL的SQL组编号，仅仅作为日志信息供查看
         """
         m_SQL_Status = 0             # SQL 运行结果， 0 成功， 1 失败
         m_SQL_ErrorMessage = ""      # 错误日志信息
@@ -66,10 +67,6 @@ class SQLExecute(object):
         statement = statement.strip()
         if not statement:  # Empty string
             yield None, None, None, None, None
-
-        # 记录SQLID和SQLGROUP，如果SQLID和SQLGROUP上次已经有了信息，本次没有任何信息，则保留原信息
-        m_SQLID = ''
-        m_SQLGROUP = ''
 
         # 分析SQL语句
         (ret_bSQLCompleted, ret_SQLSplitResults,
@@ -92,15 +89,15 @@ class SQLExecute(object):
 
             sql = m_raw_sql                                          # 当前要被执行的SQL，这个SQL可能被随后的注释或者替换规则改写
             m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]   # 记录带有注释信息的SQL
+
+            # 分析SQLHint信息
             m_SQLHint = ret_SQLHints[m_nPos]                         # SQL提示信息，其中Feature,SQLID,SQLGROUP用作日志处理
             if "Feature" in m_SQLHint.keys():
-                m_SQLFeature = m_SQLHint["Feature"]
-            else:
-                m_SQLFeature = ""
+                self.SQLFeature = m_SQLHint["Feature"]
             if "SQLID" in m_SQLHint.keys():
-                m_SQLID = m_SQLHint['SQLID']
+                self.SQLID = m_SQLHint['SQLID']
             if "SQLGROUP" in m_SQLHint.keys():
-                m_SQLGROUP = m_SQLHint['SQLGROUP']
+                self.SQLGROUP = m_SQLHint['SQLGROUP']
 
             # 如果打开了回显，并且指定了输出文件，则在输出文件里显示SQL语句
             if self.SQLOptions.get("ECHO").upper() == 'ON' \
@@ -244,20 +241,6 @@ class SQLExecute(object):
                     if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                         raise SQLCliException("Not Connected. ")
                     else:
-                        self.Log_Perf(
-                            {
-                                "StartedTime": start,
-                                "elapsed": 0,
-                                "RAWSQL": m_raw_sql,
-                                "SQL": sql,
-                                "SQLStatus": m_SQL_Status,
-                                "Feature": m_SQLFeature,
-                                "ErrorMessage": m_SQL_ErrorMessage,
-                                "thread_name": self.m_Worker_Name,
-                                "SQLID": m_SQLID,
-                                "SQLGROUP": m_SQLGROUP
-                            }
-                        )
                         self.LastAffectedRows = 0
                         self.LastSQLResult = None
                         yield None, None, None, None, "Not connected. "
@@ -284,57 +267,24 @@ class SQLExecute(object):
                                     for j in range(0, len(result) - i):
                                         if str(result[j]) > str(result[j + 1]):
                                             result[j], result[j + 1] = result[j + 1], result[j]
+
+                            # 返回SQL结果
                             if self.SQLOptions.get('TERMOUT').upper() != 'OFF':
                                 yield title, result, headers, columntypes, status
                             else:
                                 yield title, [], headers, columntypes, status
                             if not m_FetchStatus:
                                 break
-
-                        # 记录结束时间
-                        end = time.time()
-
-                        # 记录SQL日志信息
-                        self.Log_Perf(
-                            {
-                                "StartedTime": start,
-                                "elapsed": end - start,
-                                "RAWSQL": m_raw_sql,
-                                "SQL": sql,
-                                "SQLStatus": m_SQL_Status,
-                                "Feature": m_SQLFeature,
-                                "ErrorMessage": m_SQL_ErrorMessage,
-                                "thread_name": self.m_Worker_Name,
-                                "SQLID": m_SQLID,
-                                "SQLGROUP": m_SQLGROUP
-                            }
-                        )
-
                     except Exception as e:
-                        end = time.time()  # 记录结束时间
                         m_SQL_Status = 1
                         m_SQL_ErrorMessage = str(e).strip()
                         for m_ErrorPrefix in ('java.sql.SQLSyntaxErrorException:',
                                               "java.sql.SQLException:",
                                               "java.sql.SQLInvalidAuthorizationSpecException:",
-                                              "java.sql.SQLDataException",
-                                              "java.sql.SQLTransactionRollbackException"):
+                                              "java.sql.SQLDataException:",
+                                              "java.sql.SQLTransactionRollbackException:"):
                             if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
                                 m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
-                        self.Log_Perf(
-                            {
-                                "StartedTime": start,
-                                "elapsed": end - start,
-                                "RAWSQL": m_raw_sql,
-                                "SQL": sql,
-                                "SQLStatus": m_SQL_Status,
-                                "Feature": m_SQLFeature,
-                                "ErrorMessage": m_SQL_ErrorMessage,
-                                "thread_name": self.m_Worker_Name,
-                                "SQLID": m_SQLID,
-                                "SQLGROUP": m_SQLGROUP
-                            }
-                        )
 
                         if (
                                 isinstance(e, pyodbc.Error) or                              # ODBC Error 错误
@@ -363,8 +313,8 @@ class SQLExecute(object):
                 for m_ErrorPrefix in ('java.sql.SQLSyntaxErrorException:',
                                       "java.sql.SQLException:",
                                       "java.sql.SQLInvalidAuthorizationSpecException:",
-                                      "java.sql.SQLDataException",
-                                      "java.sql.SQLTransactionRollbackException"):
+                                      "java.sql.SQLDataException:",
+                                      "java.sql.SQLTransactionRollbackException:"):
                     if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
                         m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
                 # 如果要求出错退出，就立刻退出，否则打印日志信息
@@ -382,16 +332,25 @@ class SQLExecute(object):
             end = time.time()
             self.LastElapsedTime = end - start
 
-            if "TimeLimit" in m_SQLHint.keys():
-                m_TimeLimit = m_SQLHint["TimeLimit"]
-                m_TimeCost = '%9.0f' % ((end - start) * 1000)
-                if m_TimeLimit < (end - start) * 1000:
-                    raise SQLCliException('LinkoopSQL-Err:: ' 
-                                          'SQL elapsed time [' + m_TimeCost + '] over limit [' + str(m_TimeLimit) + ']')
+            # 记录SQL日志信息
+            self.Log_Perf(
+                {
+                    "StartedTime": start,
+                    "elapsed": self.LastElapsedTime,
+                    "RAWSQL": m_raw_sql,
+                    "SQL": sql,
+                    "SQLStatus": m_SQL_Status,
+                    "Feature": self.SQLFeature,
+                    "ErrorMessage": m_SQL_ErrorMessage,
+                    "thread_name": self.WorkerName,
+                    "SQLID": self.SQLID,
+                    "SQLGROUP": self.SQLGROUP
+                }
+            )
 
             if self.SQLOptions.get('TIMING').upper() == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
-                    yield None, None, None, None, 'Running time elapsed: %9.2f Seconds' % (end - start)
+                    yield None, None, None, None, 'Running time elapsed: %9.2f Seconds' % self.LastElapsedTime
             if self.SQLOptions.get('TIME').upper() == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
                     yield None, None, None, None, 'Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime())
@@ -521,25 +480,22 @@ class SQLExecute(object):
                 self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
                 self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tRAWSQL\tSQL\t"
                                              "SQLStatus\tErrorMessage\tthread_name\t"
-                                             "Copies\tFinished\tFeature\tSQLID\tSQLGROUP\n")
+                                             "Feature\tSQLID\tSQLGROUP\n")
                 self.SQLPerfFileHandle.close()
 
-            if len(str(p_SQLResult["thread_name"]).split('-')) == 3:
-                # 对于多线程运行，这里的thread_name通常为JOB_NAME, 副本数，循环次数
-                m_ThreadName = str(p_SQLResult["thread_name"]).split('-')[0]
-                m_Copies = str(p_SQLResult["thread_name"]).split('-')[1]
-                m_CurrentLoop = int(str(p_SQLResult["thread_name"]).split('-')[2]) + 1
-            else:
-                # 对于单线程运行，这里的thread_name通常为JOB_NAME, 1， 1
-                m_ThreadName = str(p_SQLResult["thread_name"])
-                m_Copies = 1
-                m_CurrentLoop = 1
+            # 对于多线程运行，这里的thread_name格式为JOB_NAME#副本数-完成次数
+            # 对于单线程运行，这里的thread_name格式为固定的MAIN
+            m_ThreadName = str(p_SQLResult["thread_name"])
 
             # 打开Perf文件
             self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
             # 写入内容信息
+            if self.sqlscript is None:
+                m_SQL_Script = "Console"
+            else:
+                m_SQL_Script = str(os.path.basename(self.sqlscript))
             self.SQLPerfFileHandle.write(
-                "'" + str(os.path.basename(self.sqlscript)) + "'\t" +
+                "'" + m_SQL_Script + "'\t" +
                 "'" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p_SQLResult["StartedTime"])) + "'\t" +
                 "%8.2f" % p_SQLResult["elapsed"] + "\t" +
                 "'" + str(p_SQLResult["RAWSQL"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
@@ -547,7 +503,6 @@ class SQLExecute(object):
                 str(p_SQLResult["SQLStatus"]) + "\t" +
                 "'" + str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
                 "'" + str(m_ThreadName) + "'\t" +
-                str(m_Copies) + "\t" + str(m_CurrentLoop) + "\t" +
                 "'" + str(p_SQLResult["Feature"]) + "'\t" +
                 "'" + str(p_SQLResult["SQLID"]) + "'\t" +
                 "'" + str(p_SQLResult["SQLGROUP"]) + "'" +

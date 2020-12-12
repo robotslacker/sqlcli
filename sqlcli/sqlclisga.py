@@ -1,50 +1,65 @@
 # -*- coding: utf-8 -*-
-from .sqlclijob import JOB
+import time
+import datetime
+
+
+class TransactionStaistics:
+    def __init__(self):
+        self.max_transaction_time = 0                  # transaction 最大耗时
+        self.sum_transaction_time = 0                  # transaction 累计耗时
+        self.min_transaction_time = 0                  # transaction 最小耗时
+        self.transaction_count = 0                     # transaction 次数
+        self.transaction_failed_count = 0              # transaction 失败次数
 
 
 class SQLCliGlobalSharedMemory(object):
     # ================================================
     # SQLCli的所有进程共享此结构对象
-
-    # 当前的JOB流水号
-    JobID = 1
-
-    # 所有的JOB信息
-    Jobs = dict()
-
-    # 当前清理进程的状态
-    WorkerStatus = "NOT-STARTED"
-
     # ================================================
 
     def __init__(self):
-        pass
+        # 当前的Transaction流水号
+        self.m_TransactionID = 1
 
-    # 返回当前的JOBID信息，并给JobID加1
-    def getJobID(self):
-        self.JobID = self.JobID + 1
-        return self.JobID
+        # 所有的Transaction统计信息
+        self.m_TransactionStaistics = dict()
 
-    # 返回所有的后台JOB信息
-    def Get_Jobs(self):
-        return self.Jobs
+    # 显示全部的Transaction统计信息
+    def getAllTransactionStatistics(self):
+        return self.m_TransactionStaistics
 
-    # 返回指定的JOB信息，根据JobName来判断
-    def Get_Job(self, p_szJobName):
-        # 返回指定的Job信息，如果找不到，返回None
-        if p_szJobName in self.Jobs.keys():
-            return self.Jobs[p_szJobName]
+    # 显示当前的Transaction统计信息
+    def getTransactionStatistics(self, p_TransactionName: str):
+        return self.m_TransactionStaistics[p_TransactionName]
+
+    # 添加新的Transaction信息到共享内存中
+    def Append_Transaction(self, p_TransactionName: str, p_TransactionInfo: dict):
+        m_start_time = p_TransactionInfo["start_time"]
+
+        m_end_time = int(time.mktime(datetime.datetime.now().timetuple()))
+
+        # 合并统计信息
+        if p_TransactionName in self.m_TransactionStaistics.keys():
+            m_TransactionStaistics = self.m_TransactionStaistics[p_TransactionName]
+            if (m_end_time - m_start_time) > m_TransactionStaistics.max_transaction_time:
+                m_TransactionStaistics.max_transaction_time = m_end_time - m_start_time
+            if (m_end_time - m_start_time) < m_TransactionStaistics.min_transaction_time:
+                m_TransactionStaistics.min_transaction_time = m_end_time - m_start_time
+            m_TransactionStaistics.sum_transaction_time = \
+                m_TransactionStaistics.sum_transaction_time + m_end_time - m_start_time
+            m_TransactionStaistics.transaction_count = m_TransactionStaistics.transaction_count + 1
+            if p_TransactionInfo['status'] != 0:
+                m_TransactionStaistics.transaction_failed_count = \
+                    m_TransactionStaistics.transaction_failed_count + 1
+            self.m_TransactionStaistics[p_TransactionName] = m_TransactionStaistics
         else:
-            return None
-
-    # 更新JOB信息
-    def Update_Job(self, p_JobName: str, p_Job: JOB):
-        # 将JOB加入到数组中
-        self.Jobs[p_JobName] = p_Job
-
-    def setWorkerStatus(self, p_WorkerStatus):
-        self.WorkerStatus = p_WorkerStatus
-
-    #
-    def getWorkerStatus(self):
-        return self.WorkerStatus
+            m_TransactionStaistics = TransactionStaistics()
+            m_TransactionStaistics.max_transaction_time = m_end_time - m_start_time
+            m_TransactionStaistics.min_transaction_time = m_end_time - m_start_time
+            m_TransactionStaistics.sum_transaction_time = m_end_time - m_start_time
+            m_TransactionStaistics.transaction_count = 1
+            if p_TransactionInfo['status'] != 0:
+                m_TransactionStaistics.transaction_failed_count = 1
+            else:
+                m_TransactionStaistics.transaction_failed_count = 0
+            self.m_TransactionStaistics[p_TransactionName] = m_TransactionStaistics

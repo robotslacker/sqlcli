@@ -703,17 +703,10 @@ def SQLAnalyze(p_SQLCommandPlainText):
         if len(SQLSplitResults[m_nPos]) == 0:
             # 这里为一个注释信息，解析注释信息中是否包含必要的tag
             for line in SQLSplitResultsWithComments[m_nPos].splitlines():
-                # [Hint]  SQLElapsedTime less than 5
-                # [Hint]  order
-                # [Hint]  Feature:XXXX
-                # [Hint]  SQLID:XXXX
-                # [Hint]  SQLGROUP:XXXX
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?SQLElapsedTime\s+less\s+than\s+(\d+)", line,
-                                     re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    m_TimeLimit = int(matchObj.group(4))
-                    m_SQLHint["TimeLimit"] = m_TimeLimit
-
+                # [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
+                # [Hint]  Feature:XXXX    -- 相关SQL的特性编号，仅仅作为日志信息供查看
+                # [Hint]  SQLID:XXXX      -- 相关SQL的SQL编号ID，仅仅作为日志信息供查看
+                # [Hint]  SQLGROUP:XXXX   -- 相关SQL的SQL组编号，仅仅作为日志信息供查看
                 matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?order", line,
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
@@ -733,6 +726,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_SQLHint["SQLGROUP"] = matchObj.group(4)
+
             m_SQLHints.append({})
         else:
             # 这里是一个可执行SQL信息

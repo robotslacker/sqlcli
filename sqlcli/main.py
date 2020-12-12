@@ -16,6 +16,7 @@ from urllib.error import URLError
 import itertools
 from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 from prompt_toolkit.shortcuts import PromptSession
+from multiprocessing.managers import BaseManager
 
 # 加载JDBC驱动
 import jaydebeapi
@@ -25,11 +26,12 @@ import jpype
 import pyodbc
 
 from .sqlclijobmanager import JOBManager
+from .sqlclitransactionmanager import TransactionManager
 from .sqlexecute import SQLExecute
 from .sqlparse import SQLMapping
 from .kafkawrapper import KafkaWrapper
 from .sqlcliexception import SQLCliException
-
+from .sqlclisga import SQLCliGlobalSharedMemory
 from .sqlinternal import Create_file
 from .sqlinternal import Convert_file
 from .sqlinternal import Create_SeedCacheFile
@@ -85,40 +87,39 @@ class SQLCli(object):
             sqlperf=None,
             Console=sys.stdout,
             HeadlessMode=False,
-            WorkerName=None,
+            WorkerName='MAIN',
             logger=None,
             clientcharset='UTF-8',
-            resultcharset='UTF-8'
+            resultcharset='UTF-8',
+            SharedProcessInfo=None
     ):
-        self.db_saved_conn = {}                   # 数据库Session备份
-        self.SQLMappingHandler = SQLMapping()     # 函数句柄，处理SQLMapping信息
-        self.SQLExecuteHandler = SQLExecute()     # 函数句柄，具体来执行SQL
-        self.SQLOptions = SQLOptions()            # 程序运行中各种参数
-        self.KafkaHandler = KafkaWrapper()        # 函数句柄，处理Kafka的消息
-        self.JobHandler = JOBManager()            # 并发任务处理
-        self.SpoolFileHandler = None              # 当前Spool文件句柄
-        self.EchoFileHandler = None               # 当前回显文件句柄
-        self.AppOptions = None                    # 应用程序的配置参数
-        self.Encoding = None                      # 应用程序的Encoding信息
-        self.prompt_app = None                    # PromptKit控制台
-        self.db_conn = None                       # 当前应用的数据库连接句柄
-        self.SessionName = None                   # 当前会话的Session的名字
-        self.db_conntype = None                   # 数据库连接方式，  JDBC或者是ODBC
-        self.echofilename = None                  # 当前回显文件的文件名称
-        self.Version = __version__                # 当前程序版本
-
-        if clientcharset is None:                 # 客户端字符集
+        self.db_saved_conn = {}                          # 数据库Session备份
+        self.SQLMappingHandler = SQLMapping()            # 函数句柄，处理SQLMapping信息
+        self.SQLExecuteHandler = SQLExecute()            # 函数句柄，具体来执行SQL
+        self.SQLOptions = SQLOptions()                   # 程序运行中各种参数
+        self.KafkaHandler = KafkaWrapper()               # Kafka消息管理器
+        self.JobHandler = JOBManager()                   # 并发任务管理器
+        self.TransactionHandler = TransactionManager()   # 事务管理器
+        self.SpoolFileHandler = None                     # 当前Spool文件句柄
+        self.EchoFileHandler = None                      # 当前回显文件句柄
+        self.AppOptions = None                           # 应用程序的配置参数
+        self.Encoding = None                             # 应用程序的Encoding信息
+        self.prompt_app = None                           # PromptKit控制台
+        self.db_conn = None                              # 当前应用的数据库连接句柄
+        self.SessionName = None                          # 当前会话的Session的名字
+        self.db_conntype = None                          # 数据库连接方式，  JDBC或者是ODBC
+        self.echofilename = None                         # 当前回显文件的文件名称
+        self.Version = __version__                       # 当前程序版本
+        if clientcharset is None:                        # 客户端字符集
             self.Client_Charset = 'UTF-8'
         else:
             self.Client_Charset = clientcharset
         if resultcharset is None:
-            self.Result_Charset = self.Client_Charset   # 结果输出字符集
+            self.Result_Charset = self.Client_Charset    # 结果输出字符集
         else:
             self.Result_Charset = resultcharset
-        if WorkerName is None:
-            self.m_Worker_Name = "0"              # 当前进程名称. 对于主进程是：MAIN, 对于子进程是:JOBID-Copies-FinishedCount
-        else:
-            self.m_Worker_Name = WorkerName       # 当前进程名称. 如果有参数传递，以参数为准
+        self.WorkerName = WorkerName                      # 当前进程名称. 如果有参数传递，以参数为准
+        self.MultiProcessManager = None                   # 进程间共享消息管理器， 如果为子进程，该参数为空
 
         # 传递各种参数
         self.sqlscript = sqlscript
@@ -133,6 +134,16 @@ class SQLCli(object):
             HeadLessConsole = open(os.devnull, "w")
             self.Console = HeadLessConsole
         self.logger = logger
+        if SharedProcessInfo is None:
+            # 启动共享内存管理，注册服务
+            # 注册后台共享进程管理
+            self.MultiProcessManager = BaseManager()
+            self.MultiProcessManager.register('SQLCliGlobalSharedMemory', callable=SQLCliGlobalSharedMemory)
+            self.MultiProcessManager.start()
+            obj = getattr(self.MultiProcessManager, 'SQLCliGlobalSharedMemory')
+            self.SharedProcessInfo = obj()
+        else:
+            self.SharedProcessInfo = SharedProcessInfo
 
         # 设置self.JobHandler， 默认情况下，子进程启动的进程进程信息来自于父进程
         self.JobHandler.setProcessContextInfo("logon", self.logon)
@@ -141,6 +152,8 @@ class SQLCli(object):
         self.JobHandler.setProcessContextInfo("sqlperf", sqlperf)
         self.JobHandler.setProcessContextInfo("logfilename", self.logfilename)
         self.JobHandler.setProcessContextInfo("sqlscript", self.sqlscript)
+        self.JobHandler.setProcessContextInfo("sga", self.SharedProcessInfo)
+        self.TransactionHandler.setSharedProcessInfo(self.SharedProcessInfo)
 
         # 设置其他的变量
         self.SQLExecuteHandler.sqlscript = sqlscript
@@ -151,6 +164,7 @@ class SQLCli(object):
         self.SQLExecuteHandler.SQLPerfFile = self.m_SQLPerf
         self.SQLExecuteHandler.logger = self.logger
         self.SQLMappingHandler.Console = self.Console
+        self.SQLExecuteHandler.WorkerName = self.WorkerName
 
         # 默认的输出格式
         self.formatter = TabularOutputFormatter(format_name='ascii')
@@ -161,17 +175,16 @@ class SQLCli(object):
         # 加载一些特殊的命令
         self.register_special_commands()
 
-        # 设置进程的名称
-        self.set_Worker_Name(self.m_Worker_Name)
-
         # 设置WHENEVER_SQLERROR
         if breakwitherror:
             self.SQLOptions.set("WHENEVER_SQLERROR", "EXIT")
 
-    def set_Worker_Name(self, p_szWorkerName):
-        self.m_Worker_Name = p_szWorkerName
-        self.SQLExecuteHandler.set_Worker_Name(p_szWorkerName)
+    def __del__(self):
+        # 如果打开了多进程管理，则关闭多进程管理
+        if self.MultiProcessManager is not None:
+            self.MultiProcessManager.shutdown()
 
+    # 加载CLI的各种特殊命令集
     def register_special_commands(self):
 
         # 加载SQL映射文件
@@ -805,6 +818,10 @@ class SQLCli(object):
         if query[:3] == codecs.BOM_UTF8:
             # 去掉SQL文件可能包含的UTF-BOM
             query = query[3:]
+        # SQLID等Hint信息不会带入到下一个SQL文件中
+        self.SQLExecuteHandler.SQLID = ''
+        self.SQLExecuteHandler.SQLGROUP = ''
+        self.SQLExecuteHandler.SQLTransaction = ''
         return self.SQLExecuteHandler.run(query, os.path.expanduser(arg))
 
     # 将当前及随后的输出打印到指定的文件中
@@ -922,6 +939,13 @@ class SQLCli(object):
         matchObj = re.match(r"(\s+)?job(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             (title, result, headers, columntypes, status) = self.JobHandler.Process_Command(arg)
+            yield title, result, headers, columntypes, status
+            return
+
+        # 处理Transaction
+        matchObj = re.match(r"(\s+)?transaction(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            (title, result, headers, columntypes, status) = self.TransactionHandler.Process_Command(arg)
             yield title, result, headers, columntypes, status
             return
 

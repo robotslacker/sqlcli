@@ -4,14 +4,6 @@ import time
 import datetime
 
 
-class Transaction:
-    def __init__(self):
-        self.max_transaction_time = 0
-        self.avg_transaction_time = 0
-        self.min__transaction_time = 0
-        self.transaction_standard_eviation = 0
-
-
 class TaskHistory:
     def __init__(self):
         self.TaskHandler_ID = 0        # 任务处理器编号，范围是0 - (parallel-1)
@@ -63,7 +55,8 @@ class JOB:
         self.status = "Submitted"
         self.tasks = []                           # 当前任务的具体进程信息
         self.taskhistory = []                     # 当前任务的进程信息备份
-        self.transactions = []
+        self.transactionstaistics = []            # 当前JOB的transaction统计信息
+        self.transactionhistory = []              # 当前JOB的transaction的历史信息
 
     # 返回JOB的编号信息
     def getJobID(self):
@@ -238,10 +231,6 @@ class JOB:
     # 返回所有JOB的任务列表
     def getTasks(self):
         return self.tasks
-
-    # 返回所有JOB的任务列表
-    def getTransactions(self):
-        return self.transactions
 
     # 初始化Task列表
     def initTaskList(self):
