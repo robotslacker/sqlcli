@@ -594,7 +594,7 @@ class SQLCli(object):
                                                   m_jaydebeapi_prop,
                                                   m_JarList)
                 self.db_url = m_JDBCURL
-                self.SQLExecuteHandler.set_connection(self.db_conn)
+                self.SQLExecuteHandler.conn = self.db_conn
             if self.db_conntype == 'ODBC':   # ODBC 连接数据库
                 m_ODBCURL = ""
                 for m_Connection_Config in self.connection_configs:
@@ -612,7 +612,7 @@ class SQLCli(object):
 
                 self.db_conn = pyodbc.connect(m_ODBCURL)
                 self.db_url = m_ODBCURL
-                self.SQLExecuteHandler.set_connection(self.db_conn)
+                self.SQLExecuteHandler.conn = self.db_conn
                 # 将当前DB的连接字符串备份到变量中
                 self.SQLOptions.set("CONNURL", str(self.db_url))
         except SQLCliException as se:  # Connecting to a database fail.
@@ -769,7 +769,7 @@ class SQLCli(object):
                         yield title, cur, headers, columntypes, status
                 else:
                     self.db_conn = self.db_saved_conn[m_Session_Name][0]
-                    self.SQLExecuteHandler.set_connection(self.db_conn)
+                    self.SQLExecuteHandler.conn = self.db_conn
                     self.SessionName = m_Session_Name
             else:
                 raise SQLCliException(
@@ -807,22 +807,39 @@ class SQLCli(object):
         if not arg:
             message = "Missing required argument, filename."
             return [(None, None, None, None, message)]
-        try:
-            with open(os.path.expanduser(arg), encoding=self.Client_Charset) as f:
-                query = f.read()
-        except IOError as e:
-            return [(None, None, None, None, str(e))]
-        if ord(query[0]) == 0xFEFF:
-            # 去掉SQL文件可能包含的UTF-BOM
-            query = query[1:]
-        if query[:3] == codecs.BOM_UTF8:
-            # 去掉SQL文件可能包含的UTF-BOM
-            query = query[3:]
-        # SQLID等Hint信息不会带入到下一个SQL文件中
-        self.SQLExecuteHandler.SQLID = ''
-        self.SQLExecuteHandler.SQLGROUP = ''
-        self.SQLExecuteHandler.SQLTransaction = ''
-        return self.SQLExecuteHandler.run(query, os.path.expanduser(arg))
+        m_SQLFileList = str(arg).split()
+        m_nLoop = 1
+        if len(m_SQLFileList) >= 3 and \
+                m_SQLFileList[len(m_SQLFileList) - 2].lower() == 'loop' and \
+                m_SQLFileList[len(m_SQLFileList) - 1].isnumeric():
+            m_nLoop = int(m_SQLFileList[len(m_SQLFileList) - 1])
+            m_SQLFileList = m_SQLFileList[:-2]
+        for m_curLoop in range(0, m_nLoop):
+            for m_SQLFile in m_SQLFileList:
+                try:
+                    with open(os.path.expanduser(m_SQLFile), encoding=self.Client_Charset) as f:
+                        query = f.read()
+
+                    # 处理NLS文档头数据
+                    if ord(query[0]) == 0xFEFF:
+                        # 去掉SQL文件可能包含的UTF-BOM
+                        query = query[1:]
+                    if query[:3] == codecs.BOM_UTF8:
+                        # 去掉SQL文件可能包含的UTF-BOM
+                        query = query[3:]
+
+                    # SQLID等Hint信息不会带入到下一个SQL文件中
+                    self.SQLExecuteHandler.SQLID = ''
+                    self.SQLExecuteHandler.SQLGROUP = ''
+                    self.SQLExecuteHandler.SQLTransaction = ''
+
+                    # 执行指定的SQL文件
+                    for title, cur, headers, columntypes, status in \
+                            self.SQLExecuteHandler.run(query, os.path.expanduser(m_SQLFile)):
+                        yield title, cur, headers, columntypes, status
+
+                except IOError as e:
+                    yield None, None, None, None, str(e)
 
     # 将当前及随后的输出打印到指定的文件中
     def spool(self, arg, **_):
@@ -950,7 +967,7 @@ class SQLCli(object):
             return
 
         # 处理kafka数据
-        matchObj = re.match(r"(.*)kafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        matchObj = re.match(r"(\s+)?kafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             (title, result, headers, columntypes, status) = self.KafkaHandler.Process_SQLCommand(arg)
             yield title, result, headers, columntypes, status
@@ -1332,6 +1349,12 @@ class SQLCli(object):
                         m_runCli_Result = False
                         raise EOFError
         except (SQLCliException, EOFError):
+            # 如果还有活动的事务，标记事务为失败信息
+            m_TransactionNames = []
+            for transaction_name in self.TransactionHandler.transactions.keys():
+                m_TransactionNames.append(transaction_name)
+            for transaction_name in m_TransactionNames:
+                self.TransactionHandler.TransactionFail(transaction_name)
             # SQLCliException只有在被设置了WHENEVER_SQLERROR为EXIT的时候，才会被捕获到
             self.echo("Disconnected.")
 

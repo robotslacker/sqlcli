@@ -5,11 +5,12 @@ import time
 import datetime
 import traceback
 from .sqlcliexception import SQLCliException
+import concurrent.futures
 
 from .sqlinternal import parse_formula_str, get_final_string
 try:
     from confluent_kafka import Producer, Consumer, TopicPartition, KafkaException
-    from confluent_kafka.admin import AdminClient, NewTopic
+    from confluent_kafka.admin import AdminClient, NewTopic, ConfigResource
 except ImportError:
     # Windows 目前安装confluent_kafka 存在问题，计划废弃
     pass
@@ -31,11 +32,18 @@ class KafkaWrapper(object):
     def Kafka_Connect(self, p_szKafkaServers):
         self.__kafka_servers__ = p_szKafkaServers
 
-    def Kafka_CreateTopic(self, p_szTopicName, p_Partitons=16, p_replication_factor=1, p_TimeOut=0):
+    def Kafka_CreateTopic(self, p_szTopicName,
+                          p_Partitons, p_replication_factor,
+                          p_ConfigProps,
+                          p_TimeOut=0):
         if self.__kafka_servers__ is None:
-            raise SQLCliException("Missed kafka server information. Please use set kafka server first ..")
+            raise SQLCliException("Missed kafka server information. Please use \"kafka set server\" first ..")
         a = AdminClient({'bootstrap.servers': self.__kafka_servers__})
-        new_topics = [NewTopic(p_szTopicName, num_partitions=p_Partitons, replication_factor=p_replication_factor), ]
+        new_topics = [NewTopic(p_szTopicName,
+                               num_partitions=p_Partitons,
+                               replication_factor=p_replication_factor,
+                               config=p_ConfigProps
+                               ), ]
         fs = a.create_topics(new_topics)
         for topic, f in fs.items():
             try:
@@ -43,7 +51,11 @@ class KafkaWrapper(object):
                 bCreateSuccessFul = False
                 # 循环判断TOPIC是否已经创建成功
                 # 默认的情况下，Kafka不等创建完全完成，就会返回，这可能导致随后的发送消息失败
-                for nPos in range(0, p_TimeOut):
+                if p_TimeOut == 0:
+                    m_TimeOut = self.__kafka_createtopic_timeout
+                else:
+                    m_TimeOut = p_TimeOut
+                for nPos in range(0, m_TimeOut):
                     if len(a.list_topics(topic=p_szTopicName).topics[p_szTopicName].partitions.keys()) != 0:
                         bCreateSuccessFul = True
                         break
@@ -62,7 +74,7 @@ class KafkaWrapper(object):
 
     def Kafka_DeleteTopic(self, p_szTopicName, p_TimeOut: int):
         if self.__kafka_servers__ is None:
-            raise SQLCliException("Missed kafka server information. Please use set kafka server first ..")
+            raise SQLCliException("Missed kafka server information. Please use \"kafka set server\" first ..")
         a = AdminClient({'bootstrap.servers': self.__kafka_servers__})
         deleted_topics = [p_szTopicName, ]
         fs = a.delete_topics(topics=deleted_topics)
@@ -72,7 +84,11 @@ class KafkaWrapper(object):
                 # 循环判断TOPIC是否已经删除完毕
                 # 默认的情况下，Kafka不等删除完全完成，就会返回，这可能导致随后的其他操作失败
                 bDeleteSuccessFul = False
-                for nPos in range(0, p_TimeOut):
+                if p_TimeOut == 0:
+                    m_TimeOut = self.__kafka_deletetopic_timeout
+                else:
+                    m_TimeOut = p_TimeOut
+                for nPos in range(0, m_TimeOut):
                     bTopicExists = False
                     fs2 = a.create_topics(
                         new_topics=[NewTopic(p_szTopicName, num_partitions=1, replication_factor=1), ],
@@ -100,6 +116,22 @@ class KafkaWrapper(object):
                         print('traceback.print_exc():\n%s' % traceback.print_exc())
                         print('traceback.format_exc():\n%s' % traceback.format_exc())
                 return "Failed to drop topic {}: {}".format(topic, repr(ke))
+
+    def kafka_GetInfo(self, p_szTopicName):
+        if self.__kafka_servers__ is None:
+            raise SQLCliException("Missed kafka server information. Please use \"kafka set server\" first ..")
+        a = AdminClient({'bootstrap.servers': self.__kafka_servers__})
+        configs = a.describe_configs(resources=[ConfigResource(ConfigResource.Type["TOPIC"], p_szTopicName)])
+        nReturnMessages = None
+        for f in concurrent.futures.as_completed(iter(configs.values())):
+            if nReturnMessages is None:
+                nReturnMessages = "ConfigProperties: \n" + \
+                                  "  " + str(f.result(timeout=1)["retention.ms"])
+            else:
+                nReturnMessages = nReturnMessages + "\n" + \
+                                  "ConfigProperties: \n" + \
+                                  "  " + str(f.result(timeout=1)["retention.ms"])
+        return nReturnMessages
 
     def kafka_GetOffset(self, p_szTopicName, p_szGroupID=''):
         if self.__kafka_servers__ is None:
@@ -177,35 +209,44 @@ class KafkaWrapper(object):
     def Process_SQLCommand(self, p_szSQL):
         m_szSQL = p_szSQL.strip()
 
-        matchObj = re.match(r"connect\s+kafka\s+server\s+(.*)$",
+        matchObj = re.match(r"kafka\s+connect\s+server\s+(.*)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_KafkaServer = str(matchObj.group(1)).strip()
             self.__kafka_servers__ = m_KafkaServer
             return None, None, None, None, "Kafka Server set successful."
 
-        matchObj = re.match(r"create\s+kafka\s+topic\s+(.*)"
-                            r"\s+Partitions\s+(\d+)\s+replication_factor\s+(\d+)(\s+)?$",
+        matchObj = re.match(r"kafka\s+create\s+topic\s+(.*?)\s+(.*)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_TopicName = str(matchObj.group(1)).strip()
-            m_PartitionCount = int(matchObj.group(2))
-            m_ReplicationFactor = int(matchObj.group(3))
-            matchObj = re.match(r"create\s+kafka\s+topic\s+(.*)"
-                                r"\s+Partitions\s+(\d+)\s+replication_factor\s+(\d+)\s+timeout\s+(\d+)(\s+)?$",
-                                m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_TimeOut = int(matchObj.group(2))
-            else:
-                m_TimeOut = 60
-            m_ReturnMessage = self.Kafka_CreateTopic(m_TopicName, m_PartitionCount, m_ReplicationFactor, m_TimeOut)
+            m_ParameterList = str(matchObj.group(2)).strip().split()
+            m_TimeOut = 0            # 默认的延时等待时间为: 一直等待下去
+            m_PartitionCount = 16    # 默认的Kafka分区数量
+            m_ReplicationFactor = 1  # 默认的副本数量
+            m_ConfigProps = {}
+            for m_nPos in range(0, len(m_ParameterList) // 2):
+                m_ParameterName = m_ParameterList[2*m_nPos]
+                m_ParameterValue = m_ParameterList[2 * m_nPos + 1]
+                if m_ParameterName.lower() == "partitions":
+                    m_PartitionCount = int(m_ParameterValue)
+                elif m_ParameterName.lower() == "replication_factor":
+                    m_ReplicationFactor = int(m_ParameterValue)
+                elif m_ParameterName.lower() == "timeout":
+                    m_TimeOut = int(m_ParameterValue)
+                else:
+                    m_ConfigProps[m_ParameterName] = m_ParameterValue
+            m_ReturnMessage = self.Kafka_CreateTopic(
+                m_TopicName, m_PartitionCount, m_ReplicationFactor,
+                m_ConfigProps,
+                m_TimeOut)
             return None, None, None, None, m_ReturnMessage
 
-        matchObj = re.match(r"drop\s+kafka\s+topic\s+(.*)(\s+)?$",
+        matchObj = re.match(r"kafka\s+drop\s+topic\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_TopicName = str(matchObj.group(1)).strip()
-            matchObj = re.match(r"drop\s+kafka\s+topic\s+(.*)\s+timeout\s+(\d+)(\s+)?$",
+            matchObj = re.match(r"kafka\s+drop\s+topic\s+(.*)\s+timeout\s+(\d+)(\s+)?$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
             if matchObj:
                 m_TimeOut = int(matchObj.group(2))
@@ -215,7 +256,7 @@ class KafkaWrapper(object):
             return None, None, None, None, m_ReturnMessage
 
         # 显示所有Partition的偏移数据
-        matchObj = re.match(r"get\s+kafka\s+offset\s+topic(.*)\s+group\s+(.*)(\s+)?$",
+        matchObj = re.match(r"get\s+kafka\s+info\s+topic(.*)\s+group\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_TopicName = str(matchObj.group(1)).strip()
@@ -232,24 +273,25 @@ class KafkaWrapper(object):
                 return None, None, None, None, "Failed to get office for topic {}: {}".format(m_TopicName, repr(ke))
 
         # 显示所有Partition的偏移数据
-        matchObj = re.match(r"get\s+kafka\s+offset\s+topic(.*)(\s+)?$",
+        matchObj = re.match(r"kafka\s+get\s+info\s+topic(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_TopicName = str(matchObj.group(1)).strip()
             m_GroupID = 'asdfzxcv1234'    # 一个随机的字符串
             try:
+                m_MetadataInfo = self.kafka_GetInfo(m_TopicName)
                 m_Results = self.kafka_GetOffset(m_TopicName, m_GroupID)
                 m_Header = ["Partition", "minOffset", "maxOffset"]
                 m_nTotalOffset = 0
                 for m_Result in m_Results:
                     m_nTotalOffset = m_nTotalOffset + int(m_Result[2]) - int(m_Result[1])
                 m_Message = "Total " + str(len(m_Results)) + " partitions, total offset is " + str(m_nTotalOffset) + "."
-                return None, m_Results, m_Header, None, m_Message
+                return m_MetadataInfo, m_Results, m_Header, None, m_Message
             except KafkaException as ke:
                 return None, None, None, None, "Failed to get office for topic {}: {}".format(m_TopicName, repr(ke))
 
         # 从文件中加载消息到Kafka队列中
-        matchObj = re.match(r"produce\s+kafka\s+message\s+from\s+file\s+(.*)\s+to\s+topic\s+(.*)(\s+)?$",
+        matchObj = re.match(r"kafka\s+produce\s+message\s+from\s+file\s+(.*)\s+to\s+topic\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_FileName = str(matchObj.group(1)).strip()
@@ -275,7 +317,7 @@ class KafkaWrapper(object):
                 return None, None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
 
         # 整体一次性发送消息
-        matchObj = re.match(r"produce\s+kafka\s+message\s+topic\s+(.*?)\((.*)\)(\s+)?$",
+        matchObj = re.match(r"kafka\s+produce\s+message\s+topic\s+(.*?)\((.*)\)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_TopicName = str(matchObj.group(1)).strip()
@@ -297,7 +339,7 @@ class KafkaWrapper(object):
                 return None, None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
 
         # 逐条发送消息
-        matchObj = re.match(r"produce\s+kafka\s+message\s+topic\s+(.*?)"
+        matchObj = re.match(r"kafka\s+produce\s+message\s+topic\s+(.*?)"
                             r"\((.*)\)(\s+)?rows\s+(\d+)"
                             r"(.*?)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
@@ -310,7 +352,7 @@ class KafkaWrapper(object):
             nTotalCount = 0
             m_frequency = -1             # -1表示不显示发送频率
             m_BatchSize = 5000          # 每一个批次发送的数据量
-            matchObj = re.match(r"produce\s+kafka\s+message\s+topic\s+(.*?)"
+            matchObj = re.match(r"kafka\s+produce\s+message\s+topic\s+(.*?)"
                                 r"\((.*)\)(\s+)?rows\s+(\d+)"
                                 r"\s+frequency\s+(\d+)"
                                 r"(\s+)?$",

@@ -243,11 +243,12 @@ SQL>
 运行日志共包括如下信息：  
 1、Script       运行的脚本名称
 2、StartedTime  SQL运行开始时间，格式是：%Y-%m-%d %H:%M:%S  
-3、elapsed      SQL运行的消耗时间，这里的单位是秒，精确两位小数    
-4、SQL          运行的SQL    
+3、elapsed      SQL运行的消耗时间，这里的单位是秒，精确两位小数      
+4、RAWSQL       原始的SQL信息  
+4、SQL          运行的SQL，注意：这里可能和RAWSQL不同，不同的原因是SQL可能会被重写文件改写  
 5、SQLStatus    SQL运行结果，0表示运行正常结束，1表示运行错误  
 6、ErrorMessage 错误日志，在SQLStatus为1的时候才有意义  
-7、thread_name  工作线程名，对于主程序，这里显示的是MAIN  
+7、thread_name  工作线程名，对于主程序，这里显示的是MAIN， 对于后台作业，这里显示的是：JOB#{worker}-{loop}  
 说明：上述信息都有TAB分隔，其中字符信息用单引号包括，如下是一个例子：  
 ```
 Script  Started elapsed SQLPrefix       SQLStatus       ErrorMessage    thread_name
@@ -279,13 +280,8 @@ SQL> help
 | loadsqlmap   | load SQL Mapping file .     |
 | quit         | Quit.                       |
 | set          | set options .               |
-| showjob      | show informations           |
-| shutdownjob  | Shutdown Jobs               |
 | sleep        | Sleep some time (seconds)   |
 | start        | Execute commands from file. |
-| StartJob     | Start Jobs                  |
-| Submitjob    | Submit Jobs                 |
-| waitjob      | Wait Job complete           |
 +--------------+-----------------------------+
 这里显示的是所有除了标准SQL语句外，可以被执行的各种命令开头。
 标准的SQL语句并没有在这里显示出来，你可以直接在控制行内或者脚本里头执行SQL脚本。
@@ -393,6 +389,31 @@ Session released.
 ```
 ***
 
+#### 从脚本中执行SQL语句
+我们可以把语句保存在一个SQL文件中，并通过执行SQL文件的方式来执行具体的SQL  
+语法格式为：
+```
+    start [script1.sql] [script2.sql] .... [loop $nlooptime]
+```
+例如：
+```
+(base) sqlcli 
+SQL*Cli Release 0.0.32
+SQL> start aa.sql
+SQL> ....
+SQL> disconnect
+这里将执行aa.sql
+如果有多个文件，可以依次填写，如SQL> start aa.sql bb.sql ....
+
+(base) sqlcli 
+SQL*Cli Release 0.0.32
+SQL> start aa.sql loop 10
+SQL> ....
+SQL> disconnect
+这里将执行aa.sql共计10次
+如果有多个文件，可以依次填写，如SQL> start aa.sql bb.sql .... loop 10
+
+```
 #### 让程序休息一会
 ```
 (base) sqlcli 
@@ -927,18 +948,24 @@ Mapping file loaded.
    SQLCli工具可以操作Kafka，建立、删除Topic，查看Topic的状态，给Topic发送信息
 
    提前准备：
-   SQL> __internal__ connect kafka server [bootstrap_server];
+   SQL> __internal__ kafka connect server [bootstrap_server];
    连接一个Kafka服务器，格式位nodex:port1,nodey:port2....
    注意，这里并没有校验服务器的实际信息是否正确。
 
-   SQL> __internal__ create kafka topic [topic name] Partitions [number of partitions] replication_factor [number of replication factor] timeout [timeout of creation];
-   创建一个kafka的Topic，Topic的具体参数参考[topic name]， [number of partitions]， [number of replication factor] [timeout of creation]
+   SQL> __internal__ kafka create topic [topic name] 
+        [ Partitions [number of partitions] 
+          replication_factor [number of replication factor] 
+          timeout [timeout of creation]
+          .... kafka valid configuration ...
+        ];
+   创建一个kafka的Topic.
    其中： timeout of creation 可以省略， 默认是60
          number of partitions 可以省略， 默认是16
          number of replication factor 可以省略， 默认是1
-   例子： __internal__ create kafka topic mytopic Partitions 16 replication_factor 1 timeout 10;
+         kafka valid configuration    可以为1个或者多个有效的配置参数，比如retention.ms
+   例子： __internal__ kafka create topic mytopic;
    
-   SQL> __internal__ get kafka Offset topic [topic name] group [gruop id];
+   SQL> __internal__ Offset get info topic [topic name] group [gruop id];
    其中： group id 可以省略
    获得消息队列的高水位线和低水位线
     +-----------+-----------+-----------+
@@ -947,13 +974,13 @@ Mapping file loaded.
     | 0         | 0         | 1         |
     | 1         | 0         | 1         |
     +-----------+-----------+-----------+
-   例子： __internal__ get kafka Offset topic mytopic Partition 0 group abcd;
+   例子： __internal__ kafka get info topic mytopic Partition 0 group abcd;
 
-   SQL> __internal__ produce kafka message from file [text file name] to topic [topic name];
+   SQL> __internal__ kafka produce message from file [text file name] to topic [topic name];
    将指定文本文件中所有内容按行发送到Kafka指定的Topic中
-   例子： __internal__ produce kafka message from file Doc.md to topic Hello;
+   例子： __internal__ kafka produce message from file Doc.md to topic Hello;
 
-   SQL> __internal__ produce kafka message topic [topic name]
+   SQL> __internal__ kafka produce message topic [topic name]
        > (
        >    [message item1]
        >    [message item2] 
@@ -962,7 +989,7 @@ Mapping file loaded.
    将SQL中包含的Message item发送到kafka指定的topic中
    上述的例子，将发送3条消息到服务器。
 
-   SQL> __internal__ produce kafka message topic [topic name]
+   SQL> __internal__ kafka produce message topic [topic name]
        > (
        >    [message part1]
        >    [message part2] 
@@ -975,7 +1002,7 @@ Mapping file loaded.
         具体message part的写法参考前面描述的创建数据文件的例子
    注意：frequency的计数器并不是精准计数器，不排除1~2秒的误差
 
-   SQL> __internal__ drop kafka topic [topic name] timeout [timeout of deletion];
+   SQL> __internal__ kafka drop topic [topic name] timeout [timeout of deletion];
    其中： timeout of deletion 可以省略， 默认是1800
    删除指定的topic
 ```
