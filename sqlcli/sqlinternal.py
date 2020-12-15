@@ -245,57 +245,69 @@ def random_ascii_letters_and_digits(p_arg):
 
 
 # 返回一个自增长序列
-# 有1个参数：
-#   start   即自正常序列的开始值
+# 有2个参数：
+#   identity_name   自增序列号的名字
+#   start           即自正常序列的开始值
 #   步长目前没有支持，都是1
 def identity(p_arg):
-    nStart = int(p_arg[0])
+    identity_name = str(p_arg[0])
+    nStart = int(p_arg[1])
     if not hasattr(identity, 'x'):
-        identity.x = nStart
+        identity.x = {}
+    if identity_name not in identity.x.keys():
+        identity.x[identity_name] = nStart
     else:
-        identity.x = identity.x + 1
-    return str(identity.x)
+        identity.x[identity_name] = identity.x[identity_name] + 1
+    return str(identity.x[identity_name])
 
 
 # 返回一个自增长的时间戳
-# 有3个参数：
+# 有4个参数：
+#   identity_name   自增序列号的名字
 #   stime   开始时间
 #     若stime写作current_timestamp, 则自增上从当前时间开始
 #   frmt    日期格式，可以忽略，默认为%Y-%m-%d %H:%M:%S
 #   step    步长，可以用ms,us,s来表示，默认情况下是ms
 def identity_timestamp(p_arg):
-    if len(p_arg) == 2:
-        ptime = str(p_arg[0])
+    identity_name = str(p_arg[0])
+    if len(p_arg) == 3:
+        ptime = str(p_arg[1])
         frmt = "%Y-%m-%d %H:%M:%S"
-        step = str(p_arg[1])
-    elif len(p_arg) == 3:
-        ptime = str(p_arg[0])
-        frmt = str(p_arg[1])
+        step = str(p_arg[2])
+    elif len(p_arg) == 4:
+        ptime = str(p_arg[1])
+        frmt = str(p_arg[2])
         if len(frmt) == 0:
             frmt = "%Y-%m-%d %H:%M:%S"
-        step = str(p_arg[2])
+        step = str(p_arg[3])
     else:
         raise SQLCliException("Parameter error [" + str(p_arg[0]) + "].  Please use 2 or 3 parameters. double check it")
     if not hasattr(identity_timestamp, 'x'):
+        identity_timestamp.x = {}
+    if identity_name not in identity_timestamp.x.keys():
         if ptime == "current_timestamp":
-            identity_timestamp.x = datetime.datetime.now()
+            identity_timestamp.x[identity_name] = datetime.datetime.now()
         else:
-            identity_timestamp.x = datetime.datetime.strptime(ptime, frmt)
+            identity_timestamp.x[identity_name] = datetime.datetime.strptime(ptime, frmt)
     else:
         # 判断步长单位，默认是毫秒，可以是s,ms
         if step.endswith("s"):
             if step.endswith("ms"):
                 # end with ms 毫秒
-                identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(milliseconds=float(step[:-2])))
+                identity_timestamp.x[identity_name] = (identity_timestamp.x[identity_name] +
+                                                       datetime.timedelta(milliseconds=float(step[:-2])))
             elif step.endswith("us"):
                 # end with us 微妙
-                identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(microseconds=float(step[:-2])))
+                identity_timestamp.x[identity_name] = (identity_timestamp.x[identity_name] +
+                                                       datetime.timedelta(microseconds=float(step[:-2])))
             else:
                 # end with s 秒
-                identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(seconds=float(step[:-1])))
+                identity_timestamp.x[identity_name] = (identity_timestamp.x[identity_name] +
+                                                       datetime.timedelta(seconds=float(step[:-1])))
         else:
-            identity_timestamp.x = (identity_timestamp.x + datetime.timedelta(milliseconds=float(step)))
-    return identity_timestamp.x.strftime(frmt)
+            identity_timestamp.x[identity_name] = (identity_timestamp.x[identity_name] +
+                                                   datetime.timedelta(milliseconds=float(step)))
+    return identity_timestamp.x[identity_name].strftime(frmt)
 
 
 # 将传递的SQL字符串转换成一个带有函数指针的数组
@@ -401,7 +413,9 @@ def parse_formula_str(p_formula_str):
                 m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "IDENTITY_TIMESTAMP":
                 m_call_out_struct.append(identity_timestamp)
-                m_call_out_struct.append(m_function_struct[1:])
+                # 如果没有列名，第一个参数信息是identity#加上列号的信息
+                m_function_struct[0] = "identity#" + str(m_nRowPos)
+                m_call_out_struct.append(m_function_struct)
                 m_call_out_struct.append("__NO_NAME__")
             elif re.search(r"(.*):IDENTITY_TIMESTAMP", m_function_struct[0].upper()):
                 matchObj = re.search(r"(.*):IDENTITY_TIMESTAMP", m_function_struct[0].upper())
@@ -417,11 +431,15 @@ def parse_formula_str(p_formula_str):
                     raise SQLCliException("Invalid pattern. "
                                           "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(identity_timestamp)
-                m_call_out_struct.append(m_function_struct[1:])
+                # 如果有列名，第一个参数信息是identity#加上列名的信息
+                m_function_struct[0] = "identity#" + m_ColumnName
+                m_call_out_struct.append(m_function_struct)
                 m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "IDENTITY":
                 m_call_out_struct.append(identity)
-                m_call_out_struct.append(m_function_struct[1:])
+                # 如果没有列名，第一个参数信息是identity#加上列号的信息
+                m_function_struct[0] = "identity#" + str(m_nRowPos)
+                m_call_out_struct.append(m_function_struct)
                 m_call_out_struct.append("__NO_NAME__")
             elif re.search(r"(.*):IDENTITY", m_function_struct[0].upper()):
                 matchObj = re.search(r"(.*):IDENTITY", m_function_struct[0].upper())
@@ -437,7 +455,9 @@ def parse_formula_str(p_formula_str):
                     raise SQLCliException("Invalid pattern. "
                                           "Please make sure column [" + m_ColumnName + "] is not duplicate.")
                 m_call_out_struct.append(identity)
-                m_call_out_struct.append(m_function_struct[1:])
+                # 如果有列名，第一个参数信息是identity#加上列名的信息
+                m_function_struct[0] = "identity#" + m_ColumnName
+                m_call_out_struct.append(m_function_struct)
                 m_call_out_struct.append(m_ColumnName)
             elif m_function_struct[0].upper() == "RANDOM_ASCII_LETTERS_AND_DIGITS":
                 m_call_out_struct.append(random_ascii_letters_and_digits)

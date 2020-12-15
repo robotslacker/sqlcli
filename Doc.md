@@ -1,19 +1,21 @@
 # SQLCli 快速说明
 
-SQLCli 是一个命令行的测试工具，设计目的主要是为了满足数据库方面的相关功能测试、压力测试。  
-通过SQLCli，你可以执行通用的SQL数据库脚本，记录执行结果。  
-也可以把SQLCli当作一个命令行的日常使用工具，来完成你数据库的相关维护工作。  
+SQLCli 是一个主要用Python完成的，命令快速的测试工具。  
+设计目的：  
+    1： 满足数据库方面的相关功能测试、压力测试需要。  
+    2： 能够作为一个日常小工具，进行数据库的日常操作。    
+    3： 能够根据需要快速、灵活的生成测试需要的随机数据。   
+    4： 能够操作Kafka消息队列。   
+    5： 能够操作HDFS上的文件。  
 
-SQLCli是一个Python程序，其中大部分代码都是用Python完成的。  
-可以通过jaydebeapi连接数据库的JDBC驱动，这个时候需要安装相关的包，Windows平台上可能还需要进行相关的编译工作。  
-也可以通过ODBC标准连接数据库的ODBC驱动，但是这部分并没有经过严谨的测试。  
-
+程序可以通过jaydebeapi连接数据库的JDBC驱动，这个时候需要安装相关的包，Windows平台上可能还需要进行相关的编译工作。      
+也可以通过ODBC标准连接数据库的ODBC驱动，但是这部分并没有经过严谨的测试。    
 
 SQLCli 目前可以支持的数据库有：  
-   * Oracle,MySQL,PostgreSQL,SQLServer,TeraData, Hive等通用数据库  
-   * 达梦，神通， 金仓， 南大通用，LinkoopDB等国产数据库  
-   * ClickHouse    
-   * 其他符合标准JDBC规范的数据库  
+   * Oracle,MySQL,PostgreSQL,SQLServer,TeraData, Hive等主流通用数据库  
+   * 达梦，神通， 金仓， 南大通用，LinkoopDB等众多国产数据库  
+   * ClickHouse列式数据库      
+   * 其他符合标准JDBC规范的数据库    
 ***
 ### 谁需要用这个文档
 
@@ -27,9 +29,10 @@ SQLCli 目前可以支持的数据库有：
    * 有一个Python 3.6以上的环境
    * 能够连接到互联网上， 便于下载必要的包
    * 安装JDK8
-   * 对于Windows平台，还需要提前安装微软的C++编译器（Jaydebeapi安装过程中需要动态编译jpype）  
+   * 对于Windows平台，还需要提前安装微软的C++编译器（Jaydebeapi安装过程中需要动态编译jpype, pyodbc）  
    * 对于Linux平台，也需要提前安装gcc编译器（Jaydebeapi安装过程中需要动态编译jpype）  
      yum install -y gcc-c++ gcc python3-devel
+     yum install -y unixODBC  unixODBC-devel
    * 对于MAC平台，直接安装
 
 
@@ -892,21 +895,23 @@ Mapping file loaded.
    这里语句的开头：  __internal__ 是必须的内容，固定写法
    宏代码的格式包括：
      {identity(start_number)}                  表示一个自增字段，起始数字为start_number
+                                               如果一行内有多个identity，他们将分别自增
      {identity_timestamp(start_time,fmt,step)} 表示一个自增的时间戳
                                                起始数字为start_time，格式位fmt（可以省略，默认是%Y-%m-%d %H:%M:%S)，
                                                每次自增长度为Step， Step的单位可以是s,ms,ns (默认为ms)
                                                s: 秒 ;  ms: 毫秒； ns: 纳秒
+                                               如果一行内有多个identity，他们将分别自增
      {random_ascii_letters(length)}            表示一个随机的ascii字符串，可能大写，可能小写，最大长度为length
      {random_ascii_lowercase(length)}          表示一个随机的ascii字符串，只能是大写字母，最大长度为length
      {random_ascii_uppercase(length)}          表示一个随机的ascii字符串，只能是小写字母，最大长度为length
      {random_digits(length)}                   表示一个随机的数字，可能数字，最大长度为length
      {random_ascii_letters_and_digits(length)} 表示一个随机的ascii字符串，可能大写，可能小写，可能数字，最大长度为length
      {random_date(start, end, frmt)}           表示一个随机的日期， 日期区间为 start到end，日期格式为frmt
-                                               frmt可以不提供，默认为%Y-%M-%D
+                                               frmt可以不提供，默认为%Y-%m-%d
      {random_time(start, end, frmt)}           表示一个随机的时间， 时间区间为 start到end，时间格式为frmt
                                                frmt可以不提供，默认为%H:%M:%S
      {random_timestamp(start, end, frmt)}      表示一个随机的时间戳， 时间区间为 start到end，日期格式为frmt
-                                               frmt可以不提供，默认为%Y-%M-%D %H:%M%S
+                                               frmt可以不提供，默认为%Y-%m-%d %H:%M:%S
      {random_boolean())                        表示一个随机的Boolean，可能为0，也可能为1
      {current_unixtimestamp()}                 unix时间戳格式表示的系统当前时间
 
@@ -1146,23 +1151,42 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
 ### 程序员必读部分
 ```
 ---------- sqlcli
---------------- __init__.py            # 包标识文件，用来记录版本信息
---------------- commandanalyze.py      # 对用户或者脚本输入的命令进行判断，判断是否需要后续解析，或者执行内部命令
---------------- kafkawrapper.py        # 程序中对kafka操作的相关支持
---------------- sqlparse.py            # 用来解析SQL语句，判断注释部分，语句的分段、分行等
---------------- sqlinternal.py         # 执行internal命令
---------------- sqlexecute.py          # 程序主要逻辑文件，具体执行SQL语句
---------------- sqlcliexception.py     # 自定义程序异常类
---------------- sqloption.py           # 程序运行参数显示及控制实现
---------------- main.py                # 主程序
----------- setup.py                    # Python打包发布程序
----------- README.md                   # 应用程序说明，由于pypi限制，这里只放置简要信息
----------- Doc.md                      # 应用程序文档
----------- conf                        # 配置文件目录
---------------  sqlcli.conf            # 程序配置文件
----------- jlib                        # 应用程序连接数据库需要的各种jar包
---------------  xxxx1.jar              # 具体的jar包文件
---------------  xxxx2.jar              # 具体的jar包文件
----------- .gitignore                  # git控制文件
----------- uploadpypi.bat              # windows平台下用来向pypi更新安装包的相关命令
+--------------- __init__.py                   # 包标识文件，用来记录版本信息
+--------------- commandanalyze.py             # 对用户或者脚本输入的命令进行判断，判断是否需要后续解析，或者执行内部命令
+--------------- kafkawrapper.py               # 程序中对kafka操作的相关支持
+--------------- main.py                       # 主程序
+--------------- sqlcliexception.py            # 自定义程序异常类
+--------------- sqlclijob.py                  # 后台作业管理实现
+--------------- sqlclijobmanager.py           # 后台作业管理实现
+--------------- sqlclisga.py                  # 全局共享内存协同，用来在父子进程间通信
+--------------- sqlclitransactionmanager.py   # 全局共享内存协同，用来在父子进程间通信
+--------------- sqlexecute.py                 # 程序主要逻辑文件，具体执行SQL语句
+--------------- sqlinternal.py                # 执行internal命令
+--------------- sqloption.py                  # 程序运行参数显示及控制实现
+--------------- sqlparse.py                   # 用来解析SQL语句，判断注释部分，语句的分段、分行等
+---------- setup.py                           # Python打包发布程序
+---------- README.md                          # 应用程序说明，由于pypi限制，这里只放置简要信息
+---------- Doc.md                             # 应用程序文档
+---------- conf                               # 配置文件目录
+--------------  sqlcli.conf                   # 程序配置文件
+---------- jlib                               # 应用程序连接数据库需要的各种jar包
+--------------  Dm7JdbcDriver17.jar
+--------------  gbase-connector-java-8.3-bin.jar
+--------------  hadoop-common-2.7.2.jar
+--------------  hive-jdbc-1.2.2-standalone.jar
+--------------  kingbasejdbc4.jar
+--------------  linkoopdb-jdbc-2.3.0.jar
+--------------  mysql-connector-java-8.0.20.jar
+--------------  ojdbc8.jar
+--------------  oscarJDBC.jar
+--------------  postgresql-42.2.12.jar
+--------------  sqljdbc42.jar
+--------------  tdgssconfig.jar
+--------------  terajdbc4.jar
+--------------  xxxx1.jar                 
+--------------  xxxx2.jar                 
+---------- .gitignore                         # git控制文件
+---------- uploadpypi.bat                     # windows平台下用来向pypi更新安装包的相关命令
+---------- .vscode                            # Visual Stuio Code 工程配置目录
+--------------  launch.json                   # Visual Stuio Code 工程启动文件
 ```
