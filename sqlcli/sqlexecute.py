@@ -8,6 +8,7 @@ import click
 import time
 import os
 import re
+import sys
 import copy
 from time import strftime, localtime
 from multiprocessing import Lock
@@ -200,23 +201,26 @@ class SQLExecute(object):
             # ${var}
             bMatched = False
             while True:
-                matchObj = re.search(r"(.*)\${([0-9A-Za-z_\-]+)}(.*)?",
+                # 做大字符串的正则查找总是很慢很慢，所以这里先简单判断一下
+                matchObj = re.search(r"\${(.*)}",
                                      sql, re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     bMatched = True
-                    m_VarName = str(matchObj.group(2))
+                    m_Searched = matchObj.group(0)
+                    m_VarName = str(matchObj.group(1))
                     m_VarValue = self.SQLOptions.get(m_VarName)
                     if m_VarValue is not None:
-                        sql = matchObj.group(1) + m_VarValue + matchObj.group(3)
+                        sql = sql.replace(m_Searched, m_VarValue)
                         continue
                     m_VarValue = self.SQLOptions.get('@' + m_VarName)
                     if m_VarValue is not None:
-                        sql = matchObj.group(1) + m_VarValue + matchObj.group(3)
+                        sql = sql.replace(m_Searched, m_VarValue)
                         continue
                     # 没有定义这个变量，在SQL中把这个变量所对应的位置替换为#UNDEFINE_VAR#来避免死循环
-                    sql = matchObj.group(1) + '#UNDEFINE_VAR#' + matchObj.group(3)
+                    sql = sql.replace(m_Searched, '#UNDEFINE_VAR#')
                 else:
                     break
+
             if bMatched:
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
                     # SQL已经发生了改变, 会将改变后的SQL信息在屏幕上单独显示出来
