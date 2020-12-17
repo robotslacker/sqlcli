@@ -17,6 +17,7 @@ SQLCli 目前可以支持的数据库有：
    * ClickHouse列式数据库      
    * 其他符合标准JDBC规范的数据库    
 ***
+
 ### 谁需要用这个文档
 
 需要通过SQL语句来查看、维护数据库的。  
@@ -970,7 +971,7 @@ Mapping file loaded.
          kafka valid configuration    可以为1个或者多个有效的配置参数，比如retention.ms
    例子： __internal__ kafka create topic mytopic;
    
-   SQL> __internal__ Offset get info topic [topic name] group [gruop id];
+   SQL> __internal__ kafka get info topic [topic name] group [gruop id];
    其中： group id 可以省略
    获得消息队列的高水位线和低水位线
     +-----------+-----------+-----------+
