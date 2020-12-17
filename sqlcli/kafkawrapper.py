@@ -204,7 +204,7 @@ class KafkaWrapper(object):
             if nCount > p_nBatchSize:
                 break
         c.close()
-        return message_return
+        yield message_return
 
     def Process_SQLCommand(self, p_szSQL):
         m_szSQL = p_szSQL.strip()
@@ -299,22 +299,43 @@ class KafkaWrapper(object):
             if not os.path.isfile(m_FileName):
                 return None, None, None, None, "Failed to load file {}".format(m_FileName)
             with open(m_FileName, 'r', encoding="utf-8") as f:
-                m_Messages = f.readlines()
-            # 去掉消息中的回车换行符
-            for m_nPos in range(0, len(m_Messages)):
-                if m_Messages[m_nPos][-1:] == '\n':
-                    m_Messages[m_nPos] = m_Messages[m_nPos][:-1]
-            m_ProduceError = []
-            try:
-                nTotalCount = self.kafka_Produce(m_TopicName, m_Messages, m_ProduceError)
-                if len(m_ProduceError) != 0:
+                m_MessageList = []
+                m_nRows = 0
+                m_nMessagesSent = 0
+                m_nMessagesError = 0
+                for line in f:
+                    if line[-1:] == '\n':
+                        m_MessageList.append(line[:-1])
+                    else:
+                        m_MessageList.append(line)
+                    m_nRows = m_nRows + 1
+                    if m_nRows % 5000 == 0:
+                        # 每5000条发送一次消息
+                        m_ProduceError = []
+                        try:
+                            m_nMessagesSent = m_nMessagesSent + \
+                                              self.kafka_Produce(m_TopicName, m_MessageList, m_ProduceError)
+                            m_nMessagesError = m_nMessagesError + len(m_ProduceError)
+                        except (KafkaException, KafkaWrapperException) as ke:
+                            return None, None, None, None, \
+                                   "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
+                        m_MessageList.clear()
+                # 发送剩下的所有消息
+                if len(m_MessageList) != 0:
+                    m_ProduceError = []
+                    try:
+                        m_nMessagesSent = m_nMessagesSent + \
+                                          self.kafka_Produce(m_TopicName, m_MessageList, m_ProduceError)
+                        m_nMessagesError = m_nMessagesError + len(m_ProduceError)
+                    except (KafkaException, KafkaWrapperException) as ke:
+                        return None, None, None, None, \
+                               "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
+                if m_nMessagesError != 0:
                     return None, None, None, None, "Total {}/{} messages send to topic {} with {} failed.". \
-                        format(nTotalCount, len(m_Messages), m_TopicName, len(m_ProduceError))
+                        format(m_nMessagesSent, m_nRows, m_TopicName, m_nMessagesError)
                 else:
                     return None, None, None, None, "Total {}/{} messages send to topic {} Successful". \
-                        format(nTotalCount, len(m_Messages), m_TopicName)
-            except (KafkaException, KafkaWrapperException) as ke:
-                return None, None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
+                        format(m_nMessagesSent, m_nRows, m_TopicName)
 
         # 整体一次性发送消息
         matchObj = re.match(r"kafka\s+produce\s+message\s+topic\s+(.*?)\((.*)\)(\s+)?$",
@@ -392,5 +413,25 @@ class KafkaWrapper(object):
                         format(nTotalCount, m_TopicName)
             except (KafkaException, KafkaWrapperException) as ke:
                 return None, None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
+
+        # 逐条读出所有的消息
+        matchObj = re.match(r"kafka\s+consume\s+message\s+from\s+topic\s+(.*)\s+to\s+file\s+(.*)\s+group\s+(.*)(\s+)?$",
+                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_TopicName = str(matchObj.group(1)).strip()
+            m_FileName = str(matchObj.group(2)).strip()
+            m_GroupID = str(matchObj.group(3)).strip()
+            f = open(m_FileName, 'w', encoding="utf-8")
+            m_bFetchOver = False
+            while True:
+                for messageList in self.kafka_Consume(m_TopicName, p_szGroupID=m_GroupID):
+                    if len(messageList) == 0:
+                        m_bFetchOver = True
+                        break
+                    for line in messageList:
+                        print(line, file=f)
+                if m_bFetchOver:
+                    break
+            return None, None, None, None, "Consume completed."
 
         return None, None, None, None, "Unknown kafka Command."

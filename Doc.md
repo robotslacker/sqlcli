@@ -6,7 +6,7 @@ SQLCli 是一个主要用Python完成的，命令快速的测试工具。
     2： 能够作为一个日常小工具，进行数据库的日常操作。    
     3： 能够根据需要快速、灵活的生成测试需要的随机数据。   
     4： 能够操作Kafka消息队列。   
-    5： 能够操作HDFS上的文件。  
+    5： 能够操作HDFS上的文件。
 
 程序可以通过jaydebeapi连接数据库的JDBC驱动，这个时候需要安装相关的包，Windows平台上可能还需要进行相关的编译工作。      
 也可以通过ODBC标准连接数据库的ODBC驱动，但是这部分并没有经过严谨的测试。    
@@ -327,7 +327,7 @@ PostgreSQL：
 SQLServer：
     connect username/password@jdbc:sqlserver:tcp://IP:Port/DatabaseName
 TeraData：
-    connect username/password@jdbc:teradata:tcp://IP:0/DatabaseName
+    connect username/password@jdbc:teradata:tcp://IP/DatabaseName
 Hive:
     connect hive/hive@jdbc:hive2://IP:Port/DatabaseName
 ClickHouse:
@@ -985,6 +985,10 @@ Mapping file loaded.
    将指定文本文件中所有内容按行发送到Kafka指定的Topic中
    例子： __internal__ kafka produce message from file Doc.md to topic Hello;
 
+   SQL> __internal__ kafka consume message from topic [topic name] to file [text file name];
+   将Kafka指定的Topic中所有消息消费到指定文本文件中
+   例子： __internal__ kafka consume message from topic Hello to file xxx.md;
+
    SQL> __internal__ kafka produce message topic [topic name]
        > (
        >    [message item1]
@@ -1035,12 +1039,18 @@ SQLCli被设计为支持并发执行脚本，支持后台执行脚本。
 7：  waitJob        等待作业队列完成相关工作    
 
 #### 创建后台任务脚本
-在很多时候，我们需要SQLCli来帮我们来运行数据库脚本，但是又不想等待脚本的运行结束。  
-create有1个参数，是：    
-1：  JOB的名称    
+在很多时候，我们需要SQLCli来帮我们来运行数据库脚本，但是又不想等待脚本的运行结束。    
+create可以有多个参数：      
+参数1：     JOB的名称  
+参数2-..:   JOB的各种参数，要求成对出现 ParameterName  ParameterValue
 ```
 SQL> __internal__ job create jobtest;
 JOB [jobtest] create successful.
+SQL> __internal__ job create jobtest2 loop 4;
+JOB [jobtest2] create successful.
+SQL> __internal__ job create jobtest3 loop 4 parallel 2;
+JOB [jobtest3] create successful.
+
 ```
 2:  设置JOB的相关参数    
 通过set，我们可以JOB的具体参数。 支持的参数有：

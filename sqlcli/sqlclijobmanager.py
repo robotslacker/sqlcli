@@ -385,6 +385,7 @@ class JOBManager(object):
         return nJobStarted
 
     # 等待所有的JOB完成
+    # 这里不包括光Submit，并没有实质性开始动作的JOB
     def waitjob(self, p_jobName: str):
         if p_jobName.lower() == "all":
             while True:
@@ -398,7 +399,8 @@ class JOBManager(object):
                     # 多任务进程管理没有启动，也就不可能有RUNNING信息
                     break
                 for Job_Name, Job_Context in self.Jobs.items():
-                    if Job_Context.getStatus() not in ["FINISHED", "SHUTDOWNED", "ABORTED"]:
+                    if Job_Context.getStatus() not in \
+                            ["Submitted", "FINISHED", "SHUTDOWNED", "ABORTED"]:
                         bAllProcessFinished = False
                         time.sleep(3)
                         continue
@@ -468,11 +470,18 @@ class JOBManager(object):
         m_szSQL = p_szCommand.strip()
 
         # 创建新的JOB
-        matchObj = re.match(r"job\s+create\s+(.*)$",
+        matchObj = re.match(r"job\s+create\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            m_JobName = str(matchObj.group(1)).strip()
+            m_ParameterList = str(matchObj.group(1)).strip().split()
+            # 第一个参数是JOBNAME
+            m_JobName = m_ParameterList[0].strip()
             self.createjob(m_JobName)
+            m_ParameterList = m_ParameterList[1:]
+            for m_nPos in range(0, len(m_ParameterList) // 2):
+                m_ParameterName = m_ParameterList[2*m_nPos]
+                m_ParameterValue = m_ParameterList[2 * m_nPos + 1]
+                self.setjob(m_JobName, m_ParameterName, m_ParameterValue)
             return None, None, None, None, "JOB [" + m_JobName + "] create successful."
 
         # 显示当前的JOB

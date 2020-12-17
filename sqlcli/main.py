@@ -305,6 +305,7 @@ class SQLCli(object):
                     time.sleep(3)
                 else:
                     break
+            # 等待那些已经Running的进程完成， 但是只有Submitted的不考虑在内
             self.JobHandler.waitjob("all")
             # 断开数据库连接
             if self.db_conn:
@@ -418,118 +419,85 @@ class SQLCli(object):
         elif self.connection_configs is None:
             raise SQLCliException("Please load driver first.")
 
+        # 解析数据库连接参数
+        # -- 1 首先找到@符号
         m_connect_parameterlist = shlex.shlex(arg)
-        m_connect_parameterlist.whitespace = '://|:|@| '
+        m_connect_parameterlist.whitespace = '@'
         m_connect_parameterlist.quotes = '"'
         m_connect_parameterlist.whitespace_split = True
-        connect_parameters = list(m_connect_parameterlist)
+        m_connect_parameterlist = list(m_connect_parameterlist)
+        if len(m_connect_parameterlist) == 0:
+            raise SQLCliException("Missed connect string in connect command.")
 
-        for m_nPos in range(0, len(connect_parameters)):
-            if connect_parameters[m_nPos].startswith('"') and connect_parameters[m_nPos].endswith('"'):
-                connect_parameters[m_nPos] = connect_parameters[m_nPos][1:-1]
-        if len(connect_parameters) == 8:
-            # 指定了所有的数据库连接参数
-            self.db_username = connect_parameters[0]
-            self.db_password = connect_parameters[1]
-            # 获取数据库连接类别
-            self.db_conntype = str(connect_parameters[2]).upper().strip()
-            if self.db_conntype not in ['ODBC', 'JDBC']:
-                raise SQLCliException("Unexpected connection type. Please use ODBC or JDBC.")
-            self.db_type = connect_parameters[3]
-            self.db_driver_type = connect_parameters[4]
-            self.db_host = connect_parameters[5]
-            self.db_port = connect_parameters[6]
-            self.db_service_name = connect_parameters[7]
-        elif len(connect_parameters) == 7:
-            # 数据库连接参数, 但是没有指定driver_type
-            self.db_username = connect_parameters[0]
-            self.db_password = connect_parameters[1]
-            # 获取数据库连接类别
-            self.db_conntype = str(connect_parameters[2]).upper().strip()
-            if self.db_conntype not in ['ODBC', 'JDBC']:
-                raise SQLCliException("Unexpected connection type. Please use ODBC or JDBC.")
-            self.db_type = connect_parameters[3]
-            self.db_driver_type = "tcp"
-            self.db_host = connect_parameters[4]
-            self.db_port = connect_parameters[5]
-            self.db_service_name = connect_parameters[6]
-        elif len(connect_parameters) == 2:
-            # 用户只指定了用户名和口令， 认为用户和上次保留一直的连接字符串信息
-            self.db_username = connect_parameters[0]
-            self.db_password = connect_parameters[1]
-            if not self.db_url:
-                if "SQLCLI_CONNECTION_URL" in os.environ:
-                    # 从环境变量里头拼的连接字符串
-                    connect_parameters = [var for var in re.split(r'//|:|@|/', os.environ['SQLCLI_CONNECTION_URL']) if
-                                          var]
-                    if len(connect_parameters) == 6:
-                        # 获取数据库连接类别
-                        self.db_conntype = str(connect_parameters[0]).upper().strip()
-                        if self.db_conntype not in ['ODBC', 'JDBC']:
-                            raise SQLCliException("Unexpected connection type. Please use ODBC or JDBC.")
-                        self.db_type = connect_parameters[1]
-                        self.db_driver_type = connect_parameters[2]
-                        self.db_host = connect_parameters[3]
-                        self.db_port = connect_parameters[4]
-                        self.db_service_name = connect_parameters[5]
-                    elif len(connect_parameters) == 5:
-                        self.db_conntype = str(connect_parameters[0]).upper().strip()
-                        if self.db_conntype not in ['ODBC', 'JDBC']:
-                            raise SQLCliException("Unexpected connection type. Please use ODBC or JDBC.")
-                        self.db_type = connect_parameters[1]
-                        self.db_driver_type = 'tcp'
-                        self.db_host = connect_parameters[2]
-                        self.db_port = connect_parameters[3]
-                        self.db_service_name = connect_parameters[4]
-                    else:
-                        if "SQLCLI_DEBUG" in os.environ:
-                            print("db_type = [" + str(self.db_type) + "]")
-                            print("db_host = [" + str(self.db_host) + "]")
-                            print("db_port = [" + str(self.db_port) + "]")
-                            print("db_service_name = [" + str(self.db_service_name) + "]")
-                            print("db_url = [" + str(self.db_url) + "]")
-                        raise SQLCliException("Unexpeced env SQLCLI_CONNECTION_URL\n." +
-                                              "jdbc|odbc:[db type]:[driver type]://[host]:[port]/[service name]")
-                else:
-                    # 用户第一次连接，而且没有指定环境变量
-                    raise SQLCliException("Missed SQLCLI_CONNECTION_URL in env.")
-        elif len(connect_parameters) == 4:
+        # -- 2 @符号之前的为用户名和密码
+        m_userandpasslist = shlex.shlex(m_connect_parameterlist[0])
+        m_userandpasslist.whitespace = '/'
+        m_userandpasslist.quotes = '"'
+        m_userandpasslist.whitespace_split = True
+        m_userandpasslist = list(m_userandpasslist)
+        if len(m_userandpasslist) == 0:
+            raise SQLCliException("Missed user or password in connect command.")
+        elif len(m_userandpasslist) == 1:
             # 用户写法是connect user xxx password xxxx; 密码可能包含引号
-            if connect_parameters[0].upper() == "USER" and connect_parameters[2].upper() == "PASSWORD":
-                self.db_username = connect_parameters[1]
-                self.db_password = connect_parameters[3].replace("'", "").replace('"', "")
-                if not self.db_url:
-                    if "SQLCLI_CONNECTION_URL" in os.environ:
-                        # 从环境变量里头拼的连接字符串
-                        connect_parameters = [var for var in re.split(r'//|:|@|/',
-                                                                      os.environ['SQLCLI_CONNECTION_URL']) if var]
-                        if len(connect_parameters) == 6:
-                            self.db_conntype = str(connect_parameters[0]).upper().strip()
-                            if self.db_conntype not in ['ODBC', 'JDBC']:
-                                raise SQLCliException("Unexpected connection type. Please use ODBC or JDBC.")
-                            self.db_type = connect_parameters[1]
-                            self.db_driver_type = connect_parameters[2]
-                            self.db_host = connect_parameters[3]
-                            self.db_port = connect_parameters[4]
-                            self.db_service_name = connect_parameters[5]
-                        else:
-                            if "SQLCLI_DEBUG" in os.environ:
-                                print("db_type = [" + str(self.db_type) + "]")
-                                print("db_host = [" + str(self.db_host) + "]")
-                                print("db_port = [" + str(self.db_port) + "]")
-                                print("db_service_name = [" + str(self.db_service_name) + "]")
-                                print("db_url = [" + str(self.db_url) + "]")
-                            raise SQLCliException("Unexpeced env SQLCLI_CONNECTION_URL\n." +
-                                                  "jdbc|odbc:[db type]:[driver type]://[host]:[port]/[service name]")
-                    else:
-                        # 用户第一次连接，而且没有指定环境变量
-                        raise SQLCliException("Missed SQLCLI_CONNECTION_URL in env.")
+            m_userandpasslist = shlex.shlex(m_connect_parameterlist[0])
+            m_userandpasslist.whitespace = ' '
+            m_userandpasslist.quotes = '"'
+            m_userandpasslist.whitespace_split = True
+            m_userandpasslist = list(m_userandpasslist)
+            if len(m_userandpasslist) == 4 and \
+                    m_userandpasslist[0].upper() == "USER" and \
+                    m_userandpasslist[2].upper() == "PASSWORD":
+                self.db_username = m_userandpasslist[1]
+                self.db_password = m_userandpasslist[3].replace("'", "").replace('"', "")
+            else:
+                raise SQLCliException("Missed user or password in connect command.")
         else:
-            # 不知道的参数写法
-            if "SQLCLI_DEBUG" in os.environ:
-                print("DEBUG:: Connect Str =[" + str(connect_parameters) + "]")
-            raise SQLCliException("Missing required argument\n." + "connect [user name]/[password]@" +
-                                  "jdbc|odbc:[db type]:[driver type]://[host]:[port]/[service name]")
+            self.db_username = m_userandpasslist[0].strip()
+            if len(m_userandpasslist) == 2:
+                self.db_password = m_userandpasslist[1]
+            else:
+                self.db_password = ""
+        # 判断连接字符串中是否含有服务器信息
+        if len(m_connect_parameterlist) == 2:
+            m_serverurl = m_connect_parameterlist[1]
+        else:
+            if "SQLCLI_CONNECTION_URL" in os.environ:
+                m_serverurl = os.environ['SQLCLI_CONNECTION_URL']
+            else:
+                raise SQLCliException("Missed SQLCLI_CONNECTION_URL in env.")
+
+        # 在serverurl中查找//
+        m_serverurllist = shlex.shlex(m_serverurl)
+        m_serverurllist.whitespace = '/'
+        m_serverurllist.quotes = '"'
+        m_serverurllist.whitespace_split = True
+        m_serverurllist = list(m_serverurllist)
+        if len(m_serverurllist) == 0:
+            raise SQLCliException("Missed correct url in connect command.")
+        m_jdbcprop = m_serverurllist[0]
+        if len(m_serverurllist) >= 2:
+            self.db_service_name = m_serverurllist[2]
+        else:
+            self.db_service_name = ""
+        self.db_host = m_serverurllist[1]
+        self.db_port = ""
+
+        # 处理JDBC属性
+        m_jdbcproplist = shlex.shlex(m_jdbcprop)
+        m_jdbcproplist.whitespace = ':'
+        m_jdbcproplist.quotes = '"'
+        m_jdbcproplist.whitespace_split = True
+        m_jdbcproplist = list(m_jdbcproplist)
+        if len(m_jdbcproplist) < 2:
+            raise SQLCliException("Missed jdbc prop in connect command.")
+        self.db_conntype = m_jdbcproplist[0].upper()
+        if self.db_conntype not in ['ODBC', 'JDBC']:
+            raise SQLCliException("Unexpected connection type. Please use ODBC or JDBC.")
+        self.db_type = m_jdbcproplist[1]
+        if len(m_jdbcproplist) == 3:
+            self.db_driver_type = m_jdbcproplist[2]
+        else:
+            self.db_driver_type = ""
 
         # 连接数据库
         try:
@@ -560,7 +528,11 @@ class SQLCli(object):
                     raise SQLCliException("Unknown database [" + self.db_type.upper() + "]. Connect Failed. \n" +
                                           "Maybe you forgot download jlib files. ")
                 m_JDBCURL = m_JDBCURL.replace("${host}", self.db_host)
-                m_JDBCURL = m_JDBCURL.replace("${port}", self.db_port)
+                m_JDBCURL = m_JDBCURL.replace("${driver_type}", self.db_driver_type)
+                if self.db_port == "":
+                    m_JDBCURL = m_JDBCURL.replace(":${port}", "")
+                else:
+                    m_JDBCURL = m_JDBCURL.replace("${port}", self.db_port)
                 m_JDBCURL = m_JDBCURL.replace("${service}", self.db_service_name)
                 if m_driverclass is None:
                     raise SQLCliException("Missed driver [" + self.db_type.upper() + "] in config. "
