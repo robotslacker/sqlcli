@@ -8,12 +8,10 @@ import click
 import time
 import os
 import re
-import sys
 import copy
 from time import strftime, localtime
 from multiprocessing import Lock
 import traceback
-
 import pyodbc
 
 
@@ -378,6 +376,8 @@ class SQLExecute(object):
                 # 记录字段类型
                 if len(columntypes) == 0:
                     for column in row:
+                        if "SQLCLI_DEBUG" in os.environ:
+                            print("COLUMN TYPE : [" + str(type(column)) + "]")
                         columntypes.append(type(column))
                 for column in row:
                     if str(type(column)).upper().find('OBJECT[]') != -1:

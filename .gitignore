@@ -1,14 +1,12 @@
 .idea/
 .cache/
+.vscode/settings.json
 .coverage/
-.coverage.*
 localtest/
 stresstest/
 build/
 dist/
 *egg-info/
-htmlcov/
-.vscode/settings.json
 
 *.pyc
 *.deb

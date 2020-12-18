@@ -19,7 +19,7 @@ from prompt_toolkit.shortcuts import PromptSession
 from multiprocessing.managers import BaseManager
 
 # 加载JDBC驱动
-import jaydebeapi
+from .sqlclijdbcapi import connect as jdbcconnect
 import jpype
 
 # 加载ODBC驱动
@@ -561,10 +561,10 @@ class SQLCli(object):
                             self.db_conn.close()
                             self.db_conn = None
                             self.SQLExecuteHandler.conn = None
-                self.db_conn = jaydebeapi.connect(m_driverclass,
-                                                  m_JDBCURL,
-                                                  m_jaydebeapi_prop,
-                                                  m_JarList)
+                self.db_conn = jdbcconnect(m_driverclass,
+                                           m_JDBCURL,
+                                           m_jaydebeapi_prop,
+                                           m_JarList)
                 self.db_url = m_JDBCURL
                 self.SQLExecuteHandler.conn = self.db_conn
             if self.db_conntype == 'ODBC':   # ODBC 连接数据库
