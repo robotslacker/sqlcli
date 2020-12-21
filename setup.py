@@ -38,7 +38,8 @@ setup(
     long_description=readme,
     keywords='sql command test tool',
     platforms='any',
-    install_requires=['pyodbc', 'setproctitle', 'click', 'prompt_toolkit',
+    install_requires=['JPype1>=0.7.1', 'pyodbc',
+                      'setproctitle', 'click', 'prompt_toolkit',
                       'cli_helpers', 'fs', 'hdfs', 'wget'],
 
     author='RobotSlacker',

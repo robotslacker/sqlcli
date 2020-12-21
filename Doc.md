@@ -39,7 +39,6 @@ SQLCli 目前可以支持的数据库有：
 
 依赖的第三方安装包：  
    * 这些安装包会在robotslacker-sqlcli安装的时候自动随带安装
-   * jaydebeapi               : Python通过jaydebeapi来调用JDBC，从而执行SQL语句
    * setproctitle             : Python通过setproctitle来设置进程名称，从而在多进程并发时候给以帮助
    * click                    : Python的命令行参数处理
    * prompt_toolkit           : 用于提供包括提示符功能的控制台终端的显示样式
