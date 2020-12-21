@@ -3,7 +3,12 @@ import datetime
 import glob
 import os
 import sys
+import time
 import warnings
+import decimal
+import binascii
+import jpype
+from .sqlcliexception import SQLCliException
 
 
 def reraise(tp, value, tb=None):
@@ -23,12 +28,6 @@ _jdbc_name_to_const = None
 
 # Mapping from java.sql.Types attribute constant value to it's attribute name
 _jdbc_const_to_name = None
-
-_jdbc_connect = None
-
-_java_array_byte = None
-
-_handle_sql_exception = None
 
 
 def _handle_sql_exception_jpype():
@@ -73,10 +72,7 @@ def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
                 const = i.get(None)
                 types_map[i.getName()] = const
         _init_types(types_map)
-    global _java_array_byte
-    if _java_array_byte is None:
-        def _java_array_byte(data):
-            return jpype.JArray(jpype.JByte, 1)(data)
+
     # register driver for DriverManager
     jpype.JClass(jclassname)
     if isinstance(driver_args, dict):
@@ -111,17 +107,18 @@ def _jar_glob(item):
         return [item]
 
 
-def _prepare_jpype():
-    global _jdbc_connect
-    _jdbc_connect = _jdbc_connect_jpype
-    global _handle_sql_exception
-    _handle_sql_exception = _handle_sql_exception_jpype
-
-
-_prepare_jpype()
-
+#  DB-API 模块所兼容的 DB-API 最高版本号
 apilevel = '2.0'
+
+'''
+0:不支持线程安全, 多个线程不能共享此模块
+1:初级线程安全支持: 线程可以共享模块, 但不能共享连接
+2:中级线程安全支持线程可以共享模块和连接, 但不能共享游标
+3:完全线程安全支持 线程可以共享模块, 连接及游标
+'''
 threadsafety = 1
+
+# 该模块支持的 SQL 语句参数风格
 paramstyle = 'qmark'
 
 
@@ -159,30 +156,21 @@ class DBAPITypeObject(object):
         try:
             return cls._mappings[type_name]
         except KeyError:
-            warnings.warn("No type mapping for JDBC type '%s' (constant value %d). "
-                          "Using None as a default type_code." % (type_name, jdbc_type_const))
+            if "SQLCLI_DEBUG" in os.environ:
+                warnings.warn("No type mapping for JDBC type '%s' (constant value %d). "
+                              "Using None as a default type_code." % (type_name, jdbc_type_const))
             return None
 
 
 STRING = DBAPITypeObject('CHAR', 'NCHAR', 'NVARCHAR', 'VARCHAR', 'OTHER')
-
 TEXT = DBAPITypeObject('CLOB', 'LONGVARCHAR', 'LONGNVARCHAR', 'NCLOB', 'SQLXML')
-
 BINARY = DBAPITypeObject('BINARY', 'BLOB', 'LONGVARBINARY', 'VARBINARY')
-
-NUMBER = DBAPITypeObject('BOOLEAN', 'BIGINT', 'BIT', 'INTEGER', 'SMALLINT',
-                         'TINYINT')
-
+NUMBER = DBAPITypeObject('BOOLEAN', 'BIGINT', 'BIT', 'INTEGER', 'SMALLINT', 'TINYINT')
 FLOAT = DBAPITypeObject('FLOAT', 'REAL', 'DOUBLE')
-
 DECIMAL = DBAPITypeObject('DECIMAL', 'NUMERIC')
-
 DATE = DBAPITypeObject('DATE')
-
 TIME = DBAPITypeObject('TIME')
-
-DATETIME = DBAPITypeObject('TIMESTAMP')
-
+DATETIME = DBAPITypeObject('TIMESTAMP', 'TIMESTAMP_WITH_TIMEZONE')
 ROWID = DBAPITypeObject('ROWID')
 
 
@@ -230,10 +218,7 @@ class NotSupportedError(DatabaseError):
 # DB-API 2.0 Type Objects and Constructors
 
 def _java_sql_blob(data):
-    return _java_array_byte(data)
-
-
-Binary = _java_sql_blob
+    return jpype.JArray(jpype.JByte, 1)(data)
 
 
 def _str_func(func):
@@ -243,10 +228,9 @@ def _str_func(func):
     return to_str
 
 
+Binary = _java_sql_blob
 Date = _str_func(datetime.date)
-
 Time = _str_func(datetime.time)
-
 Timestamp = _str_func(datetime.datetime)
 
 
@@ -282,8 +266,20 @@ def connect(jclassname, url, driver_args=None, jars=None, libs=None):
             libs = [libs]
     else:
         libs = []
-    jconn = _jdbc_connect(jclassname, url, driver_args, jars, libs)
+    jconn = _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs)
     return Connection(jconn, _converters)
+
+
+def DateFromTicks(ticks):
+    return Date(time.localtime(ticks)[:3])
+
+
+def TimeFromTicks(ticks):
+    return Time(time.localtime(ticks)[3:6])
+
+
+def TimestampFromTicks(ticks):
+    return Timestamp(time.localtime(ticks)[:6])
 
 
 # DB-API 2.0 Connection Object
@@ -314,13 +310,13 @@ class Connection(object):
         try:
             self.jconn.commit()
         except:
-            _handle_sql_exception()
+            _handle_sql_exception_jpype()
 
     def rollback(self):
         try:
             self.jconn.rollback()
         except:
-            _handle_sql_exception()
+            _handle_sql_exception_jpype()
 
     def cursor(self):
         return Cursor(self, self._converters)
@@ -403,10 +399,11 @@ class Cursor(object):
         self._close_last()
         self._prep = self._connection.jconn.prepareStatement(operation)
         self._set_stmt_parms(self._prep, parameters)
+        is_rs = False
         try:
             is_rs = self._prep.execute()
         except:
-            _handle_sql_exception()
+            _handle_sql_exception_jpype()
         if is_rs:
             self._rs = self._prep.getResultSet()
             self._meta = self._rs.getMetaData()
@@ -444,7 +441,6 @@ class Cursor(object):
             raise Error()
         if size is None:
             size = self.arraysize
-        # TODO: handle SQLException if not supported by db
         self._rs.setFetchSize(size)
         rows = []
         row = None
@@ -456,7 +452,6 @@ class Cursor(object):
                 rows.append(row)
         # reset fetch size
         if row:
-            # TODO: handle SQLException if not supported by db
             self._rs.setFetchSize(0)
         return rows
 
@@ -488,7 +483,7 @@ class Cursor(object):
 
 
 def _unknownSqlTypeConverter(rs, col):
-    return rs.getObject(col)
+    return str(rs.getObject(col))
 
 
 def _to_datetime(rs, col):
@@ -523,7 +518,12 @@ def _to_binary(rs, col):
     java_val = rs.getObject(col)
     if java_val is None:
         return
-    return str(java_val)
+    m_TypeName = str(java_val.getClass().getTypeName())
+    if m_TypeName == "byte[]":
+        return binascii.b2a_hex(java_val)
+    else:
+        raise SQLCliException(
+            "SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_binary")
 
 
 def _java_to_py(java_method):
@@ -543,27 +543,29 @@ def _java_to_py_bigdecimal():
         java_val = rs.getObject(col)
         if java_val is None:
             return
-        if hasattr(java_val, 'scale'):
-            scale = java_val.scale()
-            if scale == 0:
-                precision = java_val.precision()
-                if precision > 10:
-                    return java_val.toPlainString()
-                else:
-                    return java_val.longValue()
-            else:
-                return java_val.doubleValue()
+        m_TypeName = str(java_val.getClass().getTypeName())
+        if m_TypeName == "java.math.BigDecimal":
+            return decimal.Decimal(java_val.stripTrailingZeros().toPlainString())
         else:
-            return float(java_val)
-
+            raise SQLCliException(
+                "SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _java_to_py_bigdecimal")
     return to_py
 
 
-_to_double = _java_to_py('doubleValue')
-
-_to_int = _java_to_py('intValue')
-
-_to_decimal = _java_to_py_bigdecimal()
+def _java_to_py_timestampwithtimezone():
+    def to_py(rs, col):
+        java_val = rs.getObject(col)
+        if java_val is None:
+            return
+        m_TypeName = str(java_val.getClass().getTypeName())
+        if m_TypeName == "java.time.OffsetDateTime":
+            return java_val.format(
+                jpype.java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS Z"))
+        else:
+            raise SQLCliException(
+                "SQLCLI-00000: Unknown java class type [" + m_TypeName +
+                "] in _java_to_py_timestampwithtimezone")
+    return to_py
 
 
 def _init_types(types_map):
@@ -593,17 +595,18 @@ _DEFAULT_CONVERTERS = {
     # see
     # http://download.oracle.com/javase/8/docs/api/java/sql/Types.html
     # for possible keys
+    'TIMESTAMP_WITH_TIMEZONE': _java_to_py_timestampwithtimezone(),
     'TIMESTAMP': _to_datetime,
     'TIME': _to_time,
     'DATE': _to_date,
     'BINARY': _to_binary,
-    'DECIMAL': _to_decimal,
-    'NUMERIC': _to_decimal,
-    'DOUBLE': _to_double,
-    'FLOAT': _to_double,
-    'TINYINT': _to_int,
-    'INTEGER': _to_int,
-    'SMALLINT': _to_int,
+    'DECIMAL': _java_to_py_bigdecimal(),
+    'NUMERIC': _java_to_py_bigdecimal(),
+    'DOUBLE': _java_to_py('doubleValue'),
+    'FLOAT': _java_to_py('doubleValue'),
+    'TINYINT': _java_to_py('intValue'),
+    'INTEGER': _java_to_py('intValue'),
+    'SMALLINT': _java_to_py('intValue'),
     'BOOLEAN': _java_to_py('booleanValue'),
     'BIT': _java_to_py('booleanValue')
 }

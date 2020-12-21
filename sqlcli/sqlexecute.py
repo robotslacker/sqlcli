@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import decimal
+
 from .sqlparse import SQLAnalyze
 from .sqlparse import SQLFormatWithPrefix
 from .commandanalyze import execute
@@ -370,7 +372,7 @@ class SQLExecute(object):
             headers = [x[0] for x in cursor.description]
             status = "{0} row{1} selected."
             m_arraysize = int(self.SQLOptions.get("ARRAYSIZE"))
-            rowset = list(cursor.fetchmany(m_arraysize))
+            rowset = cursor.fetchmany(m_arraysize)
             for row in rowset:
                 m_row = []
                 # 记录字段类型
@@ -395,6 +397,12 @@ class SQLExecute(object):
                                 elif str(type(column)).upper().find("DOUBLE") != -1:
                                     m_ColumnValue = m_ColumnValue + \
                                                     self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
+                                elif type(column) == decimal.Decimal:
+                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
+                                        m_ColumnValue = m_ColumnValue + \
+                                                        self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos]
+                                    else:
+                                        m_ColumnValue = m_ColumnValue + column[m_nPos]
                                 else:
                                     m_ColumnValue = m_ColumnValue + str(column[m_nPos])
                             else:
@@ -408,6 +416,12 @@ class SQLExecute(object):
                                 elif str(type(column)).upper().find("DOUBLE") != -1:
                                     m_ColumnValue = m_ColumnValue + "," + \
                                                     self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
+                                elif type(column) == decimal.Decimal:
+                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
+                                        m_ColumnValue = m_ColumnValue + "," + \
+                                                        self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos]
+                                    else:
+                                        m_ColumnValue = m_ColumnValue + "," + column[m_nPos]
                                 else:
                                     m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
                         m_ColumnValue = m_ColumnValue + ")"
@@ -432,12 +446,21 @@ class SQLExecute(object):
                         m_row.append(self.SQLOptions.get("FLOAT_FORMAT") % column)
                     elif str(type(column)).upper().find("DOUBLE") != -1:
                         m_row.append(self.SQLOptions.get("DOUBLE_FORMAT") % column)
-                    elif str(type(column)).upper().find('STR') != -1:
+                    elif type(column) == decimal.Decimal:
+                        if self.SQLOptions.get("DECIMAL_FORMAT") != "":
+                            m_row.append(self.SQLOptions.get("DECIMAL_FORMAT") % column)
+                        else:
+                            m_row.append(column)
+                    elif type(column) == bytes:
                         # 对于二进制数据，其末尾用0x00表示，这里进行截断
-                        m_0x00Start = column.find(chr(0))
-                        if m_0x00Start != -1:
-                            column = column[0:m_0x00Start]
-                        m_row.append(column)
+                        column = column.decode()
+                        index = column.find("00")
+                        if index != -1:
+                            column = column[0:index]
+                        if len(column) != 0:
+                            m_row.append("0x" + column)
+                        else:
+                            m_row.append("")
                     else:
                         m_row.append(column)
                 m_row = tuple(m_row)

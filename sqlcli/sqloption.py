@@ -27,6 +27,7 @@ class SQLOptions(object):
         self.m_SQL_OptionList.append({"Name": "LOB_LENGTH", "Value": 20, "Comments": '----'})
         self.m_SQL_OptionList.append({"Name": "FLOAT_FORMAT", "Value": "%.7g", "Comments": '----'})
         self.m_SQL_OptionList.append({"Name": "DOUBLE_FORMAT", "Value": "%.10g", "Comments": '----'})
+        self.m_SQL_OptionList.append({"Name": "DECIMAL_FORMAT", "Value": "", "Comments": '----'})
 
         self.m_SQL_OptionList.append({"Name": "CONNURL", "Value": "", "Comments": 'Connection URL'})
         self.m_SQL_OptionList.append({"Name": "CONNPROP", "Value": "", "Comments": 'Connection Props'})

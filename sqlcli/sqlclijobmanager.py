@@ -291,6 +291,8 @@ class JOBManager(object):
         else:
             strMessages = ""
             m_Job = self.Get_Job(p_szjobName)
+            if m_Job is None:
+                return None, None, None, None, "JOB [" + p_szjobName + "] does not exist."
             strMessages = strMessages + 'JOB_Name = [{0:12}]; ID = [{1:4d}]; Status = [{2:19}]\n'.\
                 format(p_szjobName, m_Job.getJobID(), m_Job.getStatus())
             strMessages = strMessages + 'ActiveJobs/FailedJobs/FinishedJobs: [{0:10d}/{1:10d}/{2:10d}]\n'.\
