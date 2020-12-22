@@ -1,11 +1,6 @@
 # -*- coding: utf-8 -*-
 import decimal
 
-from .sqlparse import SQLAnalyze
-from .sqlparse import SQLFormatWithPrefix
-from .commandanalyze import execute
-from .commandanalyze import CommandNotFound
-from .sqlcliexception import SQLCliException
 import click
 import time
 import os
@@ -15,6 +10,13 @@ from time import strftime, localtime
 from multiprocessing import Lock
 import traceback
 import pyodbc
+
+from .sqlparse import SQLAnalyze
+from .sqlparse import SQLFormatWithPrefix
+from .commandanalyze import execute
+from .commandanalyze import CommandNotFound
+from .sqlcliexception import SQLCliException
+from .sqlclijdbcapi import DatabaseError
 
 
 class SQLExecute(object):
@@ -290,13 +292,15 @@ class SQLExecute(object):
                                               "java.sql.SQLException:",
                                               "java.sql.SQLInvalidAuthorizationSpecException:",
                                               "java.sql.SQLDataException:",
-                                              "java.sql.SQLTransactionRollbackException:"):
+                                              "java.sql.SQLTransactionRollbackException:",
+                                              "com.microsoft.sqlserver.jdbc."):
                             if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
                                 m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
 
                         if (
                                 isinstance(e, pyodbc.Error) or                              # ODBC Error 错误
                                 isinstance(e, pyodbc.ProgrammingError) or                   # ODBC ProgrammingError 错误
+                                isinstance(e, DatabaseError) or
                                 str(e).find("SQLSyntaxErrorException") != -1 or
                                 str(e).find("SQLException") != -1 or
                                 str(e).find("SQLDataException") != -1 or

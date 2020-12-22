@@ -492,7 +492,12 @@ class Cursor(object):
 
 
 def _unknownSqlTypeConverter(rs, col):
-    return str(rs.getObject(col))
+    def to_py(rs, col):
+        java_val = rs.getObject(col)
+        if java_val is None:
+            return
+        return str(java_val)
+    return to_py
 
 
 def _to_datetime(rs, col):
@@ -555,6 +560,8 @@ def _java_to_py_bigdecimal():
         m_TypeName = str(java_val.getClass().getTypeName())
         if m_TypeName == "java.math.BigDecimal":
             return decimal.Decimal(java_val.stripTrailingZeros().toPlainString())
+        elif m_TypeName == "java.lang.Long":
+            return decimal.Decimal(java_val.toString())
         else:
             raise SQLCliException(
                 "SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _java_to_py_bigdecimal")
@@ -629,6 +636,7 @@ _DEFAULT_CONVERTERS = {
     'TINYINT': _java_to_py('intValue'),
     'INTEGER': _java_to_py('intValue'),
     'SMALLINT': _java_to_py('intValue'),
+    'BIGINT':  _java_to_py_bigdecimal(),
     'BOOLEAN': _java_to_py('booleanValue'),
     'BIT': _java_to_py('booleanValue')
 }

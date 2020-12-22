@@ -30,10 +30,12 @@ SQLCli 目前支持的数据类型有：
     DECIMAL  
     NUMERIC  
     DOUBLE  
-    FLOAT  
+    FLOAT 
+    REAL 
     TINYINT  
     INTEGER  
     SMALLINT  
+    BIGINT
     BOOLEAN  
     BIT
 ```
