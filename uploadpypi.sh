@@ -1,4 +1,4 @@
-PYTHON_HOME=/opt/anconda3
+PYTHON_HOME=/opt/anaconda3
 PYTHON_BIN=$PYTHON_HOME/bin/python
 PIP_BIN=$PYTHON_HOME/bin/pip
 

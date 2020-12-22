@@ -439,6 +439,8 @@ class Cursor(object):
             if str(converter.__name__) == "_unknownSqlTypeConverter":
                 if "SQLCLI_DEBUG" in os.environ:
                     warnings.warn("Unknown JDBC convert with constant value " + str(sqltype) )
+            if "SQLCLI_DEBUG" in os.environ:
+                print("JDBC SQLType=[" + str(converter.__name__) + "] for col [" + str(col) + "]. sqltype=[" + str(sqltype) + "]")
             v = converter(self._rs, col)
             row.append(v)
         return tuple(row)
@@ -623,6 +625,7 @@ _DEFAULT_CONVERTERS = {
     'NUMERIC': _java_to_py_bigdecimal(),
     'DOUBLE': _java_to_py('doubleValue'),
     'FLOAT': _java_to_py('doubleValue'),
+    'REAL': _java_to_py('doubleValue'),
     'TINYINT': _java_to_py('intValue'),
     'INTEGER': _java_to_py('intValue'),
     'SMALLINT': _java_to_py('intValue'),

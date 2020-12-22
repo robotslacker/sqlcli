@@ -8,14 +8,35 @@ SQLCli 是一个主要用Python完成的，命令快速的测试工具。
     4： 能够操作Kafka消息队列。   
     5： 能够操作HDFS上的文件。
 
-程序可以通过jaydebeapi连接数据库的JDBC驱动，这个时候需要安装相关的包，Windows平台上可能还需要进行相关的编译工作。      
+程序可以通过JPype连接数据库的JDBC驱动，这个时候需要安装相关的包，Windows平台上可能还需要进行相关的编译工作。      
 也可以通过ODBC标准连接数据库的ODBC驱动，但是这部分并没有经过严谨的测试。    
 
 SQLCli 目前可以支持的数据库有：  
    * Oracle,MySQL,PostgreSQL,SQLServer,TeraData, Hive等主流通用数据库  
    * 达梦，神通， 金仓， 南大通用，LinkoopDB等众多国产数据库  
    * ClickHouse列式数据库      
-   * 其他符合标准JDBC规范的数据库    
+   * 其他符合标准JDBC规范的数据库  
+   
+SQLCli 目前支持的数据类型有：
+```  
+    VARCHAR  
+    TIMESTAMP_WITH_TIMEZONE  
+    TIMESTAMP  
+    TIME  
+    DATE  
+    VARBINARY  
+    BINARY  
+    LONGVARBINARY  
+    DECIMAL  
+    NUMERIC  
+    DOUBLE  
+    FLOAT  
+    TINYINT  
+    INTEGER  
+    SMALLINT  
+    BOOLEAN  
+    BIT
+```
 ***
 
 ### 谁需要用这个文档
@@ -785,7 +806,14 @@ Mapping file loaded.
     3.4
     7
 ```
-
+#### 在SQL中使用Hint信息
+&emsp; &emsp; 在一些场景中，我们通过Hint隐含提示符来控制SQL的具体行为
+```
+    SQL> -- [Hint] Order
+    SQL> Select ID,Name From TestTab;
+    ....
+    加入这个提示符后，SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
+```
 #### 在SQL中使用变量信息
 &emsp; &emsp; 在一些场景中，我们需要通过变量来变化SQL的运行  
 &emsp; &emsp; 这里提供的解决办法是：   
