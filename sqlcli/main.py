@@ -502,14 +502,7 @@ class SQLCli(object):
         # 连接数据库
         try:
             if self.db_conntype == 'JDBC':   # JDBC 连接数据库
-                # https://github.com/jpype-project/jpype/issues/290
-                # jpype bug, when run jpype in multithread
-                if jpype.isJVMStarted() and not jpype.isThreadAttachedToJVM():
-                    jpype.attachThreadToJVM()
-                    jpype.java.lang.Thread.currentThread().setContextClassLoader(
-                        jpype.java.lang.ClassLoader.getSystemClassLoader())
-
-                # 加载所有的Jar包， jaydebeapi将根据class的名字加载指定的文件
+                # 加载所有的Jar包， 根据class的名字加载指定的文件
                 m_JarList = []
                 m_driverclass = ""
                 m_JDBCURL = ""
