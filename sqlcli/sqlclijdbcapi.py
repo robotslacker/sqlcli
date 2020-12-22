@@ -404,9 +404,13 @@ class Cursor(object):
             is_rs = self._prep.execute()
         except:
             _handle_sql_exception_jpype()
-        if is_rs:
-            self._rs = self._prep.getResultSet()
+        # 忽略对execute的返回判断，总是恒定的去调用getResultSet
+        self._rs = self._prep.getResultSet()
+        if self._rs is not None:
             self._meta = self._rs.getMetaData()
+        else:
+            self._meta = None
+        if is_rs:
             self.rowcount = -1
         else:
             self.rowcount = self._prep.getUpdateCount()
@@ -432,6 +436,9 @@ class Cursor(object):
         for col in range(1, self._meta.getColumnCount() + 1):
             sqltype = self._meta.getColumnType(col)
             converter = self._converters.get(sqltype, _unknownSqlTypeConverter)
+            if str(converter.__name__) == "_unknownSqlTypeConverter":
+                if "SQLCLI_DEBUG" in os.environ:
+                    warnings.warn("Unknown JDBC convert with constant value " + str(sqltype) )
             v = converter(self._rs, col)
             row.append(v)
         return tuple(row)
@@ -568,6 +575,15 @@ def _java_to_py_timestampwithtimezone():
     return to_py
 
 
+def _java_to_py_str():
+    def to_py(rs, col):
+        java_val = rs.getObject(col)
+        if java_val is None:
+            return
+        return str(java_val)
+    return to_py
+
+
 def _init_types(types_map):
     global _jdbc_name_to_const
     _jdbc_name_to_const = types_map
@@ -595,11 +611,14 @@ _DEFAULT_CONVERTERS = {
     # see
     # http://download.oracle.com/javase/8/docs/api/java/sql/Types.html
     # for possible keys
+    'VARCHAR':  _java_to_py_str(),
     'TIMESTAMP_WITH_TIMEZONE': _java_to_py_timestampwithtimezone(),
     'TIMESTAMP': _to_datetime,
     'TIME': _to_time,
     'DATE': _to_date,
+    'VARBINARY': _to_binary,
     'BINARY': _to_binary,
+    'LONGVARBINARY': _to_binary,
     'DECIMAL': _java_to_py_bigdecimal(),
     'NUMERIC': _java_to_py_bigdecimal(),
     'DOUBLE': _java_to_py('doubleValue'),

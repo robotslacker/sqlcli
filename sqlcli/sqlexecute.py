@@ -201,23 +201,27 @@ class SQLExecute(object):
             # ${var}
             bMatched = False
             while True:
-                # 做大字符串的正则查找总是很慢很慢，所以这里先简单判断一下
-                matchObj = re.search(r"\${(.*)}",
+                matchObj = re.search(r"\${(.*?)}",
                                      sql, re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     bMatched = True
                     m_Searched = matchObj.group(0)
-                    m_VarName = str(matchObj.group(1))
-                    m_VarValue = self.SQLOptions.get(m_VarName)
-                    if m_VarValue is not None:
-                        sql = sql.replace(m_Searched, m_VarValue)
-                        continue
-                    m_VarValue = self.SQLOptions.get('@' + m_VarName)
-                    if m_VarValue is not None:
-                        sql = sql.replace(m_Searched, m_VarValue)
-                        continue
-                    # 没有定义这个变量，在SQL中把这个变量所对应的位置替换为#UNDEFINE_VAR#来避免死循环
-                    sql = sql.replace(m_Searched, '#UNDEFINE_VAR#')
+                    m_VarName = str(matchObj.group(1)).strip()
+                    # 首先判断是否为一个Env函数
+                    m_VarValue = '#UNDEFINE_VAR#'
+                    if m_VarName.upper().startswith("ENV(") and m_VarName.upper().endswith(")"):
+                        m_EnvName = m_VarName[4:-1].strip()
+                        if m_EnvName in os.environ:
+                            m_VarValue = os.environ[m_EnvName]
+                    else:
+                        m_VarValue = self.SQLOptions.get(m_VarName)
+                        if m_VarValue is None:
+                            m_VarValue = self.SQLOptions.get('@' + m_VarName)
+                            if m_VarValue is None:
+                                m_VarValue = '#UNDEFINE_VAR#'
+                    # 替换相应的变量信息
+                    sql = sql.replace(m_Searched, m_VarValue)
+                    continue
                 else:
                     break
 
@@ -454,9 +458,13 @@ class SQLExecute(object):
                     elif type(column) == bytes:
                         # 对于二进制数据，其末尾用0x00表示，这里进行截断
                         column = column.decode()
-                        index = column.find("00")
-                        if index != -1:
-                            column = column[0:index]
+                        m_TrimPos = 0
+                        for m_nPos in range(len(column),0,-2):
+                            if column[m_nPos - 2] != '0' or column[m_nPos - 1] != '0':
+                                m_TrimPos = m_nPos
+                                break
+                        if m_TrimPos != -1:
+                            column = column[0:m_TrimPos]
                         if len(column) != 0:
                             m_row.append("0x" + column)
                         else:
