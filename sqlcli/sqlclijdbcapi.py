@@ -492,12 +492,10 @@ class Cursor(object):
 
 
 def _unknownSqlTypeConverter(rs, col):
-    def to_py(rs, col):
-        java_val = rs.getObject(col)
-        if java_val is None:
-            return
-        return str(java_val)
-    return to_py
+    java_val = rs.getObject(col)
+    if java_val is None:
+        return
+    return str(java_val)
 
 
 def _to_datetime(rs, col):
@@ -620,6 +618,8 @@ _DEFAULT_CONVERTERS = {
     # see
     # http://download.oracle.com/javase/8/docs/api/java/sql/Types.html
     # for possible keys
+    'CHAR': _java_to_py_str(),
+    'LONGVARCHAR': _java_to_py_str(),
     'VARCHAR':  _java_to_py_str(),
     'TIMESTAMP_WITH_TIMEZONE': _java_to_py_timestampwithtimezone(),
     'TIMESTAMP': _to_datetime,

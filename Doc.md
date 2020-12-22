@@ -19,7 +19,9 @@ SQLCli 目前可以支持的数据库有：
    
 SQLCli 目前支持的数据类型有：
 ```  
-    VARCHAR  
+    CHAR
+    VARCHAR
+    LONGVARCHAR  
     TIMESTAMP_WITH_TIMEZONE  
     TIMESTAMP  
     TIME  
