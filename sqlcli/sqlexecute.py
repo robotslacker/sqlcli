@@ -272,7 +272,7 @@ class SQLExecute(object):
                             self.LastSQLResult = copy.copy(result)
 
                             # 如果Hints中有order字样，对结果进行排序后再输出
-                            if "Order" in m_SQLHint.keys():
+                            if "Order" in m_SQLHint.keys() and result is not None:
                                 for i in range(1, len(result)):
                                     for j in range(0, len(result) - i):
                                         if str(result[j]) > str(result[j + 1]):
