@@ -533,9 +533,13 @@ def _to_binary(rs, col):
     m_TypeName = str(java_val.getClass().getTypeName())
     if m_TypeName == "byte[]":
         return binascii.b2a_hex(java_val)
+    elif m_TypeName in ("java.sql.Blob", "oracle.sql.BLOB"):
+        return binascii.b2a_hex(java_val.getBytes(1, 1024))
+    elif m_TypeName.find("JDBCBlobClient") != -1 :
+        return binascii.b2a_hex(java_val.getBytes(1, 1024))
     else:
-        raise SQLCliException(
-            "SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_binary")
+        # return binascii.b2a_hex(java_val.getBytes(0, 1024))
+        raise SQLCliException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_binary")
 
 
 def _java_to_py(java_method):
@@ -559,6 +563,8 @@ def _java_to_py_bigdecimal():
         if m_TypeName == "java.math.BigDecimal":
             return decimal.Decimal(java_val.stripTrailingZeros().toPlainString())
         elif m_TypeName == "java.lang.Long":
+            return decimal.Decimal(java_val.toString())
+        elif m_TypeName == "java.math.BigInteger":
             return decimal.Decimal(java_val.toString())
         else:
             raise SQLCliException(
@@ -628,6 +634,7 @@ _DEFAULT_CONVERTERS = {
     'VARBINARY': _to_binary,
     'BINARY': _to_binary,
     'LONGVARBINARY': _to_binary,
+    'BLOB': _to_binary,
     'DECIMAL': _java_to_py_bigdecimal(),
     'NUMERIC': _java_to_py_bigdecimal(),
     'DOUBLE': _java_to_py('doubleValue'),

@@ -475,12 +475,27 @@ class SQLCli(object):
         if len(m_serverurllist) == 0:
             raise SQLCliException("Missed correct url in connect command.")
         m_jdbcprop = m_serverurllist[0]
-        if len(m_serverurllist) >= 2:
+        if len(m_serverurllist) >= 3:
+            # //IP:Port/Service
             self.db_service_name = m_serverurllist[2]
+            self.db_host = m_serverurllist[1]
+            self.db_port = ""
+        elif len(m_serverurllist) >= 2:
+            # //IP:Port:Service
+            # //IP/Service
+            m_serverparameter = m_serverurllist[1].split(':')
+            if len(m_serverparameter) >= 2:
+                self.db_service_name = m_serverparameter[-1]
+                self.db_host = ':'.join(m_serverparameter[:-1])
+                self.db_port = ""
+            else:
+                self.db_host = m_serverurllist[1]
+                self.db_port = ""
+                self.db_service_name = ""
         else:
             self.db_service_name = ""
-        self.db_host = m_serverurllist[1]
-        self.db_port = ""
+            self.db_host = ""
+            self.db_port = ""
 
         # 处理JDBC属性
         m_jdbcproplist = shlex.shlex(m_jdbcprop)
