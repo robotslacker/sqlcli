@@ -150,8 +150,9 @@ class DBAPITypeObject(object):
         try:
             type_name = _jdbc_const_to_name[jdbc_type_const]
         except KeyError:
-            warnings.warn("Unknown JDBC type with constant value %d. "
-                          "Using None as a default type_code." % jdbc_type_const)
+            if "SQLCLI_DEBUG" in os.environ:
+                warnings.warn("Unknown JDBC type with constant value %d. "
+                              "Using None as a default type_code." % jdbc_type_const)
             return None
         try:
             return cls._mappings[type_name]
@@ -435,12 +436,20 @@ class Cursor(object):
         row = []
         for col in range(1, self._meta.getColumnCount() + 1):
             sqltype = self._meta.getColumnType(col)
-            converter = self._converters.get(sqltype, _unknownSqlTypeConverter)
-            if str(converter.__name__) == "_unknownSqlTypeConverter":
-                if "SQLCLI_DEBUG" in os.environ:
-                    warnings.warn("Unknown JDBC convert with constant value " + str(sqltype) )
+            m_ColumnClassName = self._meta.getColumnClassName(col)
+            if sqltype in self._converters.keys():
+                converter = self._converters.get(sqltype)
+            else:
+                if m_ColumnClassName.upper().find("BFILE") != -1:
+                    converter = _DEFAULT_CONVERTERS["BFILE"]
+                else:
+                    converter = _unknownSqlTypeConverter
+                    if "SQLCLI_DEBUG" in os.environ:
+                        warnings.warn("Unknown JDBC convert with constant value " + str(sqltype) +
+                                      ":" + self._meta.getColumnClassName(col))
             if "SQLCLI_DEBUG" in os.environ:
-                print("JDBC SQLType=[" + str(converter.__name__) + "] for col [" + str(col) + "]. sqltype=[" + str(sqltype) + "]")
+                print("JDBC SQLType=[" + str(converter.__name__) + "] for col [" + str(col) + "]. " +
+                      "sqltype=[" + str(sqltype) + ":" + m_ColumnClassName + "]")
             v = converter(self._rs, col)
             row.append(v)
         return tuple(row)
@@ -533,10 +542,14 @@ def _to_binary(rs, col):
     m_TypeName = str(java_val.getClass().getTypeName())
     if m_TypeName == "byte[]":
         return binascii.b2a_hex(java_val)
-    elif m_TypeName in ("java.sql.Blob", "oracle.sql.BLOB"):
-        return binascii.b2a_hex(java_val.getBytes(1, 1024))
-    elif m_TypeName.find("JDBCBlobClient") != -1 :
-        return binascii.b2a_hex(java_val.getBytes(1, 1024))
+    elif m_TypeName.find("Blob") != -1:
+        m_Bytes = java_val.getBytes(1, 1024)
+        if m_Bytes is not None:
+            return binascii.b2a_hex(java_val.getBytes(1, 1024))
+        else:
+            return ""
+    elif m_TypeName.find("BFILE") != -1:
+        return "bfilename(" + java_val.getDirAlias() + ":" + java_val.getName() + ")"
     else:
         # return binascii.b2a_hex(java_val.getBytes(0, 1024))
         raise SQLCliException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_binary")
@@ -561,7 +574,7 @@ def _java_to_py_bigdecimal():
             return
         m_TypeName = str(java_val.getClass().getTypeName())
         if m_TypeName == "java.math.BigDecimal":
-            return decimal.Decimal(java_val.stripTrailingZeros().toPlainString())
+            return decimal.Decimal(java_val.toPlainString())
         elif m_TypeName == "java.lang.Long":
             return decimal.Decimal(java_val.toString())
         elif m_TypeName == "java.math.BigInteger":
@@ -606,15 +619,13 @@ def _init_types(types_map):
 
 
 def _init_converters(types_map):
-    """Prepares the converters for conversion of java types to python
-    objects.
-    types_map: Mapping of java.sql.Types field name to java.sql.Types
-    field constant value"""
+    # 存在不属于标准JDBC的convert情况，所以如果types_map找不到，这里不报错
     global _converters
     _converters = {}
     for i in _DEFAULT_CONVERTERS:
-        const_val = types_map[i]
-        _converters[const_val] = _DEFAULT_CONVERTERS[i]
+        if i in types_map:
+            const_val = types_map[i]
+            _converters[const_val] = _DEFAULT_CONVERTERS[i]
 
 
 # Mapping from java.sql.Types field to converter method
@@ -635,6 +646,7 @@ _DEFAULT_CONVERTERS = {
     'BINARY': _to_binary,
     'LONGVARBINARY': _to_binary,
     'BLOB': _to_binary,
+    'BFILE': _to_binary,
     'DECIMAL': _java_to_py_bigdecimal(),
     'NUMERIC': _java_to_py_bigdecimal(),
     'DOUBLE': _java_to_py('doubleValue'),
