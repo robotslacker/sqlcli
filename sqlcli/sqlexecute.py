@@ -293,6 +293,7 @@ class SQLExecute(object):
                                               "java.sql.SQLInvalidAuthorizationSpecException:",
                                               "java.sql.SQLDataException:",
                                               "java.sql.SQLTransactionRollbackException:",
+                                              "java.sql.SQLFeatureNotSupportedException",
                                               "com.microsoft.sqlserver.jdbc."):
                             if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
                                 m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
@@ -326,6 +327,7 @@ class SQLExecute(object):
                                       "java.sql.SQLException:",
                                       "java.sql.SQLInvalidAuthorizationSpecException:",
                                       "java.sql.SQLDataException:",
+                                      "java.sql.SQLFeatureNotSupportedException",
                                       "java.sql.SQLTransactionRollbackException:"):
                     if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
                         m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()

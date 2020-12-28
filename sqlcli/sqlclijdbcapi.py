@@ -542,7 +542,7 @@ def _to_binary(rs, col):
     m_TypeName = str(java_val.getClass().getTypeName())
     if m_TypeName == "byte[]":
         return binascii.b2a_hex(java_val)
-    elif m_TypeName.find("Blob") != -1:
+    elif m_TypeName.upper().find("BLOB") != -1:
         m_Bytes = java_val.getBytes(1, 1024)
         if m_Bytes is not None:
             return binascii.b2a_hex(java_val.getBytes(1, 1024))
