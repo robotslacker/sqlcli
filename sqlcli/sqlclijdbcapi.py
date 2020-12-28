@@ -601,6 +601,21 @@ def _java_to_py_timestampwithtimezone():
     return to_py
 
 
+def _java_to_py_clob():
+    def to_py(rs, col):
+        java_val = rs.getObject(col)
+        if java_val is None:
+            return
+        m_TypeName = str(java_val.getClass().getTypeName())
+        if m_TypeName.upper().find('CLOB') != -1:
+            return java_val
+        else:
+            raise SQLCliException(
+                "SQLCLI-00000: Unknown java class type [" + m_TypeName +
+                "] in _java_to_py_clob")
+    return to_py
+
+
 def _java_to_py_str():
     def to_py(rs, col):
         java_val = rs.getObject(col)
@@ -638,6 +653,7 @@ _DEFAULT_CONVERTERS = {
     'CHAR': _java_to_py_str(),
     'LONGVARCHAR': _java_to_py_str(),
     'VARCHAR':  _java_to_py_str(),
+    'CLOB':  _java_to_py_clob(),
     'TIMESTAMP_WITH_TIMEZONE': _java_to_py_timestampwithtimezone(),
     'TIMESTAMP': _to_datetime,
     'TIME': _to_time,
