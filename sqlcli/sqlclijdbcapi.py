@@ -566,7 +566,7 @@ def _to_binary(conn, rs, col):
 
 
 def _java_to_py(java_method):
-    def to_py(rs, col):
+    def to_py(conn, rs, col):
         java_val = rs.getObject(col)
         if java_val is None:
             return
