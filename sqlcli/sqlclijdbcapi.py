@@ -24,13 +24,16 @@ def reraise(tp, value, tb=None):
 
 string_type = str
 
+
 # Mapping from java.sql.Types attribute name to attribute value
 _jdbc_name_to_const = None
+
 
 # Mapping from java.sql.Types attribute constant value to it's attribute name
 _jdbc_const_to_name = []
 
 _sqloptions = SQLOptions()
+
 
 def _handle_sql_exception_jpype():
     import jpype
@@ -86,7 +89,10 @@ def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
     else:
         dargs = driver_args
 
-    return jpype.java.sql.DriverManager.getConnection(url, *dargs)
+    try:
+        return jpype.java.sql.DriverManager.getConnection(url, *dargs)
+    except jpype.java.sql.SQLException as je:
+        raise SQLCliException(je.toString().replace("java.sql.SQLException: ", ""))
 
 
 def _get_classpath():

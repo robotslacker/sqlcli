@@ -17,6 +17,8 @@ import itertools
 from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 from prompt_toolkit.shortcuts import PromptSession
 from multiprocessing.managers import BaseManager
+from pyparsing import (printables, originalTextFor, OneOrMore, quotedString, Word, delimitedList)
+
 
 # 加载JDBC驱动
 from .sqlclijdbcapi import connect as jdbcconnect
@@ -419,13 +421,12 @@ class SQLCli(object):
         elif self.connection_configs is None:
             raise SQLCliException("Please load driver first.")
 
-        # 解析数据库连接参数
+        # 分割字符串，可能用单引号或者双引号包括, 单词中不能包含分割符
         # -- 1 首先找到@符号
-        m_connect_parameterlist = shlex.shlex(arg)
-        m_connect_parameterlist.whitespace = '@'
-        m_connect_parameterlist.quotes = '"'
-        m_connect_parameterlist.whitespace_split = True
-        m_connect_parameterlist = list(m_connect_parameterlist)
+        content = originalTextFor(
+            OneOrMore(quotedString | Word(printables.replace('@', ''))))
+        m_connect_parameterlist = \
+            delimitedList(content, '@').parseString(arg)
         if len(m_connect_parameterlist) == 0:
             raise SQLCliException("Missed connect string in connect command.")
 
