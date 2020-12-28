@@ -569,10 +569,11 @@ class SQLCli(object):
                             self.db_conn.close()
                             self.db_conn = None
                             self.SQLExecuteHandler.conn = None
-                self.db_conn = jdbcconnect(m_driverclass,
-                                           m_JDBCURL,
-                                           m_jaydebeapi_prop,
-                                           m_JarList)
+                self.db_conn = jdbcconnect(jclassname=m_driverclass,
+                                           url=m_JDBCURL,
+                                           driver_args=m_jaydebeapi_prop,
+                                           jars=m_JarList,
+                                           sqloptions=self.SQLOptions)
                 self.db_url = m_JDBCURL
                 self.SQLExecuteHandler.conn = self.db_conn
             if self.db_conntype == 'ODBC':   # ODBC 连接数据库

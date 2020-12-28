@@ -9,6 +9,7 @@ import decimal
 import binascii
 import jpype
 from .sqlcliexception import SQLCliException
+from .sqloption import SQLOptions
 
 
 def reraise(tp, value, tb=None):
@@ -27,8 +28,9 @@ string_type = str
 _jdbc_name_to_const = None
 
 # Mapping from java.sql.Types attribute constant value to it's attribute name
-_jdbc_const_to_name = None
+_jdbc_const_to_name = []
 
+_sqloptions = SQLOptions()
 
 def _handle_sql_exception_jpype():
     import jpype
@@ -83,6 +85,7 @@ def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
         dargs = [info]
     else:
         dargs = driver_args
+
     return jpype.java.sql.DriverManager.getConnection(url, *dargs)
 
 
@@ -236,7 +239,7 @@ Timestamp = _str_func(datetime.datetime)
 
 
 # DB-API 2.0 Module Interface connect constructor
-def connect(jclassname, url, driver_args=None, jars=None, libs=None):
+def connect(jclassname, url, driver_args=None, jars=None, libs=None, sqloptions=None):
     """Open a connection to a database using a JDBC driver and return
     a Connection instance.
 
@@ -267,6 +270,12 @@ def connect(jclassname, url, driver_args=None, jars=None, libs=None):
             libs = [libs]
     else:
         libs = []
+
+    # 程序用到的各种会话控制参数
+    if sqloptions:
+        global _sqloptions
+        _sqloptions = sqloptions
+
     jconn = _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs)
     return Connection(jconn, _converters)
 
@@ -389,7 +398,6 @@ class Cursor(object):
 
     def _set_stmt_parms(self, prep_stmt, parameters):
         for i in range(len(parameters)):
-            # print (i, parameters[i], type(parameters[i]))
             prep_stmt.setObject(i + 1, parameters[i])
 
     def execute(self, operation, parameters=None):
@@ -442,6 +450,8 @@ class Cursor(object):
             else:
                 if m_ColumnClassName.upper().find("BFILE") != -1:
                     converter = _DEFAULT_CONVERTERS["BFILE"]
+                elif m_ColumnClassName in ('oracle.sql.TIMESTAMPTZ', 'oracle.sql.TIMESTAMPLTZ'):
+                    converter = _DEFAULT_CONVERTERS["TIMESTAMP_WITH_TIMEZONE"]
                 else:
                     converter = _unknownSqlTypeConverter
                     if "SQLCLI_DEBUG" in os.environ:
@@ -450,7 +460,7 @@ class Cursor(object):
             if "SQLCLI_DEBUG" in os.environ:
                 print("JDBC SQLType=[" + str(converter.__name__) + "] for col [" + str(col) + "]. " +
                       "sqltype=[" + str(sqltype) + ":" + m_ColumnClassName + "]")
-            v = converter(self._rs, col)
+            v = converter(self._connection.jconn, self._rs, col)
             row.append(v)
         return tuple(row)
 
@@ -500,14 +510,14 @@ class Cursor(object):
         self.close()
 
 
-def _unknownSqlTypeConverter(rs, col):
+def _unknownSqlTypeConverter(conn, rs, col):
     java_val = rs.getObject(col)
     if java_val is None:
         return
     return str(java_val)
 
 
-def _to_datetime(rs, col):
+def _to_datetime(conn, rs, col):
     java_val = rs.getTimestamp(col)
     if not java_val:
         return
@@ -516,14 +526,14 @@ def _to_datetime(rs, col):
     return str(d)
 
 
-def _to_time(rs, col):
+def _to_time(conn, rs, col):
     java_val = rs.getTime(col)
     if not java_val:
         return
     return str(java_val)
 
 
-def _to_date(rs, col):
+def _to_date(conn, rs, col):
     java_val = rs.getDate(col)
     if not java_val:
         return
@@ -535,7 +545,7 @@ def _to_date(rs, col):
     return str(java_val)[:10]
 
 
-def _to_binary(rs, col):
+def _to_binary(conn, rs, col):
     java_val = rs.getObject(col)
     if java_val is None:
         return
@@ -567,62 +577,62 @@ def _java_to_py(java_method):
     return to_py
 
 
-def _java_to_py_bigdecimal():
-    def to_py(rs, col):
-        java_val = rs.getObject(col)
-        if java_val is None:
-            return
-        m_TypeName = str(java_val.getClass().getTypeName())
-        if m_TypeName == "java.math.BigDecimal":
-            return decimal.Decimal(java_val.toPlainString())
-        elif m_TypeName == "java.lang.Long":
-            return decimal.Decimal(java_val.toString())
-        elif m_TypeName == "java.math.BigInteger":
-            return decimal.Decimal(java_val.toString())
-        else:
-            raise SQLCliException(
-                "SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _java_to_py_bigdecimal")
-    return to_py
+def _java_to_py_bigdecimal(conn, rs, col):
+    java_val = rs.getObject(col)
+    if java_val is None:
+        return
+    m_TypeName = str(java_val.getClass().getTypeName())
+    if m_TypeName == "java.math.BigDecimal":
+        return decimal.Decimal(java_val.toPlainString())
+    elif m_TypeName == "java.lang.Long":
+        return decimal.Decimal(java_val.toString())
+    elif m_TypeName == "java.math.BigInteger":
+        return decimal.Decimal(java_val.toString())
+    else:
+        raise SQLCliException(
+            "SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _java_to_py_bigdecimal")
 
 
-def _java_to_py_timestampwithtimezone():
-    def to_py(rs, col):
-        java_val = rs.getObject(col)
-        if java_val is None:
-            return
-        m_TypeName = str(java_val.getClass().getTypeName())
-        if m_TypeName == "java.time.OffsetDateTime":
-            return java_val.format(
-                jpype.java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS Z"))
-        else:
-            raise SQLCliException(
-                "SQLCLI-00000: Unknown java class type [" + m_TypeName +
-                "] in _java_to_py_timestampwithtimezone")
-    return to_py
+def _java_to_py_timestampwithtimezone(conn, rs, col):
+    java_val = rs.getObject(col)
+    if java_val is None:
+        return
+    m_TypeName = str(java_val.getClass().getTypeName())
+    if m_TypeName == "java.time.OffsetDateTime":
+        return java_val.format(
+            jpype.java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS Z"))
+    elif m_TypeName in ('oracle.sql.TIMESTAMPTZ', 'oracle.sql.TIMESTAMPLTZ'):
+        return java_val.offsetDateTimeValue(conn).format(
+            jpype.java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS Z"))
+    else:
+        raise SQLCliException(
+            "SQLCLI-00000: Unknown java class type [" + m_TypeName +
+            "] in _java_to_py_timestampwithtimezone")
 
 
-def _java_to_py_clob():
-    def to_py(rs, col):
-        java_val = rs.getObject(col)
-        if java_val is None:
-            return
-        m_TypeName = str(java_val.getClass().getTypeName())
-        if m_TypeName.upper().find('CLOB') != -1:
-            return java_val
-        else:
-            raise SQLCliException(
-                "SQLCLI-00000: Unknown java class type [" + m_TypeName +
-                "] in _java_to_py_clob")
-    return to_py
+def _java_to_py_clob(conn, rs, col):
+    java_val = rs.getObject(col)
+    if java_val is None:
+        return
+    m_TypeName = str(java_val.getClass().getTypeName())
+    if m_TypeName.upper().find('CLOB') != -1:
+        m_Length = java_val.length()
+        m_TrimLength = int(_sqloptions.get("LOB_LENGTH"))
+        m_ColumnValue = java_val.getSubString(1, m_TrimLength)
+        if m_Length > int(m_TrimLength):
+            m_ColumnValue = m_ColumnValue + "..."
+        return m_ColumnValue
+    else:
+        raise SQLCliException(
+            "SQLCLI-00000: Unknown java class type [" + m_TypeName +
+            "] in _java_to_py_clob")
 
 
-def _java_to_py_str():
-    def to_py(rs, col):
-        java_val = rs.getObject(col)
-        if java_val is None:
-            return
-        return str(java_val)
-    return to_py
+def _java_to_py_str(conn, rs, col):
+    java_val = rs.getObject(col)
+    if java_val is None:
+        return
+    return str(java_val)
 
 
 def _init_types(types_map):
@@ -650,11 +660,12 @@ _DEFAULT_CONVERTERS = {
     # see
     # http://download.oracle.com/javase/8/docs/api/java/sql/Types.html
     # for possible keys
-    'CHAR': _java_to_py_str(),
-    'LONGVARCHAR': _java_to_py_str(),
-    'VARCHAR':  _java_to_py_str(),
-    'CLOB':  _java_to_py_clob(),
-    'TIMESTAMP_WITH_TIMEZONE': _java_to_py_timestampwithtimezone(),
+    'CHAR': _java_to_py_str,
+    'LONGVARCHAR': _java_to_py_str,
+    'VARCHAR':  _java_to_py_str,
+    'NCLOB':  _java_to_py_clob,
+    'CLOB':  _java_to_py_clob,
+    'TIMESTAMP_WITH_TIMEZONE': _java_to_py_timestampwithtimezone,
     'TIMESTAMP': _to_datetime,
     'TIME': _to_time,
     'DATE': _to_date,
@@ -663,15 +674,15 @@ _DEFAULT_CONVERTERS = {
     'LONGVARBINARY': _to_binary,
     'BLOB': _to_binary,
     'BFILE': _to_binary,
-    'DECIMAL': _java_to_py_bigdecimal(),
-    'NUMERIC': _java_to_py_bigdecimal(),
+    'DECIMAL': _java_to_py_bigdecimal,
+    'NUMERIC': _java_to_py_bigdecimal,
     'DOUBLE': _java_to_py('doubleValue'),
     'FLOAT': _java_to_py('doubleValue'),
     'REAL': _java_to_py('doubleValue'),
     'TINYINT': _java_to_py('intValue'),
     'INTEGER': _java_to_py('intValue'),
     'SMALLINT': _java_to_py('intValue'),
-    'BIGINT':  _java_to_py_bigdecimal(),
+    'BIGINT':  _java_to_py_bigdecimal,
     'BOOLEAN': _java_to_py('booleanValue'),
     'BIT': _java_to_py('booleanValue')
 }

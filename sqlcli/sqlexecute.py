@@ -436,12 +436,6 @@ class SQLExecute(object):
                                     m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
                         m_ColumnValue = m_ColumnValue + ")"
                         m_row.append(m_ColumnValue)
-                    elif str(type(column)).upper().find('JDBCCLOBCLIENT') != -1:
-                        m_Length = column.length()
-                        m_ColumnValue = column.getSubString(1, int(self.SQLOptions.get("LOB_LENGTH")))
-                        if m_Length > int(self.SQLOptions.get("LOB_LENGTH")):
-                            m_ColumnValue = m_ColumnValue + "..."
-                        m_row.append(m_ColumnValue)
                     elif str(type(column)).upper().find('JDBCBLOBCLIENT') != -1:
                         # 对于二进制数据，用16进制数来显示
                         # 2: 意思是去掉Hex前面的0x字样
