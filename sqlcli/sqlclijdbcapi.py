@@ -79,7 +79,10 @@ def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
         _init_types(types_map)
 
     # register driver for DriverManager
-    jpype.JClass(jclassname)
+    try:
+        jpype.JClass(jclassname)
+    except TypeError as te:
+        raise SQLCliException("SQLCLI-00000: Load java class failed. [" + str(jclassname) + "]")
     if isinstance(driver_args, dict):
         Properties = jpype.java.util.Properties
         info = Properties()

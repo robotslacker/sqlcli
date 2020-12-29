@@ -12,12 +12,12 @@ import wget
 import hashlib
 import codecs
 import subprocess
+import pyparsing
 from urllib.error import URLError
 import itertools
 from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 from prompt_toolkit.shortcuts import PromptSession
 from multiprocessing.managers import BaseManager
-from pyparsing import (printables, originalTextFor, OneOrMore, quotedString, Word, delimitedList)
 
 
 # 加载JDBC驱动
@@ -423,12 +423,16 @@ class SQLCli(object):
 
         # 分割字符串，可能用单引号或者双引号包括, 单词中不能包含分割符
         # -- 1 首先找到@符号
-        content = originalTextFor(
-            OneOrMore(quotedString | Word(printables.replace('@', ''))))
-        m_connect_parameterlist = \
-            delimitedList(content, '@').parseString(arg)
-        if len(m_connect_parameterlist) == 0:
-            raise SQLCliException("Missed connect string in connect command.")
+        try:
+            content = pyparsing.originalTextFor(
+                pyparsing.OneOrMore(pyparsing.quotedString | pyparsing.Word(pyparsing.printables.replace('@', ''))))
+            m_connect_parameterlist = \
+                pyparsing.delimitedList(content, '@').parseString(arg)
+            if len(m_connect_parameterlist) == 0:
+                raise SQLCliException("Missed connect string in connect command.")
+        except pyparsing.ParseException:
+            raise SQLCliException("SQLCLI-00000: Connect failed. "
+                                  "Please make use use correct string, quote multibyte string.")
 
         # -- 2 @符号之前的为用户名和密码
         m_userandpasslist = shlex.shlex(m_connect_parameterlist[0])
