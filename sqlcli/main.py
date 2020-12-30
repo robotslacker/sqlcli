@@ -909,9 +909,12 @@ class SQLCli(object):
             if options_parameters[0].upper() == "DEBUG":
                 if options_parameters[1].upper() == 'ON':
                     os.environ['SQLCLI_DEBUG'] = "1"
-                else:
+                elif options_parameters[1].upper() == 'OFF':
                     if 'SQLCLI_DEBUG' in os.environ:
                         del os.environ['SQLCLI_DEBUG']
+                else:
+                    raise SQLCliException("SQLCLI-00000: "
+                                          "Unknown option [" + str(options_parameters[1]) + "] for debug. ON/OFF only.")
 
             # 如果不是已知的选项，则直接抛出到SQL引擎
             if options_parameters[0].startswith('@'):

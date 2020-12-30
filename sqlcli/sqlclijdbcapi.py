@@ -4,6 +4,7 @@ import glob
 import os
 import sys
 import time
+import traceback
 import warnings
 import decimal
 import binascii
@@ -285,7 +286,25 @@ def connect(jclassname, url, driver_args=None, jars=None, libs=None, sqloptions=
         global _sqloptions
         _sqloptions = sqloptions
 
-    jconn = _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs)
+    # 如果无法连接，则尝试3次，间隔等待2秒
+    jconn = None
+    retryCount = 0
+    while True:
+        try:
+            jconn = _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs)
+            break
+        except Exception as je:
+            if jconn is None:
+                # jconn 为空，可能是网络错误，这里重复尝试3次
+                if retryCount > 3:
+                    _handle_sql_exception_jpype()
+                else:
+                    if "SQLCLI_DEBUG" in os.environ:
+                        print('traceback.print_exc():\n%s' % traceback.print_exc())
+                        print('traceback.format_exc():\n%s' % traceback.format_exc())
+                    retryCount = retryCount + 1
+                    time.sleep(2)
+                continue
     return Connection(jconn, _converters)
 
 
@@ -322,7 +341,8 @@ class Connection(object):
     def close(self):
         if self._closed:
             raise Error()
-        self.jconn.close()
+        if self.jconn is not None:
+            self.jconn.close()
         self._closed = True
 
     def commit(self):
@@ -415,7 +435,7 @@ class Cursor(object):
         if not parameters:
             parameters = ()
         self._close_last()
-        self._prep = self._connection.jconn.prepareStatement(operation)
+        self._prep = self._connection.jconnf.prepareStatement(operation)
         self._set_stmt_parms(self._prep, parameters)
         is_rs = False
         try:

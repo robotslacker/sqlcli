@@ -63,10 +63,6 @@ class SQLOptions(object):
                     else:
                         m_ParameterValue = p_ParameterDefaultValue
                 self.m_SQL_OptionList[m_nPos]["Value"] = m_ParameterValue
-                if p_ParameterName.upper() == "DEBUG" and m_ParameterValue.upper() == "ON":
-                    os.environ['SQLCLI_DEBUG'] = "1"
-                if p_ParameterName.upper() == "DEBUG" and m_ParameterValue.upper() == "OFF":
-                    del os.environ['SQLCLI_DEBUG']
                 return True
 
         # 对@开头的进行保存和处理
