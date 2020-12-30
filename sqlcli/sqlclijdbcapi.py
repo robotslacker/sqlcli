@@ -96,7 +96,9 @@ def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
     try:
         return jpype.java.sql.DriverManager.getConnection(url, *dargs)
     except jpype.java.sql.SQLException as je:
-        raise SQLCliException(je.toString().replace("java.sql.SQLException: ", ""))
+        raise SQLCliException("SQLCLI-00000: " + je.toString().
+                              replace("java.sql.SQLException: ", "").
+                              replace("java.sql.SQLTransientConnectionException: ", ""))
 
 
 def _get_classpath():
@@ -293,11 +295,11 @@ def connect(jclassname, url, driver_args=None, jars=None, libs=None, sqloptions=
         try:
             jconn = _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs)
             break
-        except Exception as je:
+        except SQLCliException as je:
             if jconn is None:
                 # jconn 为空，可能是网络错误，这里重复尝试3次
                 if retryCount > 3:
-                    _handle_sql_exception_jpype()
+                    raise je
                 else:
                     if "SQLCLI_DEBUG" in os.environ:
                         print('traceback.print_exc():\n%s' % traceback.print_exc())
