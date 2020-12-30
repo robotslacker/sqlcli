@@ -435,7 +435,7 @@ class Cursor(object):
         if not parameters:
             parameters = ()
         self._close_last()
-        self._prep = self._connection.jconnf.prepareStatement(operation)
+        self._prep = self._connection.jconn.prepareStatement(operation)
         self._set_stmt_parms(self._prep, parameters)
         is_rs = False
         try:
