@@ -96,9 +96,10 @@ def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
     try:
         return jpype.java.sql.DriverManager.getConnection(url, *dargs)
     except jpype.java.sql.SQLException as je:
-        raise SQLCliException("SQLCLI-00000: " + je.toString().
+        raise SQLCliException(je.toString().
                               replace("java.sql.SQLException: ", "").
-                              replace("java.sql.SQLTransientConnectionException: ", ""))
+                              replace("java.sql.SQLTransientConnectionException: ", "").
+                              replace("java.sql.SQLInvalidAuthorizationSpecException: ", ""))
 
 
 def _get_classpath():

@@ -649,6 +649,7 @@ class SQLCli(object):
             raise SQLCliException(
                 "Missing OS command\n." + "host xxx")
         Commands = str(arg)
+
         if 'win32' in str(sys.platform).lower():
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags = subprocess.CREATE_NEW_CONSOLE | subprocess.STARTF_USESHOWWINDOW
@@ -656,22 +657,31 @@ class SQLCli(object):
             p = subprocess.Popen(Commands,
                                  shell=True,
                                  startupinfo=startupinfo,
+                                 stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT)
+                                 stderr=subprocess.PIPE)
         else:
             p = subprocess.Popen(Commands,
                                  shell=True,
+                                 stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT)
+                                 stderr=subprocess.PIPE)
         try:
-            for output in p.stdout.readlines():
-                yield (
-                    None,
-                    None,
-                    None,
-                    None,
-                    str(output, encoding=self.Result_Charset).replace('\r', '').replace('\n', '')
-                )
+            (stdoutdata, stderrdata) = p.communicate()
+            yield (
+                None,
+                None,
+                None,
+                None,
+                str(stdoutdata.decode(encoding=self.Result_Charset))
+            )
+            yield (
+                None,
+                None,
+                None,
+                None,
+                str(stderrdata.decode(encoding=self.Result_Charset))
+            )
         except UnicodeDecodeError:
             raise SQLCliException("The character set [" + self.Result_Charset + "]" +
                                   " does not match the terminal character set, " +
