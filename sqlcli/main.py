@@ -20,12 +20,11 @@ from prompt_toolkit.shortcuts import PromptSession
 from multiprocessing.managers import BaseManager
 
 
-# 加载JDBC驱动
+# 加载JDBC驱动和ODBC驱动
 from .sqlclijdbcapi import connect as jdbcconnect
-import jpype
-
-# 加载ODBC驱动
+# from .sqlcliodbcapi import connect as odbcconnect
 import pyodbc
+import jpype
 
 from .sqlclijobmanager import JOBManager
 from .sqlclitransactionmanager import TransactionManager
@@ -462,6 +461,7 @@ class SQLCli(object):
                 self.db_password = m_userandpasslist[1]
             else:
                 self.db_password = ""
+
         # 判断连接字符串中是否含有服务器信息
         if len(m_connect_parameterlist) == 2:
             m_serverurl = m_connect_parameterlist[1]
@@ -471,6 +471,12 @@ class SQLCli(object):
             else:
                 raise SQLCliException("Missed SQLCLI_CONNECTION_URL in env.")
 
+        # 初始化连接参数
+        self.db_service_name = ""
+        self.db_host = ""
+        self.db_port = ""
+        m_jdbcprop = ""
+
         # 在serverurl中查找//
         m_serverurllist = shlex.shlex(m_serverurl)
         m_serverurllist.whitespace = '/'
@@ -479,28 +485,33 @@ class SQLCli(object):
         m_serverurllist = list(m_serverurllist)
         if len(m_serverurllist) == 0:
             raise SQLCliException("Missed correct url in connect command.")
-        m_jdbcprop = m_serverurllist[0]
-        if len(m_serverurllist) >= 3:
-            # //IP:Port/Service
+        if len(m_serverurllist) == 3:
+            # //protocol/IP:Port/Service
+            m_jdbcprop = m_serverurllist[0]
             self.db_service_name = m_serverurllist[2]
-            self.db_host = m_serverurllist[1]
-            self.db_port = ""
-        elif len(m_serverurllist) >= 2:
-            # //IP:Port:Service
-            # //IP/Service
+            m_ipandhost = m_serverurllist[1]
+            m_serverparameter = m_ipandhost.split(':')
+            if len(m_serverparameter) > 2:
+                # IP:Port|IP:Port|IP:Port
+                self.db_host = m_ipandhost
+                self.db_port = ""
+            elif len(m_serverparameter) == 2:
+                # IP:Port
+                self.db_host = m_serverparameter[0]
+                self.db_port = m_serverparameter[1]
+            elif len(m_serverparameter) == 1:
+                # IP  sqlserver/teradata
+                self.db_host = m_serverparameter[0]
+                self.db_port = ""
+        elif len(m_serverurllist) == 2:
+            # //protocol/IP:Port:Service
+            m_jdbcprop = m_serverurllist[0]
             m_serverparameter = m_serverurllist[1].split(':')
-            if len(m_serverparameter) >= 2:
-                self.db_service_name = m_serverparameter[-1]
-                self.db_host = ':'.join(m_serverparameter[:-1])
-                self.db_port = ""
-            else:
-                self.db_host = m_serverurllist[1]
-                self.db_port = ""
-                self.db_service_name = ""
-        else:
-            self.db_service_name = ""
-            self.db_host = ""
-            self.db_port = ""
+            if len(m_serverparameter) == 3:
+                # IP:Port:Service, Old oracle version
+                self.db_host = m_serverparameter[0]
+                self.db_port = m_serverparameter[1]
+                self.db_service_name = m_serverparameter[2]
 
         # 处理JDBC属性
         m_jdbcproplist = shlex.shlex(m_jdbcprop)
@@ -550,14 +561,14 @@ class SQLCli(object):
                 if m_driverclass is None:
                     raise SQLCliException("Missed driver [" + self.db_type.upper() + "] in config. "
                                                                                      "Database Connect Failed. ")
-                m_jaydebeapi_prop = {'user': self.db_username, 'password': self.db_password}
+                m_jdbcconn_prop = {'user': self.db_username, 'password': self.db_password}
                 if m_JDBCProp is not None:
                     for row in m_JDBCProp.strip().split(','):
                         props = row.split(':')
                         if len(props) == 2:
                             m_PropName = str(props[0]).strip()
                             m_PropValue = str(props[1]).strip()
-                            m_jaydebeapi_prop[m_PropName] = m_PropValue
+                            m_jdbcconn_prop[m_PropName] = m_PropValue
                 # 将当前DB的连接字符串备份到变量中
                 self.SQLOptions.set("CONNURL", str(self.db_url))
                 self.SQLOptions.set("CONNPROP", str(m_JDBCProp))
@@ -574,9 +585,11 @@ class SQLCli(object):
                             self.db_conn.close()
                             self.db_conn = None
                             self.SQLExecuteHandler.conn = None
+                if "SQLCLI_DEBUG" in os.environ:
+                    print("Connect to [" + m_JDBCURL + "]...")
                 self.db_conn = jdbcconnect(jclassname=m_driverclass,
                                            url=m_JDBCURL,
-                                           driver_args=m_jaydebeapi_prop,
+                                           driver_args=m_jdbcconn_prop,
                                            jars=m_JarList,
                                            sqloptions=self.SQLOptions)
                 self.db_url = m_JDBCURL
@@ -596,6 +609,7 @@ class SQLCli(object):
                 m_ODBCURL = m_ODBCURL.replace("${username}", self.db_username)
                 m_ODBCURL = m_ODBCURL.replace("${password}", self.db_password)
 
+                # self.db_conn = odbcconnect(m_ODBCURL)
                 self.db_conn = pyodbc.connect(m_ODBCURL)
                 self.db_url = m_ODBCURL
                 self.SQLExecuteHandler.conn = self.db_conn
@@ -928,10 +942,32 @@ class SQLCli(object):
 
             # 如果不是已知的选项，则直接抛出到SQL引擎
             if options_parameters[0].startswith('@'):
-                if len(options_parameters) == 2:
-                    self.SQLOptions.set(options_parameters[0], options_parameters[1])
-                if len(options_parameters) == 3:
-                    self.SQLOptions.set(options_parameters[0], options_parameters[1], options_parameters[2])
+                m_ParameterValue = " ".join(options_parameters[1:])
+                options_values = shlex.shlex(m_ParameterValue)
+                options_values.whitespace = ' '
+                options_values.quotes = '^'
+                options_values.whitespace_split = True
+                options_values = list(options_values)
+                print("options_values=" + str(options_values))
+                if len(options_values) == 1:
+                    if options_values[0][0] == '^':
+                        options_values[0] = options_values[0][1:]
+                    if options_values[0][-1] == '^':
+                        options_values[0] = options_values[0][:-1]
+                    self.SQLOptions.set(options_parameters[0], options_values[0])
+                elif len(options_values) == 2:
+                    if options_values[0][0] == '^':
+                        options_values[0] = options_values[0][1:]
+                    if options_values[0][-1] == '^':
+                        options_values[0] = options_values[0][:-1]
+                    if options_values[1][0] == '^':
+                        options_values[1] = options_values[1][1:]
+                    if options_values[1][-1] == '^':
+                        options_values[1] = options_values[1][:-1]
+                    self.SQLOptions.set(options_parameters[0], options_values[0], options_values[1])
+                else:
+                    raise SQLCliException("SQLCLI-00000: "
+                                          "Wrong set command. Please use [set @parameter_name parametervalue]")
                 yield (
                     None,
                     None,

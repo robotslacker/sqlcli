@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+
+'''
+http://www.python.org/topics/database/DatabaseAPI-2.0.html
+'''
+
 import datetime
 import glob
 import os

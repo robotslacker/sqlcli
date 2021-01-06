@@ -1,9 +1,16 @@
 # -*- coding: utf-8 -*-
 
 import ast
-from io import open
 import re
+import os
+import sys
+import distutils.command.build_ext
+import distutils.command.bdist_rpm
+from io import open
 from setuptools import setup
+from distutils.core import setup
+from distutils.errors import DistutilsSetupError
+from distutils.extension import Extension
 
 '''
 How to build and upload this package to PyPi
@@ -16,6 +23,24 @@ How to build and upload this package to Local site:
 '''
 
 _version_re = re.compile(r"__version__\s+=\s+(.*)")
+
+if sys.platform == "win32":
+    libs = ["odbc32"]
+else:
+    libs = ["odbc"]
+#define ODBC sources
+sourceDir = "sqlcli\odbc"
+sources = [os.path.join(sourceDir, n)
+        for n in sorted(os.listdir(sourceDir)) if n.endswith(".c")]
+depends = [os.path.join(sourceDir, "ceoModule.h")]
+
+# setup the extension
+extension = Extension(
+        name="ceODBC",
+        libraries=libs,
+        define_macros=[("BUILD_VERSION", "3.0")],
+        sources=sources,
+        depends=depends)
 
 with open("sqlcli/__init__.py", "rb") as f:
     version = str(
@@ -38,8 +63,8 @@ setup(
     long_description=readme,
     keywords='sql command test tool',
     platforms='any',
-    install_requires=['JPype1>=0.7.1', 'pyodbc',
-                      'pyparsing', 'setproctitle', 'click', 'prompt_toolkit',
+    install_requires=['JPype1>=0.7.1', 'setproctitle', 'pathlib',
+                      'pyparsing', 'click', 'prompt_toolkit',
                       'cli_helpers', 'fs', 'hdfs', 'wget'],
 
     author='RobotSlacker',
@@ -54,4 +79,5 @@ setup(
         "console_scripts": ["sqlcli = sqlcli.main:cli"],
         "distutils.commands": ["lint = tasks:lint", "test = tasks:test"],
     },
+    ext_modules=[extension],
 )

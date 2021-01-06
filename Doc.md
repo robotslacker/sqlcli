@@ -55,10 +55,10 @@ SQLCli 目前支持的数据类型有：
    * 有一个Python 3.6以上的环境
    * 能够连接到互联网上， 便于下载必要的包
    * 安装JDK8
-   * 对于Windows平台，还需要提前安装微软的C++编译器（Jaydebeapi安装过程中需要动态编译jpype, pyodbc）  
-   * 对于Linux平台，也需要提前安装gcc编译器（Jaydebeapi安装过程中需要动态编译jpype）  
-     yum install -y gcc-c++ gcc python3-devel
-     yum install -y unixODBC  unixODBC-devel
+   * 对于Windows平台，还需要提前安装微软的C++编译器（jpype1, pyodbc使用了JNI技术，需要动态编译）  
+   * 对于Linux平台，也需要提前安装gcc编译器，以及Python3的开发包（原因同上）  
+     yum install -y gcc-c++ gcc python3-devel  
+     yum install -y unixODBC  unixODBC-devel  
    * 对于MAC平台，直接安装
 
 
@@ -824,6 +824,11 @@ Mapping file loaded.
 &emsp; &emsp; * 用set的语句来定义一个变量
 ```
     SQL> set @var1 value1
+
+    如果value1中包含空格等特殊字符，需要考虑用^将其前后包括，例如：
+    SQL> set @var1 ^value1 fafsadfd^
+    此时，尖括号内部的字符串将作为参数的值，但尖括号并不包括在内
+
 ```
 &emsp; &emsp; * 用${}的方式来引用已经定义的变量
 ```
