@@ -29,7 +29,7 @@ if sys.platform == "win32":
 else:
     libs = ["odbc"]
 #define ODBC sources
-sourceDir = "sqlcli\odbc"
+sourceDir = "sqlcli/odbc"
 sources = [os.path.join(sourceDir, n)
         for n in sorted(os.listdir(sourceDir)) if n.endswith(".c")]
 depends = [os.path.join(sourceDir, "ceoModule.h")]
