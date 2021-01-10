@@ -153,25 +153,18 @@ static int ceoConnection_init(ceoConnection *conn, PyObject *args,
     if (ceoError_check(SQL_HANDLE_ENV, conn->envHandle, rc,
                 "allocate DBC handle") < 0)
         return -1;
-        printf(" %s %d ",__FILE__,__LINE__);
 
     // connecting to driver
     rc = SQLDriverConnectA(conn->handle, NULL, (SQLCHAR*) dsn, dsnLength,
             actualDsnBuffer, CEO_ARRAYSIZE(actualDsnBuffer),
             &actualDsnLength, SQL_DRIVER_NOPROMPT);
-        printf(" %s %d ",__FILE__,__LINE__);
-
     if ((size_t) actualDsnLength > CEO_ARRAYSIZE(actualDsnBuffer) - 1)
         actualDsnLength = CEO_ARRAYSIZE(actualDsnBuffer) - 1;
-        printf(" %s %d ",__FILE__,__LINE__);
     if (CEO_CONN_CHECK_ERROR(conn, rc,
             "ceoConnection_init(): connecting to driver") < 0) {
-        printf(" %s %d ",__FILE__,__LINE__);
         conn->handle = SQL_NULL_HANDLE;
         return -1;
     }
-        printf(" %s %d ",__FILE__,__LINE__);
-
     // turn off autocommit
     if (!autocommit) {
         rc = SQLSetConnectAttr(conn->handle, SQL_ATTR_AUTOCOMMIT,
@@ -191,7 +184,6 @@ static int ceoConnection_init(ceoConnection *conn, PyObject *args,
         Py_DECREF(conn);
         return -1;
     }
-        printf(" %s %d ",__FILE__,__LINE__);
 
     // attempt to remove password
     upperDsnObj = PyObject_CallMethod(dsnObj, "upper", "");
@@ -200,7 +192,6 @@ static int ceoConnection_init(ceoConnection *conn, PyObject *args,
         Py_DECREF(conn);
         return -1;
     }
-        printf(" %s %d ",__FILE__,__LINE__);
     conn->dsn = ceoConnection_removePasswordFromDsn(dsnObj, upperDsnObj);
     Py_DECREF(dsnObj);
     Py_DECREF(upperDsnObj);
@@ -208,8 +199,6 @@ static int ceoConnection_init(ceoConnection *conn, PyObject *args,
         Py_DECREF(conn);
         return -1;
     }
-        printf(" %s %d ",__FILE__,__LINE__);
-
     return 0;
 }
 

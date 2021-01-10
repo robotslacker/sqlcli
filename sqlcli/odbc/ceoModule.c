@@ -51,6 +51,7 @@ PyObject *ceoExceptionIntegrityError = NULL;
 PyObject *ceoExceptionInternalError = NULL;
 PyObject *ceoExceptionProgrammingError = NULL;
 PyObject *ceoExceptionNotSupportedError = NULL;
+PyObject *SQLCliODBCExceptionError = NULL;
 
 
 //-----------------------------------------------------------------------------
@@ -135,7 +136,7 @@ static int ceoModule_setException(PyObject *module, PyObject **exception,
 {
     char buffer[100];
 
-    sprintf(buffer, "ceODBC.%s", name);
+    sprintf(buffer, "SQLCliODBC.%s", name);
     *exception = PyErr_NewException(buffer, baseException, NULL);
     if (!*exception)
         return -1;
@@ -179,7 +180,7 @@ static PyMethodDef ceoMethods[] = {
 //-----------------------------------------------------------------------------
 static struct PyModuleDef ceoModuleDef = {
     PyModuleDef_HEAD_INIT,
-    .m_name = "ceODBC",
+    .m_name = "SQLCliODBC",
     .m_size = -1,
     .m_methods = ceoMethods
 };
@@ -188,14 +189,14 @@ static struct PyModuleDef ceoModuleDef = {
 //-----------------------------------------------------------------------------
 // Start routine for the module.
 //-----------------------------------------------------------------------------
-PyMODINIT_FUNC PyInit_ceODBC(void)
+PyMODINIT_FUNC PyInit_SQLCliODBC(void)
 {
     PyObject *module;
 
     LogMessage(LOG_LEVEL_DEBUG, "ceODBC initializing");
 
     // initialize transforms
-    if (ceoTransform_init() < 0)
+    if (ceoTransform_init() < 0) 
         return NULL;
 
     // prepare the types for use by the module
@@ -211,12 +212,13 @@ PyMODINIT_FUNC PyInit_ceODBC(void)
     if (!module)
         return NULL;
 
-    // add exceptions
-    if (ceoModule_setException(module, &ceoExceptionWarning, "Warning",
-            NULL) < 0)
+    // add base exceptions
+    if (ceoModule_setException(module, &ceoExceptionWarning, "Warning", NULL) < 0)
         return NULL;
     if (ceoModule_setException(module, &ceoExceptionError, "Error", NULL) < 0)
         return NULL;
+
+     // add Specialised exceptions
     if (ceoModule_setException(module, &ceoExceptionInterfaceError,
             "InterfaceError", ceoExceptionError) < 0)
         return NULL;
@@ -240,6 +242,9 @@ PyMODINIT_FUNC PyInit_ceODBC(void)
         return NULL;
     if (ceoModule_setException(module, &ceoExceptionNotSupportedError,
             "NotSupportedError", ceoExceptionDatabaseError) < 0)
+        return NULL;
+    if (ceoModule_setException(module, &SQLCliODBCExceptionError,
+            "SQLCliODBCException", ceoExceptionError) < 0)
         return NULL;
 
     // add the base types

@@ -57,7 +57,6 @@ typedef struct ceoDbType ceoDbType;
 typedef struct ceoError ceoError;
 typedef struct ceoVar ceoVar;
 
-
 //-----------------------------------------------------------------------------
 // Globals
 //-----------------------------------------------------------------------------
@@ -73,6 +72,7 @@ extern PyObject *ceoExceptionIntegrityError;
 extern PyObject *ceoExceptionInternalError;
 extern PyObject *ceoExceptionProgrammingError;
 extern PyObject *ceoExceptionNotSupportedError;
+extern PyObject *SQLCliODBCExceptionError;
 
 // API types
 extern ceoApiType *ceoApiTypeBinary;
@@ -92,7 +92,7 @@ extern ceoDbType *ceoDbTypeInt;
 extern ceoDbType *ceoDbTypeLongBinary;
 extern ceoDbType *ceoDbTypeLongString;
 extern ceoDbType *ceoDbTypeString;
-extern ceoDbType *ceoDbTypeTime;
+extern ceoDbType *ceoDbTypeTime; 
 extern ceoDbType *ceoDbTypeTimestamp;
 
 // other module types

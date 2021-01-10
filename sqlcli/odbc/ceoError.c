@@ -35,18 +35,13 @@ static PyObject *ceoError_str(ceoError *self)
 //   Check for an error in the last call and if an error has occurred, raise a
 // Python exception.
 //-----------------------------------------------------------------------------
-int ceoError_check(SQLSMALLINT handleType, SQLHANDLE handle,
-        SQLRETURN rcToCheck, const char *context)
+int ceoError_check(SQLSMALLINT handleType, SQLHANDLE handle, SQLRETURN rcToCheck, const char *context)
 {
-    PyObject *errorMessages, *temp, *separator;
     SQLINTEGER      numRecords;
     SQLCHAR         buffer[1024];
+    SQLCHAR         buffer2[1024];
     SQLSMALLINT     length;
-    ceoError        *error;
-    SQLRETURN       rc, rc2;
-    SQLINTEGER      NativeError;
-    SQLCHAR         SqlState[6], Msg[SQL_MAX_MESSAGE_LENGTH];;
-    SQLSMALLINT     MsgLen;
+    SQLRETURN       rc;
 
     int i;
     
@@ -58,87 +53,31 @@ int ceoError_check(SQLSMALLINT handleType, SQLHANDLE handle,
         return -1;
     }
 
-    // create new error object
-    error = PyObject_NEW(ceoError, &ceoPyTypeError);
-    if (!error)
-        return -1;
-    error->context = context;
+    memset(buffer, '\0', sizeof(buffer));
+    memset(buffer2, '\0', sizeof(buffer2));
 
-    SQLLEN      numRecs = 0;
-    rc = SQLGetDiagField(handleType, handle, 0, SQL_DIAG_NUMBER, &numRecs, 0, 0);
+    rc = SQLGetDiagField(handleType, handle, 0, SQL_DIAG_NUMBER, &numRecords, 0, 0);
     if (rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO) {
-        error->message =
-            CEO_STR_FROM_ASCII("cannot get number of diagnostic records");
-        // determine error text
-    }
-    else if (numRecords == 0) {
-        error->message =
-            CEO_STR_FROM_ASCII("no diagnostic message text available");
-    }
-    // Get the status records.
-    i = 1;
-    while (i <= numRecs && (rc2 = SQLGetDiagRec(handleType, handle, i, SqlState, &NativeError, Msg, sizeof(Msg), &MsgLen)) != SQL_NO_DATA) 
-    {
-        printf("OK....[%d-%s-%s]", NativeError, SqlState, Msg);
-        i++;
-    }
-
-    // determine number of diagnostic records available
-    rc = SQLGetDiagField(handleType, handle, 0, SQL_DIAG_NUMBER, &numRecords,
-            0, NULL);
-    if (rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO) {
-        error->message =
-                CEO_STR_FROM_ASCII("cannot get number of diagnostic records");
-    // determine error text
+        sprintf(buffer, "%s", "cannot get number of diagnostic records");
     } else if (numRecords == 0) {
-        error->message =
-                CEO_STR_FROM_ASCII("no diagnostic message text available");
-    } else {
-        error->message = NULL;
-        errorMessages = PyList_New(numRecords);
-        if (!errorMessages) {
-            Py_DECREF(error);
-            return -1;
-        }
-        for (i = 1; i <= numRecords; i++) {
+        sprintf(buffer, "%s", "no diagnostic message text available");
+    } 
+    else
+    {
+        for (i = 1; i <= numRecords; i++)
+        {
             rc = SQLGetDiagField(handleType, handle, i, SQL_DIAG_MESSAGE_TEXT,
-                    buffer, sizeof(buffer), &length);
-            if (length > (SQLSMALLINT) sizeof(buffer) - 1)
-                length = (SQLSMALLINT) sizeof(buffer) - 1;
+                buffer2, sizeof(buffer2), &length);
+            if (length > (SQLSMALLINT)sizeof(buffer2) - 1)
+                length = (SQLSMALLINT)sizeof(buffer2) - 1;
             if (rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO) {
-                error->message = CEO_STR_FROM_ASCII("cannot get " \
-                        "diagnostic message text");
+                sprintf(buffer, "%s", "cannot get diagnostic message text");
                 break;
             }
-            printf("BUF=[%s]", (const char*) buffer);
-            temp = PyUnicode_DecodeUTF8((const char*) buffer, length, NULL);
-            if (!temp) {
-                printf("here ..... [%s]", errorMessages);
-                Py_DECREF(error);
-                Py_DECREF(errorMessages);
-                return -1;
-            }
-            PyList_SET_ITEM(errorMessages, i - 1, temp);
-        }
-        if (!error->message) {
-            separator = CEO_STR_FROM_ASCII("\n");
-            if (!separator) {
-                Py_DECREF(error);
-                Py_DECREF(errorMessages);
-                return -1;
-            }
-            error->message = PyUnicode_Join(separator, errorMessages);
-            Py_DECREF(separator);
-            Py_DECREF(errorMessages);
+            sprintf(buffer, "%s\n%s", buffer, buffer2);
         }
     }
-
-    if (!error->message) {
-        Py_DECREF(error);
-        return -1;
-    }    
-    PyErr_SetObject(ceoExceptionDatabaseError, (PyObject*) error);
-    Py_DECREF(error);
+    ceoError_raiseFromString(SQLCliODBCExceptionError, buffer, "NULL");
     return -1;
 }
 
@@ -183,10 +122,10 @@ static PyMemberDef ceoMembers[] = {
 //-----------------------------------------------------------------------------
 PyTypeObject ceoPyTypeError = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "ceODBC._Error",
+    .tp_name = "SQLCliODBCException._Error",
     .tp_basicsize = sizeof(ceoError),
     .tp_dealloc = (destructor) ceoError_free,
     .tp_str = (reprfunc) ceoError_str,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,
     .tp_members = ceoMembers
 };

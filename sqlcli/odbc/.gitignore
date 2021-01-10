@@ -1,0 +1,12 @@
+.x64/
+.Debug/
+.vs/
+.cmake-build-debug/
+
+*.ilk
+*.exp
+*.lib
+*.pdb
+*.pyd
+
+
