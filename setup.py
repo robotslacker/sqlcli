@@ -4,13 +4,8 @@ import ast
 import re
 import os
 import sys
-import distutils.command.build_ext
-import distutils.command.bdist_rpm
 from io import open
-from setuptools import setup
-from distutils.core import setup
-from distutils.errors import DistutilsSetupError
-from distutils.extension import Extension
+from setuptools import setup, Extension
 
 '''
 How to build and upload this package to PyPi
@@ -28,15 +23,15 @@ if sys.platform == "win32":
     libs = ["odbc32"]
 else:
     libs = ["odbc"]
-#define ODBC sources
+
+# define ODBC sources
 sourceDir = "sqlcli/odbc"
-sources = [os.path.join(sourceDir, n)
-        for n in sorted(os.listdir(sourceDir)) if n.endswith(".c")]
+sources = [os.path.join(sourceDir, n) for n in sorted(os.listdir(sourceDir)) if n.endswith(".c")]
 depends = [os.path.join(sourceDir, "ceoModule.h")]
 
 # setup the extension
 extension = Extension(
-        name="ceODBC",
+        name="SQLCliODBC",
         libraries=libs,
         define_macros=[("BUILD_VERSION", "3.0")],
         sources=sources,
