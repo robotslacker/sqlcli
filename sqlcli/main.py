@@ -19,11 +19,13 @@ from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 from prompt_toolkit.shortcuts import PromptSession
 from multiprocessing.managers import BaseManager
 
-
 # 加载JDBC驱动和ODBC驱动
 from .sqlclijdbcapi import connect as jdbcconnect
-# from .sqlcliodbcapi import connect as odbcconnect
-import pyodbc
+from SQLCliODBC import connect as odbcconnect
+from SQLCliODBC import SQLCliODBCException
+
+
+# import pyodbc
 import jpype
 
 from .sqlclijobmanager import JOBManager
@@ -609,14 +611,15 @@ class SQLCli(object):
                 m_ODBCURL = m_ODBCURL.replace("${username}", self.db_username)
                 m_ODBCURL = m_ODBCURL.replace("${password}", self.db_password)
 
-                # self.db_conn = odbcconnect(m_ODBCURL)
-                self.db_conn = pyodbc.connect(m_ODBCURL)
+                self.db_conn = odbcconnect(m_ODBCURL)
                 self.db_url = m_ODBCURL
                 self.SQLExecuteHandler.conn = self.db_conn
                 # 将当前DB的连接字符串备份到变量中
                 self.SQLOptions.set("CONNURL", str(self.db_url))
         except SQLCliException as se:  # Connecting to a database fail.
             raise se
+        except SQLCliODBCException as soe:
+            raise soe
         except Exception as e:  # Connecting to a database fail.
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())
@@ -877,7 +880,10 @@ class SQLCli(object):
         # 如果当前有打开的Spool文件，关闭它
         if self.SpoolFileHandler is not None:
             self.SpoolFileHandler.close()
-        self.SpoolFileHandler = open(m_FileName, "w", encoding=self.Result_Charset)
+        try:
+            self.SpoolFileHandler = open(m_FileName, "w", encoding=self.Result_Charset)
+        except IOError as e:
+            raise SQLCliException("SQLCLI-00000: IO Exception " + repr(e))
         self.SQLExecuteHandler.spoolfile = self.SpoolFileHandler
         return [(None, None, None, None, None)]
 

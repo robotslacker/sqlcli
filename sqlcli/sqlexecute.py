@@ -9,7 +9,6 @@ import copy
 from time import strftime, localtime
 from multiprocessing import Lock
 import traceback
-import pyodbc
 
 from .sqlparse import SQLAnalyze
 from .sqlparse import SQLFormatWithPrefix
@@ -17,6 +16,7 @@ from .commandanalyze import execute
 from .commandanalyze import CommandNotFound
 from .sqlcliexception import SQLCliException
 from .sqlclijdbcapi import DatabaseError
+from SQLCliODBC import SQLCliODBCException
 
 
 class SQLExecute(object):
@@ -285,6 +285,19 @@ class SQLExecute(object):
                                 yield title, [], headers, columntypes, status
                             if not m_FetchStatus:
                                 break
+                    except SQLCliODBCException as oe:
+                        m_SQL_Status = 1
+                        m_SQL_ErrorMessage = str(oe).strip()
+                        for m_ErrorPrefix in ('ERROR:',):
+                            if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
+                                m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
+                        # 发生了SQL语法错误
+                        if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
+                            raise SQLCliException(m_SQL_ErrorMessage)
+                        else:
+                            self.LastAffectedRows = 0
+                            self.LastSQLResult = None
+                            yield None, None, None, None, m_SQL_ErrorMessage
                     except Exception as e:
                         m_SQL_Status = 1
                         m_SQL_ErrorMessage = str(e).strip()
@@ -293,44 +306,21 @@ class SQLExecute(object):
                                               "java.sql.SQLInvalidAuthorizationSpecException:",
                                               "java.sql.SQLDataException:",
                                               "java.sql.SQLTransactionRollbackException:",
+                                              "java.sql.SQLTransientConnectionException:",
                                               "java.sql.SQLFeatureNotSupportedException",
                                               "com.microsoft.sqlserver.jdbc."):
                             if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
                                 m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
-
-                        if (
-                                isinstance(e, pyodbc.Error) or                              # ODBC Error 错误
-                                isinstance(e, pyodbc.ProgrammingError) or                   # ODBC ProgrammingError 错误
-                                isinstance(e, DatabaseError) or
-                                str(e).find("SQLSyntaxErrorException") != -1 or
-                                str(e).find("SQLException") != -1 or
-                                str(e).find("SQLDataException") != -1 or
-                                str(e).find("SQLTransactionRollbackException") != -1 or
-                                str(e).find("SQLTransientConnectionException") != -1 or
-                                str(e).find("jdbc.exception") != -1 or
-                                str(e).find('time data') != -1
-                        ):
-                            # 发生了SQL语法错误
-                            if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
-                                raise SQLCliException(m_SQL_ErrorMessage)
-                            else:
-                                self.LastAffectedRows = 0
-                                self.LastSQLResult = None
-                                yield None, None, None, None, m_SQL_ErrorMessage
+                        # 发生了SQL语法错误
+                        if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
+                            raise SQLCliException(m_SQL_ErrorMessage)
                         else:
-                            # 发生了其他不明错误
-                            raise e
-            except SQLCliException as e:
+                            self.LastAffectedRows = 0
+                            self.LastSQLResult = None
+                            yield None, None, None, None, m_SQL_ErrorMessage
+            except (SQLCliException, SQLCliODBCException) as e:
                 m_SQL_Status = 1
-                m_SQL_ErrorMessage = str(e.message).strip()
-                for m_ErrorPrefix in ('java.sql.SQLSyntaxErrorException:',
-                                      "java.sql.SQLException:",
-                                      "java.sql.SQLInvalidAuthorizationSpecException:",
-                                      "java.sql.SQLDataException:",
-                                      "java.sql.SQLFeatureNotSupportedException",
-                                      "java.sql.SQLTransactionRollbackException:"):
-                    if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
-                        m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
+                m_SQL_ErrorMessage = str(e).strip()
                 # 如果要求出错退出，就立刻退出，否则打印日志信息
                 if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                     raise e
@@ -459,7 +449,7 @@ class SQLExecute(object):
                         # 对于二进制数据，其末尾用0x00表示，这里进行截断
                         column = column.decode()
                         m_TrimPos = 0
-                        for m_nPos in range(len(column),0,-2):
+                        for m_nPos in range(len(column), 0, -2):
                             if column[m_nPos - 2] != '0' or column[m_nPos - 1] != '0':
                                 m_TrimPos = m_nPos
                                 break
