@@ -55,7 +55,7 @@ SQLCli 目前支持的数据类型有：
    * 有一个Python 3.6以上的环境
    * 能够连接到互联网上， 便于下载必要的包
    * 安装JDK8
-   * 对于Windows平台，还需要提前安装微软的C++编译器（jpype1, pyodbc使用了JNI技术，需要动态编译）  
+   * 对于Windows平台，还需要提前安装微软的C++编译器（jpype1使用了JNI技术，需要动态编译）  
    * 对于Linux平台，也需要提前安装gcc编译器，以及Python3的开发包（原因同上）  
      yum install -y gcc-c++ gcc python3-devel  
      yum install -y unixODBC  unixODBC-devel  
@@ -71,7 +71,6 @@ SQLCli 目前支持的数据类型有：
    * hdfs                     : HDFS类库，支持对HDFS文件操作
    * confluent_kafka          : Kafka类库，支持对Kafka操作, 这个包和kafka-python冲突，需要提前移除kafka-python。 目前不支持WIndows
    * wget                     : JDBC驱动更新和下载  
-   * pyodbc                   : 用于连接ODBC驱动
 
 安装命令：
 ```
