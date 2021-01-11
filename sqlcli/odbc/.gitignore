@@ -2,11 +2,14 @@
 .Debug/
 .vs/
 .cmake-build-debug/
+CMakeFiles/
 
 *.ilk
 *.exp
 *.lib
 *.pdb
 *.pyd
-
-
+*.cmake
+*.so
+CMakeCache.txt
+Makefile
