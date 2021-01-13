@@ -290,9 +290,8 @@ def connect(jclassname, url, driver_args=None, jars=None, libs=None, sqloptions=
         libs = []
 
     # 程序用到的各种会话控制参数
-    if sqloptions:
-        global _sqloptions
-        _sqloptions = sqloptions
+    global _sqloptions
+    _sqloptions = sqloptions
 
     # 如果无法连接，则尝试3次，间隔等待2秒
     jconn = None
@@ -303,16 +302,16 @@ def connect(jclassname, url, driver_args=None, jars=None, libs=None, sqloptions=
             break
         except SQLCliException as je:
             if jconn is None:
-                # jconn 为空，可能是网络错误，这里重复尝试3次
-                if retryCount > 3:
+                # jconn 为空，可能是网络错误，这里重复尝试
+                if "SQLCLI_DEBUG" in os.environ:
+                    print('traceback.print_exc():\n%s' % traceback.print_exc())
+                    print('traceback.format_exc():\n%s' % traceback.format_exc())
+                retryCount = retryCount + 1
+                if retryCount >= int(_sqloptions.get("CONN_RETRY_TIMES")):
                     raise je
                 else:
-                    if "SQLCLI_DEBUG" in os.environ:
-                        print('traceback.print_exc():\n%s' % traceback.print_exc())
-                        print('traceback.format_exc():\n%s' % traceback.format_exc())
-                    retryCount = retryCount + 1
                     time.sleep(2)
-                continue
+                    continue
     return Connection(jconn, _converters)
 
 

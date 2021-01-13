@@ -32,6 +32,8 @@ class SQLOptions(object):
         self.m_SQL_OptionList.append({"Name": "CONNURL", "Value": "", "Comments": 'Connection URL'})
         self.m_SQL_OptionList.append({"Name": "CONNPROP", "Value": "", "Comments": 'Connection Props'})
 
+        self.m_SQL_OptionList.append({"Name": "CONN_RETRY_TIMES", "Value": "1", "Comments": 'Connect retry times.'})
+
     def get(self, p_ParameterName):
         """根据参数名称返回参数，若不存在该参数，返回None."""
         for item in self.m_SQL_OptionList:
