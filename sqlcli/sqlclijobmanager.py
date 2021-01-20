@@ -175,12 +175,18 @@ class JOBManager(object):
                             m_SQL_ScriptBaseName = os.path.basename(m_Script_FileName)
                             m_SQL_ScriptFullName = os.path.abspath(m_Script_FileName)
                         else:
-                            m_SQL_ScriptHomeDirectory = os.path.dirname(self.getProcessContextInfo("sqlscript"))
-                            if os.path.isfile(os.path.join(m_SQL_ScriptHomeDirectory, m_Script_FileName)):
-                                m_SQL_ScriptBaseName = \
-                                    os.path.basename(os.path.join(m_SQL_ScriptHomeDirectory, m_Script_FileName))
-                                m_SQL_ScriptFullName = \
-                                    os.path.abspath(os.path.join(m_SQL_ScriptHomeDirectory, m_Script_FileName))
+                            if self.getProcessContextInfo("sqlscript") is not None:
+                                m_SQL_ScriptHomeDirectory = os.path.dirname(self.getProcessContextInfo("sqlscript"))
+                                if os.path.isfile(os.path.join(m_SQL_ScriptHomeDirectory, m_Script_FileName)):
+                                    m_SQL_ScriptBaseName = \
+                                        os.path.basename(os.path.join(m_SQL_ScriptHomeDirectory, m_Script_FileName))
+                                    m_SQL_ScriptFullName = \
+                                        os.path.abspath(os.path.join(m_SQL_ScriptHomeDirectory, m_Script_FileName))
+                                else:
+                                    Job_Context.setStatus("FAILED")
+                                    Job_Context.setErrorMessage("Script [" + m_Script_FileName + "] does not exist.")
+                                    self.Update_Job(Job_Name, Job_Context)
+                                    continue
                             else:
                                 Job_Context.setStatus("FAILED")
                                 Job_Context.setErrorMessage("Script [" + m_Script_FileName + "] does not exist.")

@@ -15,7 +15,6 @@ from .sqlparse import SQLFormatWithPrefix
 from .commandanalyze import execute
 from .commandanalyze import CommandNotFound
 from .sqlcliexception import SQLCliException
-from .sqlclijdbcapi import DatabaseError
 from SQLCliODBC import SQLCliODBCException
 
 
@@ -34,8 +33,6 @@ class SQLExecute(object):
     SQLPerfFileHandle = None            # SQLPerf文件句柄
 
     SQLID = ''                          # SQLID 信息，如果当前SQL指定，则重复上一个的SQLID
-    SQLGROUP = ''                       # SQLGroup 信息，如果当前没有SQL指定，则重复上一个的SQLGROUP
-    SQLFeature = ''                     # SQLFeature 信息，如果当前没有SQL指定，则重复上一个的SqlFeature
 
     def __init__(self):
         # 记录最后SQL返回的结果
@@ -59,9 +56,7 @@ class SQLExecute(object):
 
         支持的SQLHint包括:
         # [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
-        # [Hint]  Feature:XXXX    -- 相关SQL的特性编号，仅仅作为日志信息供查看
         # [Hint]  SQLID:XXXX      -- 相关SQL的SQL编号ID，仅仅作为日志信息供查看
-        # [Hint]  SQLGROUP:XXXX   -- 相关SQL的SQL组编号，仅仅作为日志信息供查看
         """
         m_SQL_Status = 0             # SQL 运行结果， 0 成功， 1 失败
         m_SQL_ErrorMessage = ""      # 错误日志信息
@@ -76,6 +71,7 @@ class SQLExecute(object):
          ret_SQLSplitResultsWithComments, ret_SQLHints) = SQLAnalyze(statement)
         for m_nPos in range(0, len(ret_SQLSplitResults)):
             m_raw_sql = ret_SQLSplitResults[m_nPos]                  # 记录原始SQL
+
             # 如果当前是在回显一个文件，并且不是echo off，则不再做任何处理
             if self.echofile is not None and \
                     not re.match(r'echo\s+off', m_raw_sql, re.IGNORECASE):
@@ -94,34 +90,34 @@ class SQLExecute(object):
             m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]   # 记录带有注释信息的SQL
 
             # 分析SQLHint信息
-            m_SQLHint = ret_SQLHints[m_nPos]                         # SQL提示信息，其中Feature,SQLID,SQLGROUP用作日志处理
-            if "Feature" in m_SQLHint.keys():
-                self.SQLFeature = m_SQLHint["Feature"]
+            m_SQLHint = ret_SQLHints[m_nPos]                         # SQL提示信息，其中SQLID用作日志处理
             if "SQLID" in m_SQLHint.keys():
                 self.SQLID = m_SQLHint['SQLID']
-            if "SQLGROUP" in m_SQLHint.keys():
-                self.SQLGROUP = m_SQLHint['SQLGROUP']
 
             # 如果打开了回显，并且指定了输出文件，则在输出文件里显示SQL语句
             if self.SQLOptions.get("ECHO").upper() == 'ON' \
                     and len(m_CommentSQL.strip()) != 0 and self.logfile is not None:
-                click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.logfile)
+                if self.SQLOptions.get("SILENT").upper() == 'OFF':
+                    click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.logfile)
             if self.SQLOptions.get("ECHO").upper() == 'ON' \
                     and len(m_CommentSQL.strip()) != 0 and self.spoolfile is not None:
                 # 在spool文件中，不显示spool off的信息，以避免log比对中的不必要内容
                 if not re.match(r'spool\s+.*', m_CommentSQL.strip(), re.IGNORECASE):
-                    click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.spoolfile)
+                    if self.SQLOptions.get("SILENT").upper() == 'OFF':
+                        click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.spoolfile)
 
             # 在logger中显示执行的SQL
             if self.logger is not None:
                 m_LoggerMessage = SQLFormatWithPrefix(m_CommentSQL)
                 if m_LoggerMessage is not None:
-                    self.logger.info(m_LoggerMessage)
+                    if self.SQLOptions.get("SILENT").upper() == 'OFF':
+                        self.logger.info(m_LoggerMessage)
 
             # 如果运行在脚本模式下，需要在控制台额外回显SQL
             # 非脚本模式下，由于是用户自行输入，所以不需要回显输入的SQL
             if p_sqlscript is not None:
-                click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.Console)
+                if self.SQLOptions.get("SILENT").upper() == 'OFF':
+                    click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.Console)
 
             # 如果打开了回显，并且指定了输出文件，且SQL被改写过，输出改写后的SQL
             if self.SQLOptions.get("SQLREWRITE").upper() == 'ON':
@@ -344,11 +340,9 @@ class SQLExecute(object):
                     "RAWSQL": m_raw_sql,
                     "SQL": sql,
                     "SQLStatus": m_SQL_Status,
-                    "Feature": self.SQLFeature,
                     "ErrorMessage": m_SQL_ErrorMessage,
                     "thread_name": self.WorkerName,
-                    "SQLID": self.SQLID,
-                    "SQLGROUP": self.SQLGROUP
+                    "SQLID": self.SQLID
                 }
             )
 
@@ -505,7 +499,7 @@ class SQLExecute(object):
                 self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
                 self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tRAWSQL\tSQL\t"
                                              "SQLStatus\tErrorMessage\tthread_name\t"
-                                             "Feature\tSQLID\tSQLGROUP\n")
+                                             "SQLID\n")
                 self.SQLPerfFileHandle.close()
 
             # 对于多线程运行，这里的thread_name格式为JOB_NAME#副本数-完成次数
@@ -528,9 +522,7 @@ class SQLExecute(object):
                 str(p_SQLResult["SQLStatus"]) + "\t" +
                 "'" + str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
                 "'" + str(m_ThreadName) + "'\t" +
-                "'" + str(p_SQLResult["Feature"]) + "'\t" +
-                "'" + str(p_SQLResult["SQLID"]) + "'\t" +
-                "'" + str(p_SQLResult["SQLGROUP"]) + "'" +
+                "'" + str(p_SQLResult["SQLID"]) + "'" +
                 "\n"
             )
             self.SQLPerfFileHandle.flush()

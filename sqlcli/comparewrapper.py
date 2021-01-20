@@ -241,3 +241,17 @@ class POSIXCompare:
                 m_NewCompareResultList.append(row)
                 m_nLastPos = m_LineNo
         return m_CompareResult, m_NewCompareResultList
+
+class CompareWrapper(object):
+    def Process_SQLCommand(self, p_szSQL):
+        m_szSQL = p_szSQL.strip()
+
+        matchObj = re.match(r"kafka\s+connect\s+server\s+(.*)$",
+                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_KafkaServer = str(matchObj.group(1)).strip()
+            self.__kafka_servers__ = m_KafkaServer
+            return None, None, None, None, "Kafka Server set successful."
+
+        pass
+

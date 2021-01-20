@@ -13,6 +13,7 @@ class SQLOptions(object):
         self.m_SQL_OptionList.append({"Name": "ECHO", "Value": "ON", "Comments": '----'})
         self.m_SQL_OptionList.append({"Name": "TIMING", "Value": "OFF", "Comments": '----'})
         self.m_SQL_OptionList.append({"Name": "TIME", "Value": "OFF", "Comments": '----'})
+        self.m_SQL_OptionList.append({"Name": "SILENT", "Value": "OFF", "Comments": '----'})
 
         self.m_SQL_OptionList.append({"Name": "OUTPUT_FORMAT", "Value": "ASCII", "Comments": 'ASCII|CSV|VERTICAL'})
         self.m_SQL_OptionList.append({"Name": "CSV_HEADER", "Value": "OFF", "Comments": '----'})

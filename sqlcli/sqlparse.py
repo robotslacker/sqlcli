@@ -374,8 +374,9 @@ def SQLAnalyze(p_SQLCommandPlainText):
             # ECHO信息已经结束
             if re.match(r'echo\s+off', SQLCommands[m_nPos], re.IGNORECASE):
                 # 添加ECHO信息到解析后的SQL中
-                SQLSplitResults.append(m_EchoMessages)
-                SQLSplitResultsWithComments.append(m_EchoMessages)
+                if m_EchoMessages is not None:
+                    SQLSplitResults.append(m_EchoMessages)
+                    SQLSplitResultsWithComments.append(m_EchoMessages)
                 SQLSplitResults.append(SQLCommands[m_nPos])
                 SQLSplitResultsWithComments.append(SQLCommands[m_nPos])
                 m_EchoMessages = None
@@ -704,28 +705,16 @@ def SQLAnalyze(p_SQLCommandPlainText):
             # 这里为一个注释信息，解析注释信息中是否包含必要的tag
             for line in SQLSplitResultsWithComments[m_nPos].splitlines():
                 # [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
-                # [Hint]  Feature:XXXX    -- 相关SQL的特性编号，仅仅作为日志信息供查看
                 # [Hint]  SQLID:XXXX      -- 相关SQL的SQL编号ID，仅仅作为日志信息供查看
-                # [Hint]  SQLGROUP:XXXX   -- 相关SQL的SQL组编号，仅仅作为日志信息供查看
                 matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?order", line,
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_SQLHint["Order"] = True
 
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?Feature:(.*)", line,
-                                     re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    m_SQLHint["Feature"] = matchObj.group(4)
-
                 matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?SQLID:(.*)", line,
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_SQLHint["SQLID"] = matchObj.group(4)
-
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?SQLGROUP:(.*)", line,
-                                     re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    m_SQLHint["SQLGROUP"] = matchObj.group(4)
 
             m_SQLHints.append({})
         else:

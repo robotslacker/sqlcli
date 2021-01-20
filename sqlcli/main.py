@@ -23,9 +23,6 @@ from multiprocessing.managers import BaseManager
 from .sqlclijdbcapi import connect as jdbcconnect
 from SQLCliODBC import connect as odbcconnect
 from SQLCliODBC import SQLCliODBCException
-
-
-# import pyodbc
 import jpype
 
 from .sqlclijobmanager import JOBManager
@@ -33,6 +30,7 @@ from .sqlclitransactionmanager import TransactionManager
 from .sqlexecute import SQLExecute
 from .sqlparse import SQLMapping
 from .kafkawrapper import KafkaWrapper
+from .comparewrapper import CompareWrapper
 from .sqlcliexception import SQLCliException
 from .sqlclisga import SQLCliGlobalSharedMemory
 from .sqlinternal import Create_file
@@ -94,13 +92,17 @@ class SQLCli(object):
             logger=None,
             clientcharset='UTF-8',
             resultcharset='UTF-8',
-            SharedProcessInfo=None
+            SharedProcessInfo=None,
+            profile=None,
+            reffile=None,
+            rptfile=None
     ):
         self.db_saved_conn = {}                          # 数据库Session备份
         self.SQLMappingHandler = SQLMapping()            # 函数句柄，处理SQLMapping信息
         self.SQLExecuteHandler = SQLExecute()            # 函数句柄，具体来执行SQL
         self.SQLOptions = SQLOptions()                   # 程序运行中各种参数
         self.KafkaHandler = KafkaWrapper()               # Kafka消息管理器
+        self.CompareHandler = CompareWrapper()           # 参照结果文件比对
         self.JobHandler = JOBManager()                   # 并发任务管理器
         self.TransactionHandler = TransactionManager()   # 事务管理器
         self.SpoolFileHandler = None                     # 当前Spool文件句柄
@@ -121,8 +123,11 @@ class SQLCli(object):
             self.Result_Charset = self.Client_Charset    # 结果输出字符集
         else:
             self.Result_Charset = resultcharset
-        self.WorkerName = WorkerName                      # 当前进程名称. 如果有参数传递，以参数为准
-        self.MultiProcessManager = None                   # 进程间共享消息管理器， 如果为子进程，该参数为空
+        self.WorkerName = WorkerName                        # 当前进程名称. 如果有参数传递，以参数为准
+        self.MultiProcessManager = None                     # 进程间共享消息管理器， 如果为子进程，该参数为空
+        self.profile = None                                 # 程序的初始化日志文件
+        self.reffile = None                                 # 程序的结果参照文件
+        self.rptfile = None                                 # 程序的结果报告文件
 
         # 传递各种参数
         self.sqlscript = sqlscript
@@ -147,6 +152,25 @@ class SQLCli(object):
             self.SharedProcessInfo = obj()
         else:
             self.SharedProcessInfo = SharedProcessInfo
+        if profile is None:
+            # profile的顺序， SQLCLI_HOME/profile/default,   <PYTHON_PACKAGE>/sqlcli/profile/default, user define
+            if "SQLCLI_HOME" in os.environ:
+                if os.path.exists(os.path.join(os.environ["SQLCLI_HME"], "profile", "default")):
+                    self.profile = os.path.join(os.environ["SQLCLI_HME"], "profile", "default")
+            if self.profile is None:
+                if os.path.exists(os.path.join(os.path.dirname(__file__), "profile", "default")):
+                    self.profile = os.path.join(os.path.dirname(__file__), "profile", "default")
+        else:
+            if os.path.exists(profile):
+                self.profile = profile
+            else:
+                if "SQLCLI_DEBUG" in os.environ:
+                    print("Profile does not exist ! Will ignore it. [" + str(os.path.abspath(profile)) + "]")
+        if "SQLCLI_DEBUG" in os.environ:
+            if self.profile is not None:
+                print("Profile = [" + str(self.profile) + "]")
+        self.reffile = reffile
+        self.rptfile = rptfile
 
         # 设置self.JobHandler， 默认情况下，子进程启动的进程进程信息来自于父进程
         self.JobHandler.setProcessContextInfo("logon", self.logon)
@@ -1014,6 +1038,13 @@ class SQLCli(object):
             yield title, result, headers, columntypes, status
             return
 
+        # 运行日志比对
+        matchObj = re.match(r"(\s+)?compare(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            (title, result, headers, columntypes, status) = self.CompareHandler.Process_SQLCommand(arg)
+            yield title, result, headers, columntypes, status
+            return
+
         # 创建数据文件, 根据末尾的rows来决定创建的行数
         # 此时，SQL语句中的回车换行符没有意义
         matchObj = re.match(r"create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+(\d+)(\s+)?$",
@@ -1173,7 +1204,8 @@ class SQLCli(object):
 
                 # 输出显示信息
                 try:
-                    self.output(formatted, status)
+                    if self.SQLOptions.get("SILENT").upper() == 'OFF':
+                        self.output(formatted, status)
                 except KeyboardInterrupt:
                     # 显示过程中用户按下了CTRL+C
                     pass
@@ -1181,7 +1213,7 @@ class SQLCli(object):
             # 返回正确执行的消息
             return True
         except EOFError as e:
-            # 当调用了exit或者quit的时候，会受到EOFError，这里直接抛出
+            # 当调用了exit或者quit的时候，会收到EOFError，这里直接抛出
             raise e
         except SQLCliException as e:
             # 用户执行的SQL出了错误, 由于SQLExecute已经打印了错误消息，这里直接退出
@@ -1365,6 +1397,18 @@ class SQLCli(object):
         if self.sqlscript is None and not self.HeadlessMode:
             self.prompt_app = PromptSession()
 
+        # 处理初始化启动文件，如果需要的话，在处理的过程中不打印任何日志信息
+        if self.profile is not None:
+            if "SQLCLI_DEBUG" not in os.environ:
+                self.SQLOptions.set("SILENT", "ON")
+            if "SQLCLI_DEBUG" in os.environ:
+                print("DEBUG:: Begin SQL profile [" + self.profile + "] ...")
+            self.DoSQL('start ' + self.profile)
+            if "SQLCLI_DEBUG" in os.environ:
+                print("DEBUG:: End SQL profile [" + self.profile + "]")
+            if "SQLCLI_DEBUG" not in os.environ:
+                self.SQLOptions.set("SILENT", "OFF")
+
         # 开始依次处理SQL语句
         try:
             # 如果用户指定了用户名，口令，尝试直接进行数据库连接
@@ -1544,11 +1588,14 @@ class SQLCli(object):
 @click.option("--logfile", type=str, help="Log every query and its results to a file.",)
 @click.option("--execute", type=str, help="Execute SQL script.")
 @click.option("--sqlmap", type=str, help="SQL Mapping file.")
-@click.option("--nologo", is_flag=True, help="Execute with silent mode.")
+@click.option("--nologo", is_flag=True, help="Execute with nologo mode.")
 @click.option("--sqlperf", type=str, help="SQL performance Log.")
 @click.option("--syncdriver", is_flag=True, help="Download jdbc jar from file server.")
 @click.option("--clientcharset", type=str, help="Set client charset. Default is UTF-8.")
 @click.option("--resultcharset", type=str, help="Set result charset. Default is same to clientcharset.")
+@click.option("--profile", type=str, help="Init profile.")
+@click.option("--reffile", type=str, help="Reference log file for compare result.")
+@click.option("--rptfile", type=str, help="Test report file.")
 def cli(
         version,
         logon,
@@ -1559,7 +1606,10 @@ def cli(
         sqlperf,
         syncdriver,
         clientcharset,
-        resultcharset
+        resultcharset,
+        profile,
+        reffile,
+        rptfile
 ):
     if version:
         print("Version:", __version__)
@@ -1587,6 +1637,9 @@ def cli(
         sqlperf=sqlperf,
         clientcharset=clientcharset,
         resultcharset=resultcharset,
+        profile=profile,
+        reffile=reffile,
+        rptfile=rptfile
     )
 
     # 运行主程序
