@@ -1163,6 +1163,10 @@ class SQLCli(object):
                 except KeyboardInterrupt:
                     # KeyboardInterrupt 表示用户输入了CONTROL+C
                     return True
+                except PermissionError:
+                    self.echo("SQLCli Can't work without valid terminal. "
+                              "Use \"--execute\" in case you need run script",err=True, fg="red")
+                    return False
                 # 拼接SQL语句
                 if full_text is None:
                     full_text = text
