@@ -181,6 +181,7 @@ class SQLCli(object):
         self.JobHandler.setProcessContextInfo("sqlscript", self.sqlscript)
         self.JobHandler.setProcessContextInfo("sga", self.SharedProcessInfo)
         self.TransactionHandler.setSharedProcessInfo(self.SharedProcessInfo)
+        self.TransactionHandler.SQLExecuteHandler = self.SQLExecuteHandler
 
         # 设置其他的变量
         self.SQLExecuteHandler.sqlscript = sqlscript
@@ -445,6 +446,10 @@ class SQLCli(object):
                 "jdbc|odbc:[db type]:[driver type]://[host]:[port]/[service name]")
         elif self.connection_configs is None:
             raise SQLCliException("Please load driver first.")
+
+        # 如果连接内容仅仅就一个mem，则连接到内置的memory db
+        if arg.strip().upper() == "MEM":
+            arg = "X/X@jdbc:h2:mem://0.0.0.0:0/X"
 
         # 分割字符串，可能用单引号或者双引号包括, 单词中不能包含分割符
         # -- 1 首先找到@符号
@@ -865,9 +870,8 @@ class SQLCli(object):
                         # 去掉SQL文件可能包含的UTF-BOM
                         query = query[3:]
 
-                    # SQLID等Hint信息不会带入到下一个SQL文件中
-                    self.SQLExecuteHandler.SQLID = ''
-                    self.SQLExecuteHandler.SQLGROUP = ''
+                    # Scenario等Hint信息不会带入到下一个SQL文件中
+                    self.SQLExecuteHandler.SQLScenario = ''
                     self.SQLExecuteHandler.SQLTransaction = ''
 
                     # 执行指定的SQL文件

@@ -279,7 +279,7 @@ class JOBManager(object):
         """
             job_name status active_jobs failed_jobs finished_jobs submit_time start_time end_time
 
-            max_transaction_time  avg_transaction_time min__transaction_time,
+            max_transaction_time  avg_transaction_time min_transaction_time,
             parallel, starter_maxprocess, loop, script, script_fullname, think_time, timeout,
             blowout_threshold_count
         """

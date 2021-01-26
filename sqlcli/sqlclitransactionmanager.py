@@ -23,6 +23,9 @@ class TransactionManager(object):
         # 当前会话的事务性消息
         self.transactions = {}
 
+        # SQL执行句柄
+        self.SQLExecuteHandler = None
+
     # 设置全局共享内存信息
     def setSharedProcessInfo(self, p_objSharedProcessInfo):
         self.SharedProcessInfoHandler = p_objSharedProcessInfo
@@ -31,6 +34,8 @@ class TransactionManager(object):
         if p_TransactionName in self.transactions.keys():
             raise SQLCliException("SQLCLI-0000: " + "You can't begin a existed transaction.")
         self.transactions[p_TransactionName] = {"start_time": int(time.mktime(datetime.datetime.now().timetuple()))}
+        if self.SQLExecuteHandler is not None:
+            self.SQLExecuteHandler.SQLTransaction = p_TransactionName
 
     def TransactionEnd(self, p_TransactionName):
         if p_TransactionName not in self.transactions.keys():
@@ -38,6 +43,7 @@ class TransactionManager(object):
         m_TransactionInfo = {"start_time": self.transactions[p_TransactionName]["start_time"],
                              "status": 0}
         self.transactions.pop(p_TransactionName)
+        self.SQLExecuteHandler.SQLTransaction = ''
 
         # 补充事务信息到共享内存中
         self.TransactionLocker.acquire()

@@ -32,8 +32,6 @@ class SQLExecute(object):
     SQLPerfFile = None                  # SQLPerf文件
     SQLPerfFileHandle = None            # SQLPerf文件句柄
 
-    SQLID = ''                          # SQLID 信息，如果当前SQL指定，则重复上一个的SQLID
-
     def __init__(self):
         # 记录最后SQL返回的结果
         self.LastAffectedRows = 0
@@ -49,6 +47,12 @@ class SQLExecute(object):
         # 程序Echo输出句柄
         self.echofile = None
 
+        # Scenario信息，如果当前SQL指定，则重复上一个的Scenario信息
+        self.SQLScenario = ''
+
+        # Transaction信息
+        self.SQLTransaction = ''
+
     def run(self, statement, p_sqlscript=None):
         """
         返回结果包含5个方面的内容
@@ -56,7 +60,7 @@ class SQLExecute(object):
 
         支持的SQLHint包括:
         # [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
-        # [Hint]  SQLID:XXXX      -- 相关SQL的SQL编号ID，仅仅作为日志信息供查看
+        # [Hint]  scenario:XXXX   -- 相关SQL的场景ID，仅仅作为日志信息供查看
         """
         m_SQL_Status = 0             # SQL 运行结果， 0 成功， 1 失败
         m_SQL_ErrorMessage = ""      # 错误日志信息
@@ -90,9 +94,12 @@ class SQLExecute(object):
             m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]   # 记录带有注释信息的SQL
 
             # 分析SQLHint信息
-            m_SQLHint = ret_SQLHints[m_nPos]                         # SQL提示信息，其中SQLID用作日志处理
-            if "SQLID" in m_SQLHint.keys():
-                self.SQLID = m_SQLHint['SQLID']
+            m_SQLHint = ret_SQLHints[m_nPos]                         # SQL提示信息，其中Scenario用作日志处理
+            if "SCENARIO" in m_SQLHint.keys():
+                if m_SQLHint['SCENARIO'].strip().upper() == "END":
+                    self.SQLScenario = ""
+                else:
+                    self.SQLScenario = m_SQLHint['SCENARIO']
 
             # 如果打开了回显，并且指定了输出文件，则在输出文件里显示SQL语句
             if self.SQLOptions.get("ECHO").upper() == 'ON' \
@@ -333,18 +340,20 @@ class SQLExecute(object):
             self.LastElapsedTime = end - start
 
             # 记录SQL日志信息
-            self.Log_Perf(
-                {
-                    "StartedTime": start,
-                    "elapsed": self.LastElapsedTime,
-                    "RAWSQL": m_raw_sql,
-                    "SQL": sql,
-                    "SQLStatus": m_SQL_Status,
-                    "ErrorMessage": m_SQL_ErrorMessage,
-                    "thread_name": self.WorkerName,
-                    "SQLID": self.SQLID
-                }
-            )
+            if self.SQLOptions.get("SILENT").upper() == 'OFF':
+                self.Log_Perf(
+                    {
+                        "StartedTime": start,
+                        "elapsed": self.LastElapsedTime,
+                        "RAWSQL": m_raw_sql,
+                        "SQL": sql,
+                        "SQLStatus": m_SQL_Status,
+                        "ErrorMessage": m_SQL_ErrorMessage,
+                        "thread_name": self.WorkerName,
+                        "Scenario": self.SQLScenario,
+                        "Transaction": self.SQLTransaction
+                    }
+                )
 
             if self.SQLOptions.get('TIMING').upper() == 'ON':
                 if sql.strip().upper() not in ('EXIT', 'QUIT'):
@@ -499,7 +508,7 @@ class SQLExecute(object):
                 self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
                 self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tRAWSQL\tSQL\t"
                                              "SQLStatus\tErrorMessage\tthread_name\t"
-                                             "SQLID\n")
+                                             "Scenario\tTransaction\n")
                 self.SQLPerfFileHandle.close()
 
             # 对于多线程运行，这里的thread_name格式为JOB_NAME#副本数-完成次数
@@ -522,7 +531,8 @@ class SQLExecute(object):
                 str(p_SQLResult["SQLStatus"]) + "\t" +
                 "'" + str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
                 "'" + str(m_ThreadName) + "'\t" +
-                "'" + str(p_SQLResult["SQLID"]) + "'" +
+                "'" + str(p_SQLResult["Scenario"]) + "'\t" +
+                "'" + str(p_SQLResult["Transaction"]) + "'" +
                 "\n"
             )
             self.SQLPerfFileHandle.flush()

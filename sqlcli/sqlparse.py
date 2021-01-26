@@ -705,16 +705,16 @@ def SQLAnalyze(p_SQLCommandPlainText):
             # 这里为一个注释信息，解析注释信息中是否包含必要的tag
             for line in SQLSplitResultsWithComments[m_nPos].splitlines():
                 # [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
-                # [Hint]  SQLID:XXXX      -- 相关SQL的SQL编号ID，仅仅作为日志信息供查看
+                # [Hint]  Scenario:XXXX   -- 相关SQL的Scenariox信息，仅仅作为日志信息供查看
                 matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?order", line,
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_SQLHint["Order"] = True
 
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?SQLID:(.*)", line,
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?Scenario:(.*)", line,
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
-                    m_SQLHint["SQLID"] = matchObj.group(4)
+                    m_SQLHint["SCENARIO"] = matchObj.group(4)
 
             m_SQLHints.append({})
         else:
