@@ -385,51 +385,7 @@ class SQLExecute(object):
                             print("COLUMN TYPE : [" + str(type(column)) + "]")
                         columntypes.append(type(column))
                 for column in row:
-                    if str(type(column)).upper().find('OBJECT[]') != -1:
-                        m_ColumnValue = "STRUCTURE("
-                        for m_nPos in range(0, len(column)):
-                            m_ColumnType = str(type(column[m_nPos]))
-                            if m_nPos == 0:
-                                if m_ColumnType.upper().find('STR') != -1:
-                                    m_ColumnValue = m_ColumnValue + "'" + str(column[m_nPos]) + "'"
-                                elif m_ColumnType.upper().find('SQLDATE') != -1:
-                                    m_ColumnValue = m_ColumnValue + "DATE'" + str(column[m_nPos]) + "'"
-                                elif str(type(column)).upper().find("FLOAT") != -1:
-                                    m_ColumnValue = m_ColumnValue + \
-                                                    self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
-                                elif str(type(column)).upper().find("DOUBLE") != -1:
-                                    m_ColumnValue = m_ColumnValue + \
-                                                    self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
-                                elif type(column) == decimal.Decimal:
-                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
-                                        m_ColumnValue = m_ColumnValue + \
-                                                        self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos]
-                                    else:
-                                        m_ColumnValue = m_ColumnValue + column[m_nPos]
-                                else:
-                                    m_ColumnValue = m_ColumnValue + str(column[m_nPos])
-                            else:
-                                if m_ColumnType.upper().find('STR') != -1:
-                                    m_ColumnValue = m_ColumnValue + ",'" + str(column[m_nPos]) + "'"
-                                elif m_ColumnType.upper().find('SQLDATE') != -1:
-                                    m_ColumnValue = m_ColumnValue + ",DATE'" + str(column[m_nPos]) + "'"
-                                elif str(type(column)).upper().find("FLOAT") != -1:
-                                    m_ColumnValue = m_ColumnValue + "," + \
-                                                    self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
-                                elif str(type(column)).upper().find("DOUBLE") != -1:
-                                    m_ColumnValue = m_ColumnValue + "," + \
-                                                    self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
-                                elif type(column) == decimal.Decimal:
-                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
-                                        m_ColumnValue = m_ColumnValue + "," + \
-                                                        self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos]
-                                    else:
-                                        m_ColumnValue = m_ColumnValue + "," + column[m_nPos]
-                                else:
-                                    m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
-                        m_ColumnValue = m_ColumnValue + ")"
-                        m_row.append(m_ColumnValue)
-                    elif str(type(column)).upper().find('JDBCBLOBCLIENT') != -1:
+                    if str(type(column)).upper().find('JDBCBLOBCLIENT') != -1:
                         # 对于二进制数据，用16进制数来显示
                         # 2: 意思是去掉Hex前面的0x字样
                         m_Length = column.length()

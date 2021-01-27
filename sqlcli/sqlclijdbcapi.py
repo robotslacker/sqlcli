@@ -185,7 +185,7 @@ class DBAPITypeObject(object):
 
 
 STRING = DBAPITypeObject('CHAR', 'NCHAR', 'NVARCHAR', 'VARCHAR', 'OTHER')
-TEXT = DBAPITypeObject('CLOB', 'LONGVARCHAR', 'LONGNVARCHAR', 'NCLOB', 'SQLXML')
+TEXT = DBAPITypeObject('CLOB', 'LONGVARCHAR', 'LONGNVARCHAR', 'NCLOB', 'SQLXML', 'STRUCT', 'ARRAY')
 BINARY = DBAPITypeObject('BINARY', 'BLOB', 'LONGVARBINARY', 'VARBINARY')
 NUMBER = DBAPITypeObject('BOOLEAN', 'BIGINT', 'BIT', 'INTEGER', 'SMALLINT', 'TINYINT')
 FLOAT = DBAPITypeObject('FLOAT', 'REAL', 'DOUBLE')
@@ -664,6 +664,117 @@ def _java_to_py_clob(conn, rs, col):
             "] in _java_to_py_clob")
 
 
+def _java_to_py_stru(conn, rs, col):
+    java_val = rs.getObject(col)
+    if java_val is None:
+        return
+    m_TypeName = str(java_val.getClass().getTypeName())
+    if (m_TypeName == "java.lang.Object[]"):
+        m_ColumnValue = "STRUCTURE("
+        for m_nPos in range(0, len(java_val)):
+            m_ColumnType = str(type(java_val[m_nPos]))
+            if m_nPos == 0:
+                if m_ColumnType.upper().find('STR') != -1:
+                    m_ColumnValue = m_ColumnValue + "'" + str(java_val[m_nPos]) + "'"
+                elif m_ColumnType.upper().find('SQLDATE') != -1:
+                    m_ColumnValue = m_ColumnValue + "DATE'" + str(java_val[m_nPos]) + "'"
+                elif str(type(java_val)).upper().find("FLOAT") != -1:
+                    m_ColumnValue = m_ColumnValue + \
+                                    _sqloptions.get("FLOAT_FORMAT") % java_val[m_nPos]
+                elif str(type(java_val)).upper().find("DOUBLE") != -1:
+                    m_ColumnValue = m_ColumnValue + \
+                                    _sqloptions.get("DOUBLE_FORMAT") % java_val[m_nPos]
+                elif type(java_val) == decimal.Decimal:
+                    if _sqloptions.get("DECIMAL_FORMAT") != "":
+                        m_ColumnValue = m_ColumnValue + \
+                                        _sqloptions.get("DECIMAL_FORMAT") % java_val[m_nPos]
+                    else:
+                        m_ColumnValue = m_ColumnValue + java_val[m_nPos]
+                else:
+                    m_ColumnValue = m_ColumnValue + str(java_val[m_nPos])
+            else:
+                if m_ColumnType.upper().find('STR') != -1:
+                    m_ColumnValue = m_ColumnValue + ",'" + str(java_val[m_nPos]) + "'"
+                elif m_ColumnType.upper().find('SQLDATE') != -1:
+                    m_ColumnValue = m_ColumnValue + ",DATE'" + str(java_val[m_nPos]) + "'"
+                elif str(type(java_val)).upper().find("FLOAT") != -1:
+                    m_ColumnValue = m_ColumnValue + "," + \
+                                    _sqloptions.get("FLOAT_FORMAT") % java_val[m_nPos]
+                elif str(type(java_val)).upper().find("DOUBLE") != -1:
+                    m_ColumnValue = m_ColumnValue + "," + \
+                                    _sqloptions.get("DOUBLE_FORMAT") % java_val[m_nPos]
+                elif type(java_val) == decimal.Decimal:
+                    if _sqloptions.get("DECIMAL_FORMAT") != "":
+                        m_ColumnValue = m_ColumnValue + "," + \
+                                        _sqloptions.get("DECIMAL_FORMAT") % java_val[m_nPos]
+                    else:
+                        m_ColumnValue = m_ColumnValue + "," + java_val[m_nPos]
+                else:
+                    m_ColumnValue = m_ColumnValue + "," + str(java_val[m_nPos])
+        m_ColumnValue = m_ColumnValue + ")"
+        return m_ColumnValue
+    else:
+        raise SQLCliException(
+            "SQLCLI-00000: Unknown java class type [" + m_TypeName +
+            "] in _java_to_py_stru")
+
+
+def _java_to_py_array(conn, rs, col):
+    java_val = rs.getObject(col)
+    if java_val is None:
+        return
+    m_TypeName = str(java_val.getClass().getTypeName())
+    if m_TypeName.upper().find('JDBCARRAY') != -1:
+        m_ColumnValue = "ARRAY["
+        java_val = java_val.getArray();
+        for m_nPos in range(0, len(java_val)):
+            m_ColumnType = str(type(java_val[m_nPos]))
+            if m_nPos == 0:
+                if m_ColumnType.upper().find('STR') != -1:
+                    m_ColumnValue = m_ColumnValue + "'" + str(java_val[m_nPos]) + "'"
+                elif m_ColumnType.upper().find('SQLDATE') != -1:
+                    m_ColumnValue = m_ColumnValue + "DATE'" + str(java_val[m_nPos]) + "'"
+                elif str(type(java_val)).upper().find("FLOAT") != -1:
+                    m_ColumnValue = m_ColumnValue + \
+                                    _sqloptions.get("FLOAT_FORMAT") % java_val[m_nPos]
+                elif str(type(java_val)).upper().find("DOUBLE") != -1:
+                    m_ColumnValue = m_ColumnValue + \
+                                    _sqloptions.get("DOUBLE_FORMAT") % java_val[m_nPos]
+                elif type(java_val) == decimal.Decimal:
+                    if _sqloptions.get("DECIMAL_FORMAT") != "":
+                        m_ColumnValue = m_ColumnValue + \
+                                        _sqloptions.get("DECIMAL_FORMAT") % java_val[m_nPos]
+                    else:
+                        m_ColumnValue = m_ColumnValue + java_val[m_nPos]
+                else:
+                    m_ColumnValue = m_ColumnValue + str(java_val[m_nPos])
+            else:
+                if m_ColumnType.upper().find('STR') != -1:
+                    m_ColumnValue = m_ColumnValue + ",'" + str(java_val[m_nPos]) + "'"
+                elif m_ColumnType.upper().find('SQLDATE') != -1:
+                    m_ColumnValue = m_ColumnValue + ",DATE'" + str(java_val[m_nPos]) + "'"
+                elif str(type(java_val)).upper().find("FLOAT") != -1:
+                    m_ColumnValue = m_ColumnValue + "," + \
+                                    _sqloptions.get("FLOAT_FORMAT") % java_val[m_nPos]
+                elif str(type(java_val)).upper().find("DOUBLE") != -1:
+                    m_ColumnValue = m_ColumnValue + "," + \
+                                    _sqloptions.get("DOUBLE_FORMAT") % java_val[m_nPos]
+                elif type(java_val) == decimal.Decimal:
+                    if _sqloptions.get("DECIMAL_FORMAT") != "":
+                        m_ColumnValue = m_ColumnValue + "," + \
+                                        _sqloptions.get("DECIMAL_FORMAT") % java_val[m_nPos]
+                    else:
+                        m_ColumnValue = m_ColumnValue + "," + java_val[m_nPos]
+                else:
+                    m_ColumnValue = m_ColumnValue + "," + str(java_val[m_nPos])
+        m_ColumnValue = m_ColumnValue + "]"
+        return m_ColumnValue
+    else:
+        raise SQLCliException(
+            "SQLCLI-00000: Unknown java class type [" + m_TypeName +
+            "] in _java_to_py_array")
+
+
 def _java_to_py_str(conn, rs, col):
     java_val = rs.getObject(col)
     if java_val is None:
@@ -696,29 +807,31 @@ _DEFAULT_CONVERTERS = {
     # see
     # http://download.oracle.com/javase/8/docs/api/java/sql/Types.html
     # for possible keys
-    'CHAR': _java_to_py_str,
-    'LONGVARCHAR': _java_to_py_str,
-    'VARCHAR':  _java_to_py_str,
-    'NCLOB':  _java_to_py_clob,
-    'CLOB':  _java_to_py_clob,
-    'TIMESTAMP_WITH_TIMEZONE': _java_to_py_timestampwithtimezone,
-    'TIMESTAMP': _to_datetime,
-    'TIME': _to_time,
-    'DATE': _to_date,
-    'VARBINARY': _to_binary,
-    'BINARY': _to_binary,
-    'LONGVARBINARY': _to_binary,
-    'BLOB': _to_binary,
-    'BFILE': _to_binary,
-    'DECIMAL': _java_to_py_bigdecimal,
-    'NUMERIC': _java_to_py_bigdecimal,
-    'DOUBLE': _java_to_py('doubleValue'),
-    'FLOAT': _java_to_py('doubleValue'),
-    'REAL': _java_to_py('doubleValue'),
-    'TINYINT': _java_to_py('intValue'),
-    'INTEGER': _java_to_py('intValue'),
-    'SMALLINT': _java_to_py('intValue'),
-    'BIGINT':  _java_to_py_bigdecimal,
-    'BOOLEAN': _java_to_py('booleanValue'),
-    'BIT': _java_to_py('booleanValue')
+    'CHAR':                         _java_to_py_str,
+    'LONGVARCHAR':                  _java_to_py_str,
+    'VARCHAR':                      _java_to_py_str,
+    'NCLOB':                        _java_to_py_clob,
+    'CLOB':                         _java_to_py_clob,
+    'TIMESTAMP_WITH_TIMEZONE':      _java_to_py_timestampwithtimezone,
+    'TIMESTAMP':                    _to_datetime,
+    'TIME':                         _to_time,
+    'DATE':                         _to_date,
+    'VARBINARY':                    _to_binary,
+    'BINARY':                       _to_binary,
+    'LONGVARBINARY':                _to_binary,
+    'BLOB':                         _to_binary,
+    'BFILE':                        _to_binary,
+    'DECIMAL':                      _java_to_py_bigdecimal,
+    'NUMERIC':                      _java_to_py_bigdecimal,
+    'DOUBLE':                       _java_to_py('doubleValue'),
+    'FLOAT':                        _java_to_py('doubleValue'),
+    'REAL':                         _java_to_py('doubleValue'),
+    'TINYINT':                      _java_to_py('intValue'),
+    'INTEGER':                      _java_to_py('intValue'),
+    'SMALLINT':                     _java_to_py('intValue'),
+    'BIGINT':                       _java_to_py_bigdecimal,
+    'BOOLEAN':                      _java_to_py('booleanValue'),
+    'BIT':                          _java_to_py('booleanValue'),
+    'STRUCT':                       _java_to_py_stru,
+    'ARRAY':                        _java_to_py_array
 }
