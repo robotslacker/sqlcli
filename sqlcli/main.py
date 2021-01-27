@@ -847,7 +847,7 @@ class SQLCli(object):
     # 从文件中执行SQL
     def execute_from_file(self, arg, **_):
         if not arg:
-            message = "Missing required argument, filename."
+            message = "Missing required argument, filename1,filename2,filename,3 [loop <loop times>]."
             return [(None, None, None, None, message)]
         m_SQLFileList = str(arg).split()
         m_nLoop = 1
@@ -982,13 +982,16 @@ class SQLCli(object):
                 options_values.quotes = '^'
                 options_values.whitespace_split = True
                 options_values = list(options_values)
-                print("options_values=" + str(options_values))
                 if len(options_values) == 1:
                     if options_values[0][0] == '^':
                         options_values[0] = options_values[0][1:]
                     if options_values[0][-1] == '^':
                         options_values[0] = options_values[0][:-1]
-                    self.SQLOptions.set(options_parameters[0], options_values[0])
+                    try:
+                        option_value = str(eval(str(options_values[0])))
+                    except (NameError , ValueError , SyntaxError):
+                        option_value = str(options_values[0])
+                    self.SQLOptions.set(options_parameters[0], option_value)
                 elif len(options_values) == 2:
                     if options_values[0][0] == '^':
                         options_values[0] = options_values[0][1:]
@@ -998,7 +1001,15 @@ class SQLCli(object):
                         options_values[1] = options_values[1][1:]
                     if options_values[1][-1] == '^':
                         options_values[1] = options_values[1][:-1]
-                    self.SQLOptions.set(options_parameters[0], options_values[0], options_values[1])
+                    try:
+                        option_value1 = str(eval(str(options_values[0])))
+                    except (NameError, ValueError, SyntaxError):
+                        option_value1 = str(options_values[0])
+                    try:
+                        option_value2 = str(eval(str(options_values[1])))
+                    except (NameError, ValueError, SyntaxError):
+                        option_value2 = str(options_values[1])
+                    self.SQLOptions.set(options_parameters[0], option_value1, option_value2)
                 else:
                     raise SQLCliException("SQLCLI-00000: "
                                           "Wrong set command. Please use [set @parameter_name parametervalue]")
