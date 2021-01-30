@@ -8,13 +8,13 @@ SQLCli 是一个主要用Python完成的，命令快速的测试工具。
     4： 能够操作Kafka消息队列。   
     5： 能够操作HDFS上的文件。
 
-程序可以通过JPype连接数据库的JDBC驱动，这个时候需要安装相关的包，Windows平台上可能还需要进行相关的编译工作。      
+程序可以通过JPype连接数据库的JDBC驱动。      
 也可以通过ODBC标准连接数据库的ODBC驱动，但是这部分并没有经过严谨的测试。    
 
 SQLCli 目前可以支持的数据库有：  
-   * Oracle,MySQL,PostgreSQL,SQLServer,TeraData, Hive等主流通用数据库  
+   * Oracle,MySQL,PostgreSQL,SQLServer,TeraData, Hive, H2等主流通用数据库  
    * 达梦，神通， 金仓， 南大通用，LinkoopDB等众多国产数据库  
-   * ClickHouse列式数据库      
+   * ClickHouse数据库      
    * 其他符合标准JDBC规范的数据库  
    
 SQLCli 目前支持的数据类型有：
@@ -40,6 +40,8 @@ SQLCli 目前支持的数据类型有：
     BIGINT
     BOOLEAN  
     BIT
+    STRUCT
+    ARRAY
 ```
 ***
 
@@ -55,12 +57,10 @@ SQLCli 目前支持的数据类型有：
    * 有一个Python 3.6以上的环境
    * 能够连接到互联网上， 便于下载必要的包
    * 安装JDK8
-   * 对于Windows平台，还需要提前安装微软的C++编译器（jpype1使用了JNI技术，需要动态编译）  
-   * 对于Linux平台，也需要提前安装gcc编译器，以及Python3的开发包（原因同上）  
+   * 对于Windows平台，需要提前安装微软的C++编译器（jpype1使用了JNI技术，需要动态编译）  
+   * 对于Linux平台，  需要提前安装gcc编译器，以及Python3的开发包（原因同上）  
      yum install -y gcc-c++ gcc python3-devel  
      yum install -y unixODBC  unixODBC-devel  
-   * 对于MAC平台，直接安装
-
 
 依赖的第三方安装包：  
    * 这些安装包会在robotslacker-sqlcli安装的时候自动随带安装
@@ -76,7 +76,19 @@ SQLCli 目前支持的数据类型有：
 ```
    pip install -U robotslacker-sqlcli
 ```
+
+安装后步骤-下载驱动程序：  
+   * 根据你的测试需要， 下载 https://github.com/robotslacker/sqlcli/blob/master/sqlcli/jlib/下对应的Jar包
+   * 放置jar包到 <PYTHON_HONE>/../site-packages/sqlcli/jlib下
+   * github上提供的仅仅是一些测试用的Jar包，如果你有自己的需要，可以用自己的文件覆盖上述下载的文件
+
+安装后步骤-根据需要修改sqlcli/conf/sqlcli.ini文件：  
+   * 默认情况下，这个文件不需要修改
+   * 如果你需要定义自己内网的驱动程序下载服务器，你需要修改这个文件
+   * 如果你需要定义自己的数据库驱动，你需要修改这个文件
+   
 ***
+
 ### 第一次使用
 安装后直接在命令下执行sqlcli命令即可。  
 如果你的$PYTHON_HOME/Scripts没有被添加到当前环境的$PATH中，你可能需要输入全路径名  
@@ -85,10 +97,20 @@ SQLCli 目前支持的数据类型有：
 SQL*Cli Release 0.0.32
 SQL> 
 ```
-如果你这里看到了版本信息，那祝贺你，你的安装成功了
+如果你这里看到了版本信息，那祝贺你，你的程序安装成功了
+
+```
+(base) >sqlcli
+SQL*Cli Release 0.0.32
+SQL> connect mem;
+SQL> Connected.
+```
+如果你下载了至少H2的驱动程序，执行这个命令将连接到内置的H2数据库中，如果你看到了Connected信息，那再一次祝贺你，你的程序基本工作正常。 
+
 ***
+
 ### 驱动程序的下载和配置
-sqlcli是一个基于JDBC的数据库工具，能够操作数据库的前提当前环境下有对应的数据库连接jar包  
+sqlcli是一个基于JDBC/ODBC的数据库工具，基于JDBC操作数据库的前提当前环境下有对应的数据库连接jar包，基于ODBC前提是安装了相关的ODBC驱动。  
 #### 驱动程序的配置
 配置文件位于SQLCli的安装目录下的conf目录中，配置文件名为:sqlcli.conf  
 配置例子:
@@ -268,26 +290,26 @@ SQL>
 这里的运行日志不是指程序的logfile，而是用CSV文件记录的SQL日志，  
 这些日志将作为后续对SQL运行行为的一种分析  
 运行日志共包括如下信息：  
-1、Script       运行的脚本名称
-2、StartedTime  SQL运行开始时间，格式是：%Y-%m-%d %H:%M:%S  
-3、elapsed      SQL运行的消耗时间，这里的单位是秒，精确两位小数      
-4、RAWSQL       原始的SQL信息  
-4、SQL          运行的SQL，注意：这里可能和RAWSQL不同，不同的原因是SQL可能会被重写文件改写  
-5、SQLStatus    SQL运行结果，0表示运行正常结束，1表示运行错误  
-6、ErrorMessage 错误日志，在SQLStatus为1的时候才有意义  
-7、thread_name  工作线程名，对于主程序，这里显示的是MAIN， 对于后台作业，这里显示的是：JOB#{worker}-{loop}  
+1、Script       运行的脚本名称  
+2、StartedTime  SQL运行开始时间，格式是：%Y-%m-%d %H:%M:%S    
+3、elapsed      SQL运行的消耗时间，这里的单位是秒，精确两位小数        
+4、RAWSQL       原始的SQL信息   
+4、SQL          运行的SQL，注意：这里可能和RAWSQL不同，不同的原因是SQL可能会被重写文件改写    
+5、SQLStatus    SQL运行结果，0表示运行正常结束，1表示运行错误    
+6、ErrorMessage 错误日志，在SQLStatus为1的时候才有意义    
+7、Scenario     程序场景名称，这里的内容是通过在SQL文件中指定-- [Hint] Scenario:name的方式来标记的Scenario信息  
 说明：上述信息都有TAB分隔，其中字符信息用单引号包括，如下是一个例子：  
 ```
-Script  Started elapsed SQLPrefix       SQLStatus       ErrorMessage    thread_name
-'sub_1.sql' '2020-05-25 17:46:23'       0.00        'loaddriver localtest\linkoopdb-jdbc-2.3.'      0       ''      'MAIN'
-'sub_1.sql' '2020-05-25 17:46:23'       0.28        'connect admin/123456'  0       ''      'MAIN'
-'sub_1.sql' '2020-05-25 17:46:24'       0.00        'SET ECHO ON'   0       ''      'MAIN'
-'sub_1.sql' '2020-05-25 17:46:24'       0.00        'SET TIMING ON' 0       ''      'MAIN'
-'sub_1.sql' '2020-05-25 17:46:24'       0.01        'LOADSQLMAP stresstest' 0       ''      'MAIN'
-'sub_1.sql' '2020-05-25 17:46:24'       0.92        'ANALYZE TRUNCATE STATISTICS'   0       ''      'MAIN'
-'sub_1.sql' '2020-05-25 17:46:25'       0.02        'SELECT count(SESSION_ID)  FROM INFORMATI'      0       ''      'MAIN'
-'sub_1.sql' '2020-05-25 17:46:25'       1.37        'drop user testuser if exists cascade'  0       ''      'MAIN'
-'sub_1.sql' '2020-05-25 17:46:26'       0.54        'CREATE USER testuser PASSWORD '123456''        0       ''      'MAIN'
+Script  Started elapsed SQLPrefix       SQLStatus       ErrorMessage    Scenario
+'sub_1.sql' '2020-05-25 17:46:23'       0.00        'loaddriver localtest\linkoopdb-jdbc-2.3.'      0       ''      'Scenario1'
+'sub_1.sql' '2020-05-25 17:46:23'       0.28        'connect admin/123456'  0       ''      'Scenario1'
+'sub_1.sql' '2020-05-25 17:46:24'       0.00        'SET ECHO ON'   0       ''      'Scenario1'
+'sub_1.sql' '2020-05-25 17:46:24'       0.00        'SET TIMING ON' 0       ''      'Scenario2'
+'sub_1.sql' '2020-05-25 17:46:24'       0.01        'LOADSQLMAP stresstest' 0       ''      'Scenario2'
+'sub_1.sql' '2020-05-25 17:46:24'       0.92        'ANALYZE TRUNCATE STATISTICS'   0       ''      'Scenario3'
+'sub_1.sql' '2020-05-25 17:46:25'       0.02        'SELECT count(SESSION_ID)  FROM INFORMATI'      0       ''      'Scenario3'
+'sub_1.sql' '2020-05-25 17:46:25'       1.37        'drop user testuser if exists cascade'  0       ''      'Scenario3'
+'sub_1.sql' '2020-05-25 17:46:26'       0.54        'CREATE USER testuser PASSWORD '123456''        0       ''      'Scenario3'
 ```
 ***
 #### 在SQLCli里面查看当前支持的命令
@@ -342,6 +364,8 @@ Database connected.
 SQL> 
 
 常见数据库的连接方式示例：
+H2:
+    connnet mem
 ORACLE:
     connect username/password@jdbc:oracle:tcp://IP:Port/Service_Name
 MYSQL:
@@ -827,6 +851,9 @@ Mapping file loaded.
     如果value1中包含空格等特殊字符，需要考虑用^将其前后包括，例如：
     SQL> set @var1 ^value1 fafsadfd^
     此时，尖括号内部的字符串将作为参数的值，但尖括号并不包括在内
+
+    注意： value1 是一个eval表达式，可以被写作 3+5, ${a}+1, 等
+    如果你要在value1中传入一个字符串，请务必将字符串用‘包括，即'value1'
 
 ```
 &emsp; &emsp; * 用${}的方式来引用已经定义的变量
