@@ -711,7 +711,17 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 if matchObj:
                     m_SQLHint["Order"] = True
 
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[(\s+)?order(\s+)?\]", line,
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    m_SQLHint["Order"] = True
+
                 matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?Scenario:(.*)", line,
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    m_SQLHint["SCENARIO"] = matchObj.group(4)
+
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:(.*)\]", line,
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_SQLHint["SCENARIO"] = matchObj.group(4)
