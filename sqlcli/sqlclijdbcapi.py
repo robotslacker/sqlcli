@@ -724,7 +724,7 @@ def _java_to_py_array(conn, rs, col):
     if java_val is None:
         return
     m_TypeName = str(java_val.getClass().getTypeName())
-    if m_TypeName.upper().find('JDBCARRAY') != -1:
+    if m_TypeName.upper().find('ARRAY') != -1:
         m_ColumnValue = "ARRAY["
         java_val = java_val.getArray();
         for m_nPos in range(0, len(java_val)):
