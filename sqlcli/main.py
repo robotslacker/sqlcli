@@ -155,8 +155,8 @@ class SQLCli(object):
         if profile is None:
             # profile的顺序， SQLCLI_HOME/profile/default,   <PYTHON_PACKAGE>/sqlcli/profile/default, user define
             if "SQLCLI_HOME" in os.environ:
-                if os.path.exists(os.path.join(os.environ["SQLCLI_HME"], "profile", "default")):
-                    self.profile = os.path.join(os.environ["SQLCLI_HME"], "profile", "default")
+                if os.path.exists(os.path.join(os.environ["SQLCLI_HOME"], "profile", "default")):
+                    self.profile = os.path.join(os.environ["SQLCLI_HOME"], "profile", "default")
             if self.profile is None:
                 if os.path.exists(os.path.join(os.path.dirname(__file__), "profile", "default")):
                     self.profile = os.path.join(os.path.dirname(__file__), "profile", "default")
