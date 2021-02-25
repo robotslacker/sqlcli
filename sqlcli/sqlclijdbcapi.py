@@ -609,7 +609,6 @@ def _java_to_py(java_method):
         if isinstance(java_val, (string_type, int, float, bool)):
             return java_val
         return getattr(java_val, java_method)()
-
     return to_py
 
 

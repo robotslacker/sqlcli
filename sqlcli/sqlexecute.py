@@ -463,7 +463,7 @@ class SQLExecute(object):
                 # 如果文件不存在，创建文件，并写入文件头信息
                 self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
                 self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tRAWSQL\tSQL\t"
-                                             "SQLStatus\tErrorMessage\tthread_name\t"
+                                             "SQLStatus\tErrorMessage\tworker_name\t"
                                              "Scenario\tTransaction\n")
                 self.SQLPerfFileHandle.close()
 
@@ -479,16 +479,16 @@ class SQLExecute(object):
             else:
                 m_SQL_Script = str(os.path.basename(self.sqlscript))
             self.SQLPerfFileHandle.write(
-                "'" + m_SQL_Script + "'\t" +
-                "'" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p_SQLResult["StartedTime"])) + "'\t" +
+                m_SQL_Script + "\t" +
+                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p_SQLResult["StartedTime"])) + "\t" +
                 "%8.2f" % p_SQLResult["elapsed"] + "\t" +
-                "'" + str(p_SQLResult["RAWSQL"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
-                "'" + str(p_SQLResult["SQL"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
+                str(p_SQLResult["RAWSQL"]).replace("\n", " ").replace("\t", "    ") + "\t" +
+                str(p_SQLResult["SQL"]).replace("\n", " ").replace("\t", "    ") + "\t" +
                 str(p_SQLResult["SQLStatus"]) + "\t" +
-                "'" + str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "'\t" +
-                "'" + str(m_ThreadName) + "'\t" +
-                "'" + str(p_SQLResult["Scenario"]) + "'\t" +
-                "'" + str(p_SQLResult["Transaction"]) + "'" +
+                str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "\t" +
+                str(m_ThreadName) + "\t" +
+                str(p_SQLResult["Scenario"]) + "\t" +
+                str(p_SQLResult["Transaction"]) +
                 "\n"
             )
             self.SQLPerfFileHandle.flush()
