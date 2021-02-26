@@ -440,6 +440,10 @@ class SQLCli(object):
 
     # 连接数据库
     def connect_db(self, arg, **_):
+        # 一旦开始数据库连接，则当前连接会被置空，以保证连接错误的影响能够对后续的语句产生作用
+        self.db_conn = None
+        self.SQLExecuteHandler.conn = None
+
         if arg is None or len(str(arg)) == 0:
             raise SQLCliException(
                 "Missing required argument\n." + "connect [user name]/[password]@" +

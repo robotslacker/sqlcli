@@ -346,8 +346,6 @@ class Connection(object):
         self._converters = converters
 
     def close(self):
-        if self._closed:
-            raise Error()
         if self.jconn is not None:
             self.jconn.close()
         self._closed = True
