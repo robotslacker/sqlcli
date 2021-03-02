@@ -993,7 +993,7 @@ class SQLCli(object):
                         options_values[0] = options_values[0][:-1]
                     try:
                         option_value = str(eval(str(options_values[0])))
-                    except (NameError , ValueError , SyntaxError):
+                    except (NameError, ValueError, SyntaxError):
                         option_value = str(options_values[0])
                     self.SQLOptions.set(options_parameters[0], option_value)
                 elif len(options_values) == 2:
@@ -1184,7 +1184,7 @@ class SQLCli(object):
                     return True
                 except PermissionError:
                     self.echo("SQLCli Can't work without valid terminal. "
-                              "Use \"--execute\" in case you need run script",err=True, fg="red")
+                              "Use \"--execute\" in case you need run script", err=True, fg="red")
                     return False
                 # 拼接SQL语句
                 if full_text is None:

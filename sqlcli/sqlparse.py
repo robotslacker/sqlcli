@@ -226,7 +226,7 @@ class SQLMapping(object):
                         for (m_Key, m_Value) in m_Mapping_Contents[1]:              # 内容遍历
                             try:
                                 m_New_SQL = self.ReplaceSQL(m_New_SQL, m_Key, m_Value)
-                            except re.error as ex:
+                            except re.error:
                                 print("[WARNING] Invalid regex pattern in ReplaceSQL. ",
                                       file=self.Console)
                 except re.error as ex:
@@ -704,27 +704,34 @@ def SQLAnalyze(p_SQLCommandPlainText):
         if len(SQLSplitResults[m_nPos]) == 0:
             # 这里为一个注释信息，解析注释信息中是否包含必要的tag
             for line in SQLSplitResultsWithComments[m_nPos].splitlines():
-                # [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
                 # [Hint]  Scenario:XXXX   -- 相关SQL的Scenariox信息，仅仅作为日志信息供查看
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?order", line,
-                                     re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    m_SQLHint["Order"] = True
-
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[(\s+)?order(\s+)?\]", line,
-                                     re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    m_SQLHint["Order"] = True
-
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint\](\s+)?Scenario:(.*)", line,
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?Scenario:(.*)", line,
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_SQLHint["SCENARIO"] = matchObj.group(4)
 
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:(.*)\]", line,
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:(.*)]", line,
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_SQLHint["SCENARIO"] = matchObj.group(4)
+
+                # [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?order", line,
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    m_SQLHint["Order"] = True
+
+                # [Hint]  LogFilter      -- SQLCli会过滤随后显示的输出信息，对于符合过滤条件的，将会被过滤
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LogFilter(\s+)(.*)", line,
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    m_SQLHint["LogFilter"] = matchObj.group(5)
+
+                # [Hint]  LogMask      -- SQLCli会掩码随后显示的输出信息，对于符合掩码条件的，将会被掩码
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LogMask(\s+)(.*)=>(.*)", line,
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    m_SQLHint["LogMask"] = [matchObj.group(5), matchObj.group(6)]
 
             m_SQLHints.append({})
         else:

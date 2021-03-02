@@ -281,6 +281,30 @@ class SQLExecute(object):
                                         if str(result[j]) > str(result[j + 1]):
                                             result[j], result[j + 1] = result[j + 1], result[j]
 
+                            if "SQLCLI_DEBUG" in os.environ:
+                                # DEBUG模式下不会过滤任何东西
+                                pass
+                            else:
+                                # 如果Hint中存在LogFilter，则过滤指定的输出信息
+                                if "LogFilter" in m_SQLHint.keys() and result is not None:
+                                    for item in result[:]:
+                                        if re.match(m_SQLHint["LogFilter"], ''.join(str(item)), re.IGNORECASE):
+                                            result.remove(item)
+
+                                # 如果Hint中存在LogMask,，则掩码指定的输出信息
+                                if "LogMask" in m_SQLHint.keys() and result is not None:
+                                    for i in range(0, len(result)):
+                                        m_Output = None
+                                        for j in range(0, len(result[i])):
+                                            if m_Output is None:
+                                                m_Output = str(result[i][j])
+                                            else:
+                                                m_Output = m_Output + "," + str(result[i][j])
+                                        m_NewOutput = re.sub(m_SQLHint["LogMask"][0], m_SQLHint["LogMask"][1],
+                                                             m_Output, re.IGNORECASE)
+                                        if m_NewOutput != m_Output:
+                                            result[i] = tuple(m_NewOutput.split(','))
+
                             # 返回SQL结果
                             if self.SQLOptions.get('TERMOUT').upper() != 'OFF':
                                 yield title, result, headers, columntypes, status
