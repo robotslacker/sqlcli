@@ -288,8 +288,9 @@ class SQLExecute(object):
                                 # 如果Hint中存在LogFilter，则过滤指定的输出信息
                                 if "LogFilter" in m_SQLHint.keys() and result is not None:
                                     for item in result[:]:
-                                        if re.match(m_SQLHint["LogFilter"], ''.join(str(item)), re.IGNORECASE):
-                                            result.remove(item)
+                                        for m_SQLFilter in m_SQLHint["LogFilter"]:
+                                            if re.match(m_SQLFilter, ''.join(str(item)), re.IGNORECASE):
+                                                result.remove(item)
 
                                 # 如果Hint中存在LogMask,，则掩码指定的输出信息
                                 if "LogMask" in m_SQLHint.keys() and result is not None:
@@ -300,10 +301,18 @@ class SQLExecute(object):
                                                 m_Output = str(result[i][j])
                                             else:
                                                 m_Output = m_Output + "," + str(result[i][j])
-                                        m_NewOutput = re.sub(m_SQLHint["LogMask"][0], m_SQLHint["LogMask"][1],
-                                                             m_Output, re.IGNORECASE)
-                                        if m_NewOutput != m_Output:
-                                            result[i] = tuple(m_NewOutput.split(','))
+                                        for m_SQLMaskString in m_SQLHint["LogMask"]:
+                                            m_SQLMask = m_SQLMaskString.split("=>")
+                                            if len(m_SQLMask) == 2:
+                                                m_SQLMaskPattern = m_SQLMask[0]
+                                                m_SQLMaskTarget = m_SQLMask[1]
+                                                m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget, m_Output,
+                                                                     re.IGNORECASE)
+                                                if m_NewOutput != m_Output:
+                                                    result[i] = tuple(m_NewOutput.split(','))
+                                            else:
+                                                if "SQLCLI_DEBUG" in os.environ:
+                                                    raise SQLCliException("LogMask Hint Error: " + m_SQLHint["LogMask"])
 
                             # 返回SQL结果
                             if self.SQLOptions.get('TERMOUT').upper() != 'OFF':

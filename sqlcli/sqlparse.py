@@ -698,8 +698,8 @@ def SQLAnalyze(p_SQLCommandPlainText):
             SQLSplitResultsWithComments[m_nPos] = ""
 
     # 解析SQLHints
-    m_SQLHints = []
-    m_SQLHint = {}
+    m_SQLHints = []      # 所有的SQLHint信息，是一个字典的列表
+    m_SQLHint = {}       # SQLHint信息，为Key-Value字典信息
     for m_nPos in range(0, len(SQLSplitResultsWithComments)):
         if len(SQLSplitResults[m_nPos]) == 0:
             # 这里为一个注释信息，解析注释信息中是否包含必要的tag
@@ -725,19 +725,26 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LogFilter(\s+)(.*)", line,
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
-                    m_SQLHint["LogFilter"] = matchObj.group(5)
+                    # 可能有多个Filter信息
+                    m_SQLFilter = matchObj.group(5).strip()
+                    if "LogFilter" in m_SQLHint:
+                        m_SQLHint["LogFilter"].append(m_SQLFilter)
+                    else:
+                        m_SQLHint["LogFilter"] = [m_SQLFilter, ]
 
                 # [Hint]  LogMask      -- SQLCli会掩码随后显示的输出信息，对于符合掩码条件的，将会被掩码
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LogMask(\s+)(.*)=>(.*)", line,
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LogMask(\s+)(.*)", line,
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
-                    m_SQLHint["LogMask"] = [matchObj.group(5), matchObj.group(6)]
-
-            m_SQLHints.append({})
+                    m_SQLMask = matchObj.group(5).strip()
+                    if "LogMask" in m_SQLHint:
+                        m_SQLHint["LogMask"].append(m_SQLMask)
+                    else:
+                        m_SQLHint["LogMask"] = [m_SQLMask]
+            m_SQLHints.append({})     # 对于注释信息，所有的SQLHint信息都是空的
         else:
             # 这里是一个可执行SQL信息
             # 将这个SQL之前所有解析注释信息送到SQL的标志中，并同时清空当前的SQL标志信息
             m_SQLHints.append(m_SQLHint)
             m_SQLHint = {}
-
     return not m_bInMultiLineSQL, SQLSplitResults, SQLSplitResultsWithComments, m_SQLHints

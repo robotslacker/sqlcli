@@ -840,6 +840,18 @@ Mapping file loaded.
     SQL> Select ID,Name From TestTab;
     ....
     加入这个提示符后，SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
+
+    SQL> -- [Hint] LogFilter  .*Error.*
+    SQL> Select ID,Name From TestTab;
+    ....
+    加入这个提示符后，SQLCli将不再显示随后输出中任何包含Error字样的行
+    .*Error.* 是一个正则表达式写法
+
+    SQL> -- [Hint] LogMask  Password:.*=>Password:******
+    SQL> Select ID,Name From TestTab;
+    ....
+    加入这个提示符后，SQLCli将把日志输出中所有符合Password:.*的内容替换成Password:*****
+
 ```
 #### 在SQL中使用变量信息
 &emsp; &emsp; 在一些场景中，我们需要通过变量来变化SQL的运行  
