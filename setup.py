@@ -57,6 +57,7 @@ setup(
     description='SQL Command test tool, use JDBC/ODBC',
     long_description=readme,
     keywords='sql command test tool',
+    long_description_content_type='text/markdown',
     platforms='any',
     install_requires=['JPype1>=0.7.1', 'setproctitle', 'pathlib',
                       'pyparsing', 'click', 'prompt_toolkit',
