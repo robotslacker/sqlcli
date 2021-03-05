@@ -287,10 +287,11 @@ class SQLExecute(object):
                             else:
                                 # 如果Hint中存在LogFilter，则过滤指定的输出信息
                                 if "LogFilter" in m_SQLHint.keys() and result is not None:
-                                    for item in result[:]:
-                                        for m_SQLFilter in m_SQLHint["LogFilter"]:
+                                    for m_SQLFilter in m_SQLHint["LogFilter"]:
+                                        for item in result[:]:
                                             if re.match(m_SQLFilter, ''.join(str(item)), re.IGNORECASE):
                                                 result.remove(item)
+                                                continue
 
                                 # 如果Hint中存在LogMask,，则掩码指定的输出信息
                                 if "LogMask" in m_SQLHint.keys() and result is not None:
