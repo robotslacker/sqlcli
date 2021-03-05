@@ -1091,6 +1091,56 @@ Mapping file loaded.
    删除指定的topic
 ```
 
+#### 用SQLCli工具操作HDFS
+```
+    SQL> __internal__ hdfs connect [hdfs webui url] with user [hdfs user name]
+    用HDFSweb连接到指定的HDFS上
+    例子：
+    SQL> __internal__  hdfs connect http://localhost:9870/user/testuser/abcd with user testuser;
+    Hdfs Server set successful.
+    这里的/user/testuser/abcd将作为后续HDFS操作的根目录
+
+    SQL> __internal__ hdfs status [hdfs path]
+    获取指定的HDFS文件信息
+    例子：
+    SQL> __internal__  hdfs status aa.log;
+    HDFS file status:
+    +--------+------------+-------+--------+------+---------------------+
+    | Path   | Permission | owner | group  | Size | Modified            |
+    +--------+------------+-------+--------+------+---------------------+
+    | aa.log | -rw-r--r-- | ldb   | ldbp67 | 1148 | 2021-03-05 11:11:41 |
+    +--------+------------+-------+--------+------+---------------------+
+    Total 1 files listed.
+
+    SQL> __internal__ hdfs list [hdfs path] 
+    显示远程的HDFS文件目录信息。 hdfs_path可以省略，省略情况下显示当然目录信息。
+    例子：
+    SQL> __internal__  hdfs list;
+    HDFS file List:
+    +-------+------------+--------+--------+------+---------------------+
+    | Path  | Permission | owner  | group  | Size | Modified            |
+    +-------+------------+--------+--------+------+---------------------+
+    | 111   | drwxr-xr-x | ldbp67 | ldbp67 | 0    | 2021-03-05 09:26:56 |
+    | aa.sh | -rw-r--r-- | ldbp67 | ldbp67 | 363  | 2021-03-05 09:07:35 |
+    +-------+------------+--------+--------+------+---------------------+
+    Total 2 files listed.
+
+    SQL> __internal__ hdfs rm [hdfs path]
+    删除指定的HDFS文件信息，如果需要删除多个文件，可以提供文件通配符
+    例子：
+    SQL> __internal__  hdfs rm aa.log;
+    Hdfs file deleted successful.
+
+    SQL> __internal__ hdfs makedirs [hdfs path]
+    建立需要的HDFS路径
+
+    SQL> __internal__ hdfs upload [local file] [remote file]
+    上传本地文件到远程的HDFS文件目录中
+
+    SQL> __internal__ hdfs download [remote file] [local file] 
+    下载远程的HDFS文件到本地文件目录中
+
+```
 ***    
 #### 退出
 你可以使用exit来退出命令行程序，或者在脚本中使用Exit来退出正在执行的脚本

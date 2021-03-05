@@ -31,6 +31,7 @@ from .sqlexecute import SQLExecute
 from .sqlparse import SQLMapping
 from .kafkawrapper import KafkaWrapper
 from .comparewrapper import CompareWrapper
+from .hdfswrapper import HDFSWrapper
 from .sqlcliexception import SQLCliException
 from .sqlclisga import SQLCliGlobalSharedMemory
 from .sqlinternal import Create_file
@@ -103,6 +104,7 @@ class SQLCli(object):
         self.SQLOptions = SQLOptions()                   # 程序运行中各种参数
         self.KafkaHandler = KafkaWrapper()               # Kafka消息管理器
         self.CompareHandler = CompareWrapper()           # 参照结果文件比对
+        self.HdfsHandler = HDFSWrapper()                 # HDFS文件操作
         self.JobHandler = JOBManager()                   # 并发任务管理器
         self.TransactionHandler = TransactionManager()   # 事务管理器
         self.SpoolFileHandler = None                     # 当前Spool文件句柄
@@ -1061,6 +1063,13 @@ class SQLCli(object):
         matchObj = re.match(r"(\s+)?compare(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             (title, result, headers, columntypes, status) = self.CompareHandler.Process_SQLCommand(arg)
+            yield title, result, headers, columntypes, status
+            return
+
+        # 处理HDFS数据
+        matchObj = re.match(r"(\s+)?hdfs(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            (title, result, headers, columntypes, status) = self.HdfsHandler.Process_SQLCommand(arg)
             yield title, result, headers, columntypes, status
             return
 
