@@ -9,6 +9,7 @@ import copy
 from time import strftime, localtime
 from multiprocessing import Lock
 import traceback
+import json
 
 from .sqlparse import SQLAnalyze
 from .sqlparse import SQLFormatWithPrefix
@@ -34,8 +35,7 @@ class SQLExecute(object):
 
     def __init__(self):
         # 记录最后SQL返回的结果
-        self.LastAffectedRows = 0
-        self.LastSQLResult = None
+        self.LastJsonSQLResult = None
         self.LastElapsedTime = 0
 
         # 当前Executeor的WorkerName
@@ -52,6 +52,41 @@ class SQLExecute(object):
 
         # Transaction信息
         self.SQLTransaction = ''
+
+    def jqparse(self, obj, path='.'):
+        try:
+            obj = json.loads(obj) if isinstance(obj, str) else obj
+            find_str, find_map = '', ['["%s"]', '[%s]', '%s', '.%s']
+            for im in path.split('.'):
+                if not im:
+                    continue
+
+                if isinstance(obj, (list, tuple, str)):
+                    if im.startswith('[') and im.endswith(']'):
+                        im = im[1:-1]
+                    if ':' in im:
+                        slice_default = [0, len(obj), 1]
+                        obj, quota = obj[slice(
+                            *[int(sli) if sli else slice_default[i] for i, sli in
+                              enumerate(im.split(':'))])], 1
+                    else:
+                        obj, quota = obj[int(im)], 1
+                else:
+                    if im in obj:
+                        obj, quota = obj[im], 0
+                    elif im.endswith('()'):
+                        obj, quota = list(getattr(obj, im[:-2])()), 3
+                    else:
+                        if im.isdigit():
+                            obj, quota = obj[int(im)], 1
+                        else:
+                            raise KeyError(im)
+                find_str += find_map[quota] % im
+            return obj if isinstance(obj, str) else json.dumps(obj,sort_keys=True,ensure_ascii=False)
+        except (IndexError, KeyError, ValueError) as je:
+            if "SQLCLI_DEBUG" in os.environ:
+                click.secho("JQ Parse Error: " + repr(je))
+            return "****"
 
     def run(self, statement, p_sqlscript=None):
         """
@@ -149,49 +184,18 @@ class SQLExecute(object):
             # 打开游标
             cur = self.conn.cursor() if self.conn else None
 
-            # 记录命令开始时间
-            start = time.time()
-
             # 检查SQL中是否包含特殊内容，如果有，改写SQL
             # 特殊内容都有：
-            # 1. %lastsqlresult.LastAffectedRows%
-            #    上一个SQL影响的行数
-            # 2. %lastsqlresult.LastSQLResult[X][Y]%
-            #    上一个SQL返回的记录集
-            # 3. ${var}
+            # 1. ${LastSQLResult(.*)}       # .* JQ Parse Pattern
+            # 2. ${var}
             #    用户定义的变量
 
-            # lastsqlresult.LastAffectedRows
-            if sql.find("%lastsqlresult.LastAffectedRows%") != -1:
-                sql = sql.replace("%lastsqlresult.LastAffectedRows%", str(self.LastAffectedRows))
-                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
-                    click.echo(SQLFormatWithPrefix(
-                        "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
-                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
-                    click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
-                               file=self.spoolfile)
-                click.echo(SQLFormatWithPrefix(
-                    "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
-                if self.logger is not None:
-                    self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
-
-            # lastsqlresult.LastSQLResult[X][Y]
-            matchObj = re.search(r"%lastsqlresult.LastSQLResult\[(\d+)]\[(\d+)]%",
+            matchObj = re.search(r"\${LastSQLResult\((.*)\)}",
                                  sql, re.IGNORECASE | re.DOTALL)
             if matchObj:
                 m_Searched = matchObj.group(0)
-                m_nRow = int(matchObj.group(1))
-                m_nColumn = int(matchObj.group(2))
-                if self.LastSQLResult is not None:
-                    if m_nRow >= len(self.LastSQLResult):
-                        m_Result = ""
-                    elif m_nColumn >= len(self.LastSQLResult[m_nRow]):
-                        m_Result = ""
-                    else:
-                        m_Result = str(self.LastSQLResult[m_nRow][m_nColumn])
-                else:
-                    m_Result = ""
-                sql = sql.replace(m_Searched, m_Result)
+                m_JQPattern = matchObj.group(1)
+                sql = sql.replace(m_Searched, self.jqparse(obj=self.LastJsonSQLResult, path=m_JQPattern))
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
                     click.echo(SQLFormatWithPrefix(
                         "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
@@ -229,7 +233,6 @@ class SQLExecute(object):
                     continue
                 else:
                     break
-
             if bMatched:
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
                     # SQL已经发生了改变, 会将改变后的SQL信息在屏幕上单独显示出来
@@ -243,6 +246,9 @@ class SQLExecute(object):
                 click.echo(SQLFormatWithPrefix(
                     "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
 
+            # 记录命令开始时间
+            start = time.time()
+
             # 执行SQL
             try:
                 # 首先尝试这是一个特殊命令，如果返回CommandNotFound，则认为其是一个标准SQL
@@ -254,8 +260,7 @@ class SQLExecute(object):
                     if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                         raise SQLCliException("Not Connected. ")
                     else:
-                        self.LastAffectedRows = 0
-                        self.LastSQLResult = None
+                        self.LastJsonSQLResult = None
                         yield None, None, None, None, "Not connected. "
 
                 # 执行正常的SQL语句
@@ -271,8 +276,10 @@ class SQLExecute(object):
                                 self.get_result(cur, rowcount)
                             rowcount = m_FetchedRows
 
-                            self.LastAffectedRows = rowcount
-                            self.LastSQLResult = copy.copy(result)
+                            self.LastJsonSQLResult = {"desc": headers,
+                                                      "rows": rowcount,
+                                                      "elapsed": time.time() - start,
+                                                      "result": result}
 
                             # 如果Hints中有order字样，对结果进行排序后再输出
                             if "Order" in m_SQLHint.keys() and result is not None:
@@ -332,8 +339,7 @@ class SQLExecute(object):
                         if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                             raise SQLCliException(m_SQL_ErrorMessage)
                         else:
-                            self.LastAffectedRows = 0
-                            self.LastSQLResult = None
+                            self.LastJsonSQLResult = None
                             yield None, None, None, None, m_SQL_ErrorMessage
                     except Exception as e:
                         m_SQL_Status = 1
@@ -352,8 +358,7 @@ class SQLExecute(object):
                         if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                             raise SQLCliException(m_SQL_ErrorMessage)
                         else:
-                            self.LastAffectedRows = 0
-                            self.LastSQLResult = None
+                            self.LastJsonSQLResult = None
                             yield None, None, None, None, m_SQL_ErrorMessage
             except (SQLCliException, SQLCliODBCException) as e:
                 m_SQL_Status = 1
@@ -365,8 +370,7 @@ class SQLExecute(object):
                     if "SQLCLI_DEBUG" in os.environ:
                         print('traceback.print_exc():\n%s' % traceback.print_exc())
                         print('traceback.format_exc():\n%s' % traceback.format_exc())
-                    self.LastAffectedRows = 0
-                    self.LastSQLResult = None
+                    self.LastJsonSQLResult = None
                     yield None, None, None, None, m_SQL_ErrorMessage
 
             # 如果需要，打印语句执行时间

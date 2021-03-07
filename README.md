@@ -900,24 +900,39 @@ Mapping file loaded.
 
 #### 在SQL中用内置变量来查看上一个SQL的执行结果
 &emsp; &emsp; 有一些场景通常要求我们来下一个SQL指定的时候，将上一个SQL的结果做出参数来执行  
-&emsp; &emsp; 这里提供的解决办法是： 在SQL中引入被特殊定义的标志  
-&emsp; &emsp; 具体的标志有：  
-&emsp; &emsp; &emsp; &emsp; 1：  %lastsqlresult.LastAffectedRows%
+&emsp; &emsp; 这里提供的解决办法是： 在SQL中引入用JQ表达式定义的表达式  
+&emsp; &emsp; 例子：  
+&emsp; &emsp; &emsp; &emsp; {$LastSQLResult(JQPattern)}
 ```
-    SQL>  select abs(1.234567891234) from dual;
-    +----------+
-    | C1       |
-    +----------+
-    | 1.234568 |
-    +----------+
+    LastSQLResult 是一个包含了上次结果集的JSON表达式，其包含的内容为：
+    {
+        "desc": [column name1, column name2, ....],
+        "rows": rowcount,
+        "elapsed": sql elapsed time,
+        "result": [[row1-column1 , row1-column2,...] [row2-column1 , row2-column2,...] ...]
+    }
+    SQL>  -- 返回上一个SQL执行影响的记录数量
+    SQL>  select '${LastSQLResult(.rows)}' from dual;
+    REWROTED SQL> Your SQL has been changed to:
+    REWROTED    > select '1' from dual
+    +-----+
+    | '1' |
+    +-----+
+    | 1   |
+    +-----+
     1 row selected.
-    SQL> select %lastsqlresult.LastAffectedRows% From Dual;
-    +----------+
-    | C1       |
-    +----------+
-    | 1        |
-    +----------+
-   这里的1表示之前第一个SQL中1 row selected的1
+    
+    SQL>  -- 返回上一个SQL结果记录集的零行零列内容    
+    SQL> select '${LastSQLResult(.result.0.0)}' from dual;
+    REWROTED SQL> Your SQL has been changed to:
+    REWROTED    > select '1' from dual
+    +-----+
+    | '1' |
+    +-----+
+    | 1   |
+    +-----+
+    1 row selected.
+
    
 ```  
 &emsp; &emsp; &emsp; &emsp; 2：  %lastsqlresult.LastSQLResult%  
