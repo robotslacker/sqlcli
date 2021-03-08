@@ -933,6 +933,23 @@ Mapping file loaded.
     +-----+
     1 row selected.
 
+    支持的JQ过滤表达式：
+        dict key过滤           .key
+        dict key列表           .keys()
+        dict value列表         .values()
+        dict key,value对       .iterms()
+        list过滤                .3 或 .[3]
+        list负索引              .-2 或 .[-2]
+        list切片1               .2:6 或 .[2:6]
+        list切片2               .2: 或 .[2:]
+        list切片3               .:6 或 .[:6]
+        list step1             .1:6:2 或 .[1:6:2]
+        list step2             .1::2 或 .[1::2]
+        list step3             .::2 或 .[::2]
+        string过滤              ..与list相同
+        string切片              ..与list相同
+        string切片step          ..与list相同
+
    
 ```  
 &emsp; &emsp; &emsp; &emsp; 2：  %lastsqlresult.LastSQLResult%  
