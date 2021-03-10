@@ -1322,9 +1322,6 @@ class SQLCli(object):
         # 程序运行的结果
         m_runCli_Result = True
 
-        # 设置主程序的标题，随后开始运行程序
-        setproctitle.setproctitle('SQLCli MAIN ' + " Script:" + str(self.sqlscript))
-
         # 加载程序的配置文件
         self.AppOptions = configparser.ConfigParser()
         m_conf_filename = os.path.join(os.path.dirname(__file__), "conf", "sqlcli.ini")
@@ -1441,6 +1438,10 @@ class SQLCli(object):
             if "SQLCLI_DEBUG" not in os.environ:
                 self.SQLOptions.set("SILENT", "OFF")
 
+        # 设置主程序的标题，随后开始运行程序
+        m_Cli_ProcessTitleBak = setproctitle.getproctitle()
+        setproctitle.setproctitle('SQLCli MAIN ' + " Script:" + str(self.sqlscript))
+
         # 开始依次处理SQL语句
         try:
             # 如果用户指定了用户名，口令，尝试直接进行数据库连接
@@ -1457,8 +1458,6 @@ class SQLCli(object):
                     m_runCli_Result = False
                     raise EOFError
                 self.DoSQL('exit')
-                self.echo("Disconnected.")
-                return m_runCli_Result
             else:
                 # 循环从控制台读取命令
                 while True:
@@ -1473,7 +1472,12 @@ class SQLCli(object):
             for transaction_name in m_TransactionNames:
                 self.TransactionHandler.TransactionFail(transaction_name)
             # SQLCliException只有在被设置了WHENEVER_SQLERROR为EXIT的时候，才会被捕获到
-            self.echo("Disconnected.")
+
+        # 退出进程
+        self.echo("Disconnected.")
+
+        # 还原进程标题
+        setproctitle.setproctitle(m_Cli_ProcessTitleBak)
 
         # 返回运行结果, True 运行成功。 False运行失败
         return m_runCli_Result
