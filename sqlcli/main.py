@@ -1496,7 +1496,12 @@ class SQLCli(object):
             click.echo(s, file=self.logfile)
         if self.logger is not None:
             self.logger.info(s)
-        click.secho(s, **kwargs, file=self.Console)
+        try:
+            click.secho(s, **kwargs, file=self.Console)
+        except UnicodeEncodeError as ue:
+            # Unicode Error, This is console issue, Skip
+            if "SQLCLI_DEBUG" in os.environ:
+                print("Console output error:: " + repr(ue))
         if self.SpoolFileHandler is not None:
             click.echo(s, file=self.SpoolFileHandler)
 
