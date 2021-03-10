@@ -16,3 +16,8 @@ connect sa/LinkoopDB123@jdbc:sqlserver:tcp://192.168.1.72:1433/dev
 connect default/""@jdbc:clickhouse:tcp://192.168.1.81:8123/default
 connect testdblink/testdblink@jdbc:teradata://192.168.1.136/testbase
 connect hive/hive@jdbc:hive2://192.168.1.151:10000/default
+
+
+select '${LastSQLResult(.rows)}' from dual;
+select '${LastSQLResult(.result.100.0)}' from dual;
+select '${LastSQLResult(.result.fadfdsa[0])}' from dual;

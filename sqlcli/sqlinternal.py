@@ -717,9 +717,8 @@ def Create_file(p_filetype, p_filename, p_formula_str, p_rows, p_encoding='UTF-8
             m_filename = p_filename
             m_output = m_fs.open(path=m_filename, mode='w', encoding=p_encoding)
         elif p_filetype.upper() == "FS":
-            m_fs = fs.open_fs('./')
             m_filename = p_filename
-            m_output = m_fs.open(path=m_filename, mode='w', encoding=p_encoding)
+            m_output = open(file=m_filename, mode='w', encoding=p_encoding)
         elif p_filetype.upper() == "HDFS":
             # HDFS 文件格式： http://node:port/xx/yy/cc.dat
             # 注意这里的node和port都是webfs端口，不是rpc端口
