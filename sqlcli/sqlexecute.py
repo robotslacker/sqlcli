@@ -5,7 +5,7 @@ import click
 import time
 import os
 import re
-import copy
+import sys
 from time import strftime, localtime
 from multiprocessing import Lock
 import traceback
@@ -292,7 +292,7 @@ class SQLExecute(object):
                                 # DEBUG模式下不会过滤任何东西
                                 pass
                             else:
-                                # 如果Hint中存在LogFilter，则过滤指定的输出信息
+                                # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
                                 if "LogFilter" in m_SQLHint.keys() and result is not None:
                                     for m_SQLFilter in m_SQLHint["LogFilter"]:
                                         for item in result[:]:
@@ -300,7 +300,7 @@ class SQLExecute(object):
                                                 result.remove(item)
                                                 continue
 
-                                # 如果Hint中存在LogMask,，则掩码指定的输出信息
+                                # 如果Hint中存在LogMask,则掩码指定的输出信息
                                 if "LogMask" in m_SQLHint.keys() and result is not None:
                                     for i in range(0, len(result)):
                                         m_Output = None
@@ -310,6 +310,7 @@ class SQLExecute(object):
                                             else:
                                                 m_Output = m_Output + "," + str(result[i][j])
                                         for m_SQLMaskString in m_SQLHint["LogMask"]:
+                                            print("m_SQLMaskString=[" + m_SQLMaskString + "]")
                                             m_SQLMask = m_SQLMaskString.split("=>")
                                             if len(m_SQLMask) == 2:
                                                 m_SQLMaskPattern = m_SQLMask[0]
@@ -335,6 +336,7 @@ class SQLExecute(object):
                         for m_ErrorPrefix in ('ERROR:',):
                             if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
                                 m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
+
                         # 发生了SQL语法错误
                         if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                             raise SQLCliException(m_SQL_ErrorMessage)
@@ -354,6 +356,42 @@ class SQLExecute(object):
                                               "com.microsoft.sqlserver.jdbc."):
                             if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
                                 m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
+
+                        # 如果Hint中存在LogFilter，则输出的消息中过滤指定的输出信息
+                        if "LogFilter" in m_SQLHint.keys():
+                            m_SQL_MultiLineErrorMessage = m_SQL_ErrorMessage.split('\n')
+                            m_ErrorMessageHasChanged = False
+                            for m_SQLFilter in m_SQLHint["LogFilter"]:
+                                for item in m_SQL_MultiLineErrorMessage[:]:
+                                    if re.match(m_SQLFilter, ''.join(str(item)), re.IGNORECASE):
+                                        m_SQL_MultiLineErrorMessage.remove(item)
+                                        m_ErrorMessageHasChanged = True
+                                        continue
+                            if m_ErrorMessageHasChanged:
+                                m_SQL_ErrorMessage = "\n".join(m_SQL_MultiLineErrorMessage)
+
+                        # 如果Hint中存在LogMask,则掩码指定的输出信息
+                        if "LogMask" in m_SQLHint.keys():
+                            m_SQL_MultiLineErrorMessage = m_SQL_ErrorMessage.split('\n')
+                            m_ErrorMessageHasChanged = False
+                            for m_SQLMaskString in m_SQLHint["LogMask"]:
+                                m_SQLMask = m_SQLMaskString.split("=>")
+                                if len(m_SQLMask) == 2:
+                                    m_SQLMaskPattern = m_SQLMask[0]
+                                    m_SQLMaskTarget = m_SQLMask[1]
+                                    for m_nPos in range(0, len(m_SQL_MultiLineErrorMessage)):
+                                        m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget,
+                                                             m_SQL_MultiLineErrorMessage[m_nPos],
+                                                             re.IGNORECASE)
+                                        if m_NewOutput != m_SQL_MultiLineErrorMessage[m_nPos]:
+                                            m_ErrorMessageHasChanged = True
+                                            m_SQL_MultiLineErrorMessage[m_nPos] = m_NewOutput
+                                else:
+                                    if "SQLCLI_DEBUG" in os.environ:
+                                        raise SQLCliException("LogMask Hint Error: " + m_SQLHint["LogMask"])
+                            if m_ErrorMessageHasChanged:
+                                m_SQL_ErrorMessage = "\n".join(m_SQL_MultiLineErrorMessage)
+
                         # 发生了SQL语法错误
                         if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                             raise SQLCliException(m_SQL_ErrorMessage)
