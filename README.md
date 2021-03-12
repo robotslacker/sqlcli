@@ -45,7 +45,7 @@ SQLCli 目前支持的数据类型有：
 ```
 ***
 
-### 谁需要用这个文档
+### 谁需要使用这个工具
 
 需要通过SQL语句来查看、维护数据库的。  
 需要进行各种数据库功能测试、压力测试的。  
@@ -58,9 +58,12 @@ SQLCli 目前支持的数据类型有：
    * 能够连接到互联网上， 便于下载必要的包
    * 安装JDK8
    * 对于Windows平台，需要提前安装微软的C++编译器（jpype1使用了JNI技术，需要动态编译）  
-   * 对于Linux平台，  需要提前安装gcc编译器，以及Python3的开发包（原因同上）  
+   * 对于Linux平台，  需要提前安装gcc编译器，unixODBC开发环境，以及Python3的开发包（原因同上）  
      yum install -y gcc-c++ gcc python3-devel  
      yum install -y unixODBC  unixODBC-devel  
+   * 对于MAC平台，  需要提前安装gcc编译器，以及unixODBC开发环境
+     brew install gcc
+     brew install unixODBC
 
 依赖的第三方安装包：  
    * 这些安装包会在robotslacker-sqlcli安装的时候自动随带安装
@@ -69,8 +72,14 @@ SQLCli 目前支持的数据类型有：
    * prompt_toolkit           : 用于提供包括提示符功能的控制台终端的显示样式
    * cli_helpers              : 用于提供将数据库返回结果进行表单格式化显示
    * hdfs                     : HDFS类库，支持对HDFS文件操作
-   * confluent_kafka          : Kafka类库，支持对Kafka操作, 这个包和kafka-python冲突，需要提前移除kafka-python。 目前不支持WIndows
    * wget                     : JDBC驱动更新和下载  
+
+其他：
+   对于Linux和MAC，在安装后需要手工加载confluent_kafka来保证kafka操作的正常
+   * pip install confluent_kafka
+   
+   对于Windows，由于confluent_kafka目前不支持Windows，所以无需安装，也不能使用该功能
+   
 
 安装命令：
 ```
@@ -1321,6 +1330,7 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
 --------------- __init__.py                   # 包标识文件，用来记录版本信息
 --------------- commandanalyze.py             # 对用户或者脚本输入的命令进行判断，判断是否需要后续解析，或者执行内部命令
 --------------- kafkawrapper.py               # 程序中对kafka操作的相关支持
+--------------- hdfswrapper.py                # 程序中对HDFS文件操作的相关支持
 --------------- main.py                       # 主程序
 --------------- sqlcliexception.py            # 自定义程序异常类
 --------------- sqlclijob.py                  # 后台作业管理实现
@@ -1332,8 +1342,7 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
 --------------- sqloption.py                  # 程序运行参数显示及控制实现
 --------------- sqlparse.py                   # 用来解析SQL语句，判断注释部分，语句的分段、分行等
 ---------- setup.py                           # Python打包发布程序
----------- README.md                          # 应用程序说明，由于pypi限制，这里只放置简要信息
----------- Doc.md                             # 应用程序文档
+---------- README.md                          # 应用程序说明
 ---------- conf                               # 配置文件目录
 --------------  sqlcli.conf                   # 程序配置文件
 ---------- jlib                               # 应用程序连接数据库需要的各种jar包
@@ -1342,7 +1351,7 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
 --------------  hadoop-common-2.7.2.jar
 --------------  hive-jdbc-1.2.2-standalone.jar
 --------------  kingbasejdbc4.jar
---------------  linkoopdb-jdbc-2.3.0.jar
+--------------  linkoopdb-jdbc-3.0.0.jar
 --------------  mysql-connector-java-8.0.20.jar
 --------------  ojdbc8.jar
 --------------  oscarJDBC.jar
