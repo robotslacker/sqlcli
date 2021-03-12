@@ -1476,6 +1476,10 @@ class SQLCli(object):
         # 退出进程
         self.echo("Disconnected.")
 
+        # 如果多进程管理器工作中，退出多进程管理器
+        if self.MultiProcessManager is not None:
+            self.MultiProcessManager.shutdown()
+
         # 还原进程标题
         setproctitle.setproctitle(m_Cli_ProcessTitleBak)
 

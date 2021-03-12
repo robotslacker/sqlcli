@@ -27,9 +27,7 @@ class SQLExecute(object):
     SQLOptions = None                   # 程序处理参数
     Console = False                     # 屏幕输出Console
     logger = None                       # 日志输出
-
-    m_PerfFileLocker = Lock()           # 进程锁, 用来在输出perf文件的时候控制并发写文件
-
+    m_PerfFileLocker = None             # 进程锁, 用来在输出perf文件的时候控制并发写文件
     SQLPerfFile = None                  # SQLPerf文件
     SQLPerfFileHandle = None            # SQLPerf文件句柄
 
@@ -531,6 +529,10 @@ class SQLExecute(object):
         # 如果没有打开性能日志记录文件，直接跳过
         if self.SQLPerfFile is None:
             return
+
+        # 初始化文件加锁机制
+        if self.m_PerfFileLocker is None:
+            self.m_PerfFileLocker = Lock()
 
         # 多进程，多线程写入，考虑锁冲突
         try:
