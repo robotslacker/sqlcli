@@ -1260,6 +1260,56 @@ Mapping file loaded.
    SQL> __internal__ test Compare  WORKFILE  REFFILE
    比对WORKFILE和REFFILE的文件内容，并输出比对结果
 
+   这里是一个典型的用比对方式来校验回归结果的例子：
+    SQL> connect mem
+    Database connected.
+    
+    -- 开始将输出结果记录到aa.log中
+    SQL> spool aa.log
+    SQL> select 3+5 from dual;
+    +---+
+    | 8 |
+    +---+
+    | 8 |
+    +---+
+    1 row selected.
+    
+    SQL> spool off    
+    SQL> __internal__ test set CompareReportDetailMode True;
+    set successful.
+    
+    -- 这里比对刚产生的SQL日志和之前备份好的比对结果文件(aa.ref)，并显示比对结果
+    SQL> __internal__ test compare aa.log aa.ref;
+    Compare text files:
+      Workfile:          [aa.log]
+      Reffile:           [aa.ref]
+    +----------+------------+
+    | Scenario | Result     |
+    +----------+------------+
+    | NONE-0   | Successful |
+    +----------+------------+
+    Compare Successful!
+
+    -- 如果比对失败，显示的结果类似如下：
+    Compare text files:
+      Workfile:          [aa.log]
+      Reffile:           [aa.ref]
+    +----------+--------+
+    | Scenario | Result |
+    +----------+--------+
+    | NONE-0   | Failed |
+    +----------+--------+
+    Compare Failed!
+    ... >>>>>>> ...
+    Scenario:[NONE-0]
+          1 SQL> select 3+5 from dual;
+          2 +---+
+          3 | 8 |
+          4 +---+
+    -     5 | 8 |
+    +     5 | 9 |
+          6 +---+
+          7 1 row selected.
 ```
 ***    
 #### 退出
