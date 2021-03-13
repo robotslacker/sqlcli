@@ -5,7 +5,6 @@ import click
 import time
 import os
 import re
-import sys
 from time import strftime, localtime
 from multiprocessing import Lock
 import traceback
@@ -52,6 +51,8 @@ class SQLExecute(object):
         self.SQLTransaction = ''
 
     def jqparse(self, obj, path='.'):
+        if self is None:
+            pass
         try:
             obj = json.loads(obj) if isinstance(obj, str) else obj
             find_str, find_map = '', ['["%s"]', '[%s]', '%s', '.%s']
@@ -71,7 +72,7 @@ class SQLExecute(object):
                         obj, quota = obj[int(im)], 1
                 else:
                     if im in obj:
-                        obj, quota = obj[im], 0
+                        obj, quota = obj.get(im), 0
                     elif im.endswith('()'):
                         obj, quota = list(getattr(obj, im[:-2])()), 3
                     else:
@@ -80,7 +81,7 @@ class SQLExecute(object):
                         else:
                             raise KeyError(im)
                 find_str += find_map[quota] % im
-            return obj if isinstance(obj, str) else json.dumps(obj,sort_keys=True,ensure_ascii=False)
+            return obj if isinstance(obj, str) else json.dumps(obj, sort_keys=True, ensure_ascii=False)
         except (IndexError, KeyError, ValueError) as je:
             if "SQLCLI_DEBUG" in os.environ:
                 click.secho("JQ Parse Error: " + repr(je))
@@ -115,7 +116,8 @@ class SQLExecute(object):
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
                     click.echo(m_raw_sql, file=self.logfile)
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
-                    click.echo(m_raw_sql, file=self.spoolfile)
+                    for m_SpoolFileHandler in self.spoolfile:
+                        click.echo(m_raw_sql, file=m_SpoolFileHandler)
                 if self.logger is not None:
                     if m_raw_sql is not None:
                         self.logger.info(m_raw_sql)
@@ -144,7 +146,8 @@ class SQLExecute(object):
                 # 在spool文件中，不显示spool off的信息，以避免log比对中的不必要内容
                 if not re.match(r'spool\s+.*', m_CommentSQL.strip(), re.IGNORECASE):
                     if self.SQLOptions.get("SILENT").upper() == 'OFF':
-                        click.echo(SQLFormatWithPrefix(m_CommentSQL), file=self.spoolfile)
+                        for m_SpoolFileHandler in self.spoolfile:
+                            click.echo(SQLFormatWithPrefix(m_CommentSQL), file=m_SpoolFileHandler)
 
             # 在logger中显示执行的SQL
             if self.logger is not None:
@@ -168,8 +171,9 @@ class SQLExecute(object):
                         click.echo(SQLFormatWithPrefix(
                             "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
                     if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
-                        click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
-                                   file=self.spoolfile)
+                        for m_SpoolFileHandler in self.spoolfile:
+                            click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
+                                       file=m_SpoolFileHandler)
                     if self.logger is not None:
                         self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
                     click.echo(SQLFormatWithPrefix(
@@ -198,8 +202,9 @@ class SQLExecute(object):
                     click.echo(SQLFormatWithPrefix(
                         "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
-                    click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
-                               file=self.spoolfile)
+                    for m_SpoolFileHandler in self.spoolfile:
+                        click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
+                                   file=m_SpoolFileHandler)
                 if self.logger is not None:
                     self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
                 click.echo(SQLFormatWithPrefix(
@@ -237,8 +242,9 @@ class SQLExecute(object):
                     click.echo(SQLFormatWithPrefix(
                         "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
-                    click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
-                               file=self.spoolfile)
+                    for m_SpoolFileHandler in self.spoolfile:
+                        click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
+                                   file=m_SpoolFileHandler)
                 if self.logger is not None:
                     self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
                 click.echo(SQLFormatWithPrefix(
@@ -377,13 +383,13 @@ class SQLExecute(object):
                                 if len(m_SQLMask) == 2:
                                     m_SQLMaskPattern = m_SQLMask[0]
                                     m_SQLMaskTarget = m_SQLMask[1]
-                                    for m_nPos in range(0, len(m_SQL_MultiLineErrorMessage)):
+                                    for m_nPos2 in range(0, len(m_SQL_MultiLineErrorMessage)):
                                         m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget,
-                                                             m_SQL_MultiLineErrorMessage[m_nPos],
+                                                             m_SQL_MultiLineErrorMessage[m_nPos2],
                                                              re.IGNORECASE)
-                                        if m_NewOutput != m_SQL_MultiLineErrorMessage[m_nPos]:
+                                        if m_NewOutput != m_SQL_MultiLineErrorMessage[m_nPos2]:
                                             m_ErrorMessageHasChanged = True
-                                            m_SQL_MultiLineErrorMessage[m_nPos] = m_NewOutput
+                                            m_SQL_MultiLineErrorMessage[m_nPos2] = m_NewOutput
                                 else:
                                     if "SQLCLI_DEBUG" in os.environ:
                                         raise SQLCliException("LogMask Hint Error: " + m_SQLHint["LogMask"])

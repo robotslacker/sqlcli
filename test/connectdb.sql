@@ -21,3 +21,16 @@ connect hive/hive@jdbc:hive2://192.168.1.151:10000/default
 select '${LastSQLResult(.rows)}' from dual;
 select '${LastSQLResult(.result.100.0)}' from dual;
 select '${LastSQLResult(.result.fadfdsa[0])}' from dual;
+
+
+set debug on
+
+__internal__ test set  CompareEnableMask  True;
+__internal__ test set  CompareMask  .*aa.*;
+__internal__ test set  CompareMask  .*bb.*;
+__internal__ test set  CompareReportDetailMode  true;
+__internal__ test set  CompareWorkEncoding gbk;
+__internal__ test set  CompareRefEncoding gbk;
+__internal__ test set  GenerateReport true;
+__internal__ test Compare aa.txt bb.txt
+

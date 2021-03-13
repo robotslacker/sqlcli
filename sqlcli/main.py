@@ -30,7 +30,7 @@ from .sqlclitransactionmanager import TransactionManager
 from .sqlexecute import SQLExecute
 from .sqlparse import SQLMapping
 from .kafkawrapper import KafkaWrapper
-from .comparewrapper import CompareWrapper
+from .testwrapper import TestWrapper
 from .hdfswrapper import HDFSWrapper
 from .sqlcliexception import SQLCliException
 from .sqlclisga import SQLCliGlobalSharedMemory
@@ -95,19 +95,17 @@ class SQLCli(object):
             resultcharset='UTF-8',
             SharedProcessInfo=None,
             profile=None,
-            reffile=None,
-            rptfile=None
     ):
         self.db_saved_conn = {}                          # 数据库Session备份
         self.SQLMappingHandler = SQLMapping()            # 函数句柄，处理SQLMapping信息
         self.SQLExecuteHandler = SQLExecute()            # 函数句柄，具体来执行SQL
         self.SQLOptions = SQLOptions()                   # 程序运行中各种参数
         self.KafkaHandler = KafkaWrapper()               # Kafka消息管理器
-        self.CompareHandler = CompareWrapper()           # 参照结果文件比对
+        self.TestHandler = TestWrapper()                 # 测试管理
         self.HdfsHandler = HDFSWrapper()                 # HDFS文件操作
         self.JobHandler = JOBManager()                   # 并发任务管理器
         self.TransactionHandler = TransactionManager()   # 事务管理器
-        self.SpoolFileHandler = None                     # 当前Spool文件句柄
+        self.SpoolFileHandler = []                       # Spool文件句柄, 是一个数组，可能发生嵌套
         self.EchoFileHandler = None                      # 当前回显文件句柄
         self.AppOptions = None                           # 应用程序的配置参数
         self.Encoding = None                             # 应用程序的Encoding信息
@@ -128,8 +126,6 @@ class SQLCli(object):
         self.WorkerName = WorkerName                        # 当前进程名称. 如果有参数传递，以参数为准
         self.MultiProcessManager = None                     # 进程间共享消息管理器， 如果为子进程，该参数为空
         self.profile = None                                 # 程序的初始化日志文件
-        self.reffile = None                                 # 程序的结果参照文件
-        self.rptfile = None                                 # 程序的结果报告文件
 
         # 传递各种参数
         self.sqlscript = sqlscript
@@ -171,8 +167,6 @@ class SQLCli(object):
         if "SQLCLI_DEBUG" in os.environ:
             if self.profile is not None:
                 print("Profile = [" + str(self.profile) + "]")
-        self.reffile = reffile
-        self.rptfile = rptfile
 
         # 设置self.JobHandler， 默认情况下，子进程启动的进程进程信息来自于父进程
         self.JobHandler.setProcessContextInfo("logon", self.logon)
@@ -896,12 +890,12 @@ class SQLCli(object):
         parameters = str(arg).split()
         if parameters[0].strip().upper() == 'OFF':
             # close spool file
-            if self.SpoolFileHandler is None:
+            if len(self.SpoolFileHandler) == 0:
                 message = "not spooling currently"
                 return [(None, None, None, None, message)]
             else:
-                self.SpoolFileHandler.close()
-                self.SpoolFileHandler = None
+                self.SpoolFileHandler[-1].close()
+                self.SpoolFileHandler.pop()
                 self.SQLExecuteHandler.spoolfile = None
                 return [(None, None, None, None, None)]
 
@@ -911,11 +905,10 @@ class SQLCli(object):
         else:
             # 如果主程序没有启用日志，则输出为当前目录
             m_FileName = parameters[0].strip()
+
         # 如果当前有打开的Spool文件，关闭它
-        if self.SpoolFileHandler is not None:
-            self.SpoolFileHandler.close()
         try:
-            self.SpoolFileHandler = open(m_FileName, "w", encoding=self.Result_Charset)
+            self.SpoolFileHandler.append(open(m_FileName, "w", encoding=self.Result_Charset))
         except IOError as e:
             raise SQLCliException("SQLCLI-00000: IO Exception " + repr(e))
         self.SQLExecuteHandler.spoolfile = self.SpoolFileHandler
@@ -941,7 +934,7 @@ class SQLCli(object):
         # ECHO的输出默认为程序的工作目录
         m_FileName = parameters[0].strip()
 
-        # 如果当前有打开的Spool文件，关闭它
+        # 如果当前有打开的Echo文件，关闭它
         if self.EchoFileHandler is not None:
             self.EchoFileHandler.close()
         self.EchoFileHandler = open(m_FileName, "w", encoding=self.Result_Charset)
@@ -1059,10 +1052,10 @@ class SQLCli(object):
             yield title, result, headers, columntypes, status
             return
 
-        # 运行日志比对
-        matchObj = re.match(r"(\s+)?compare(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        # 测试管理
+        matchObj = re.match(r"(\s+)?test(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            (title, result, headers, columntypes, status) = self.CompareHandler.Process_SQLCommand(arg)
+            (title, result, headers, columntypes, status) = self.TestHandler.Process_SQLCommand(arg)
             yield title, result, headers, columntypes, status
             return
 
@@ -1506,8 +1499,9 @@ class SQLCli(object):
             # Unicode Error, This is console issue, Skip
             if "SQLCLI_DEBUG" in os.environ:
                 print("Console output error:: " + repr(ue))
-        if self.SpoolFileHandler is not None:
-            click.echo(s, file=self.SpoolFileHandler)
+        if len(self.SpoolFileHandler) != 0:
+            for m_SpoolFileHandler in self.SpoolFileHandler:
+                click.echo(s, file=m_SpoolFileHandler)
 
     def output(self, output, status=None):
         if output:
@@ -1639,8 +1633,6 @@ class SQLCli(object):
 @click.option("--clientcharset", type=str, help="Set client charset. Default is UTF-8.")
 @click.option("--resultcharset", type=str, help="Set result charset. Default is same to clientcharset.")
 @click.option("--profile", type=str, help="Init profile.")
-@click.option("--reffile", type=str, help="Reference log file for compare result.")
-@click.option("--rptfile", type=str, help="Test report file.")
 def cli(
         version,
         logon,
@@ -1653,8 +1645,6 @@ def cli(
         clientcharset,
         resultcharset,
         profile,
-        reffile,
-        rptfile
 ):
     if version:
         print("Version:", __version__)
@@ -1682,9 +1672,7 @@ def cli(
         sqlperf=sqlperf,
         clientcharset=clientcharset,
         resultcharset=resultcharset,
-        profile=profile,
-        reffile=reffile,
-        rptfile=rptfile
+        profile=profile
     )
 
     # 运行主程序
