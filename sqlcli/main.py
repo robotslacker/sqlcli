@@ -215,7 +215,7 @@ class SQLCli(object):
         register_special_command(
             self.load_driver,
             command="loaddriver",
-            description="load SQL Driver file.",
+            description="加载数据库驱动文件",
             hidden=False
         )
 
@@ -223,7 +223,7 @@ class SQLCli(object):
         register_special_command(
             self.load_sqlmap,
             command="loadsqlmap",
-            description="load SQL Mapping file .",
+            description="加载SQL映射文件",
             hidden=False
         )
 
@@ -231,7 +231,7 @@ class SQLCli(object):
         register_special_command(
             handler=self.connect_db,
             command="connect",
-            description="Connect to database .",
+            description="连接到指定的数据库",
             hidden=False
         )
 
@@ -239,7 +239,7 @@ class SQLCli(object):
         register_special_command(
             handler=self.session_manage,
             command="session",
-            description="Manage connect sessions.",
+            description="数据库连接会话管理",
             hidden=False
         )
 
@@ -247,7 +247,7 @@ class SQLCli(object):
         register_special_command(
             handler=self.disconnect_db,
             command="disconnect",
-            description="Disconnect database .",
+            description="断开数据库连接",
             hidden=False
         )
 
@@ -255,7 +255,7 @@ class SQLCli(object):
         register_special_command(
             self.execute_from_file,
             command="start",
-            description="Execute commands from file.",
+            description="执行指定的测试脚本",
             hidden=False
         )
 
@@ -263,7 +263,7 @@ class SQLCli(object):
         register_special_command(
             self.sleep,
             command="sleep",
-            description="Sleep some time (seconds)",
+            description="程序休眠(单位是秒)",
             hidden=False
         )
 
@@ -271,7 +271,7 @@ class SQLCli(object):
         register_special_command(
             self.set_options,
             command="set",
-            description="set options .",
+            description="设置运行时选项",
             hidden=False
         )
 
@@ -279,7 +279,7 @@ class SQLCli(object):
         register_special_command(
             self.spool,
             command="spool",
-            description="spool output to a file",
+            description="将输出打印到指定文件",
             hidden=False
         )
 
@@ -287,7 +287,7 @@ class SQLCli(object):
         register_special_command(
             self.echo_input,
             command="echo",
-            description="ECHO input into file",
+            description="回显输入到指定的文件",
             hidden=False
         )
 
@@ -295,7 +295,7 @@ class SQLCli(object):
         register_special_command(
             self.host,
             command="host",
-            description="execute OS command.",
+            description="执行操作系统命令",
             hidden=False
         )
 
@@ -303,7 +303,11 @@ class SQLCli(object):
         register_special_command(
             self.execute_internal_command,
             command="__internal__",
-            description="execute internal command.",
+            description="execute internal command.\n"
+                        "    __internal__ hdfs   HDFS文件操作\n"
+                        "    __internal__ kafka  kafka队列操作\n"
+                        "    __internal__ data   随机测试数据管理\n"
+                        "    __internal__ test   测试管理",
             hidden=False
         )
 
@@ -311,7 +315,7 @@ class SQLCli(object):
         register_special_command(
             self.exit,
             command="exit",
-            description="Exit program.",
+            description="正常退出当前应用程序",
             hidden=False
         )
 
