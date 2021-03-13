@@ -327,29 +327,31 @@ Script  Started elapsed SQLPrefix       SQLStatus       ErrorMessage    Scenario
 (base) sqlcli 
 SQL*Cli Release 0.0.32
 SQL> help
-+--------------+------------------------------------------+
-| Command      | Description                              |
-+--------------+------------------------------------------+
-| __internal__ | execute internal command.                |
-| __internal__ |     __internal__ hdfs   HDFS文件操作     |
-| __internal__ |     __internal__ kafka  kafka队列操作    |
-| __internal__ |     __internal__ data   随机测试数据管理 |
-| __internal__ |     __internal__ test   测试管理         |
-| connect      | 连接到指定的数据库                       |
-| disconnect   | 断开数据库连接                           |
-| echo         | 回显输入到指定的文件                     |
-| exit         | 正常退出当前应用程序                     |
-| help         | Show this help.                          |
-| host         | 执行操作系统命令                         |
-| loaddriver   | 加载数据库驱动文件                       |
-| loadsqlmap   | 加载SQL映射文件                          |
-| quit         | Quit.                                    |
-| session      | 数据库连接会话管理                       |
-| set          | 设置运行时选项                           |
-| sleep        | 程序休眠(单位是秒)                       |
-| spool        | 将输出打印到指定文件                     |
-| start        | 执行指定的测试脚本                       |
-+--------------+------------------------------------------+
++--------------+-----------------------------------------------------+
+| Command      | Description                                         |
++--------------+-----------------------------------------------------+
+| __internal__ | 执行内部操作命令：                                  |
+| __internal__ |     __internal__ hdfs          HDFS文件操作         |
+| __internal__ |     __internal__ kafka         kafka队列操作        |
+| __internal__ |     __internal__ data          随机测试数据管理     |
+| __internal__ |     __internal__ test          测试管理             |
+| __internal__ |     __internal__ job           后台并发测试任务管理 |
+| __internal__ |     __internal__ transaction   后台并发测试事务管理 |
+| connect      | 连接到指定的数据库                                  |
+| disconnect   | 断开数据库连接                                      |
+| echo         | 回显输入到指定的文件                                |
+| exit         | 正常退出当前应用程序                                |
+| help         | Show this help.                                     |
+| host         | 执行操作系统命令                                    |
+| loaddriver   | 加载数据库驱动文件                                  |
+| loadsqlmap   | 加载SQL映射文件                                     |
+| quit         | Quit.                                               |
+| session      | 数据库连接会话管理                                  |
+| set          | 设置运行时选项                                      |
+| sleep        | 程序休眠(单位是秒)                                  |
+| spool        | 将输出打印到指定文件                                |
+| start        | 执行指定的测试脚本                                  |
++--------------+-----------------------------------------------------+
 这里显示的是所有除了标准SQL语句外，可以被执行的各种命令开头。
 标准的SQL语句并没有在这里显示出来，你可以直接在控制行内或者脚本里头执行SQL脚本。
 ```
