@@ -7,6 +7,7 @@ SQLCli 是一个主要用Python完成的，命令快速的测试工具。
     3： 能够根据需要快速、灵活的生成测试需要的随机数据。   
     4： 能够操作Kafka消息队列。   
     5： 能够操作HDFS上的文件。
+    6： 完成基于执行结果比对的回归测试校验
 
 程序可以通过JPype连接数据库的JDBC驱动。      
 也可以通过ODBC标准连接数据库的ODBC驱动，但是这部分并没有经过严谨的测试。    
@@ -67,7 +68,7 @@ SQLCli 目前支持的数据类型有：
 
 依赖的第三方安装包：  
    * 这些安装包会在robotslacker-sqlcli安装的时候自动随带安装
-   * setproctitle             : Python通过setproctitle来设置进程名称，从而在多进程并发时候给以帮助
+   * setproctitle             : Python通过setproctitle来设置进程名称，从而在多进程并发时候给调试人员以帮助
    * click                    : Python的命令行参数处理
    * prompt_toolkit           : 用于提供包括提示符功能的控制台终端的显示样式
    * cli_helpers              : 用于提供将数据库返回结果进行表单格式化显示
@@ -1180,6 +1181,84 @@ Mapping file loaded.
 
     SQL> __internal__ hdfs download [remote file] [local file] 
     下载远程的HDFS文件到本地文件目录中
+
+```
+#### 用SQLCli工具回归测试校验
+```
+   SQLCli可以在你执行测试脚本的时候将相关输出通过Spool命令输出到指定的日志中（具体方法参考Spool的命令）
+   通过记录输出内容，比对之前的输出内容，可以完成回归测试的校验
+
+   SQL> __internal__ test set IgnoreEmptyLine TRUE|FALSE
+   控制在Compare比对过程中是否忽略空白行，默认为忽略
+
+   SQL> __internal__ test set CompareEnableMask TRUE|FALSE
+   控制在Compare比对过程中是否支持在Ref文件中写入正则表达式，默认为是
+
+   SQL> __internal__ test set CompareIgnoreCase TRUE|FALSE
+   控制在Compare比对过程中是否忽略大小写的不同，默认为False，即不忽略
+
+   SQL> __internal__ test set CompareIgnoreTailOrHeadBlank TRUE|FALSE
+   控制在Compare比对过程中是否忽略行首或者行末的空格，默认为False，即不忽略
+
+   SQL> __internal__ test set CompareWorkEncoding TRUE|FALSE
+   控制在Compare比对过程中是对Work文件的字符集设置，默认为UTF-8
+
+   SQL> __internal__ test set CompareResultEncoding TRUE|FALSE
+   控制在Compare比对过程中输出的结果文件的字符集设置，默认为UTF-8
+
+   SQL> __internal__ test set CompareRefEncoding TRUE|FALSE
+   控制在Compare比对过程中参考Ref文件的字符集设置，默认为UTF-8
+
+   SQL> __internal__ test set CompareReportDetailMode TRUE|FALSE
+   控制在Compare比对过程后是否显示详细信息，默认为不显示
+   显示状态下，将输出具体的比对参数，比对文件信息，比对结果的摘要信息
+
+   SQL> __internal__ test set CompareGenerateReportDir CHAR_STRING
+   控制Compare比对过程后生成文件的输出目录，默认为当前目录
+
+   SQL> __internal__ test set CompareGenerateReport TRUE|FALSE
+   控制在Compare比对过程后是否输出相关信息到报告信息中，默认为不输出
+   可以输出的报告信息报告：
+       dif 文件：   当前工作文件和参考Ref文件的比对结果（仅在比对失败的时候产生，比对成功的时候不存在）
+                   dif文件中每一行的格式为：  
+                      FLAG   行号(工作文件）    行号（参考文件）     工作文件/参考文件内容
+                   FLAG可以有：
+                      空    ：  空白，即工作文件和参考文件完成相同
+                      -     ：  表示工作文件中缺失，但是参考文件中存在，此刻内容输出的是参考文件内容
+                      +     ：  表示工作文件中新增，但是参考文件中缺失，此刻内容输出的是工作文件内容
+                      S     :   表示这一行由于参数的配置，已经被比对工具忽略
+       suc 文件：   当前工作文件和参考Ref文件的比对结果（仅在比对成功的时候产生，比对失败的时候不存在，内容为空）
+       xlog文件：   比对结果的JSON格式输出信息，结构为：
+                {
+                     "ScenarioResults":
+                           [
+                               {"ScenarioName1":"该场景处理结果。如果失败，这里记录该场景失败的摘要信息"},
+                               {"ScenarioName2":"该场景处理结果。如果失败，这里记录该场景失败的摘要信息"},
+                               .....
+                           ]
+                }
+
+   SQL> __internal__ test set CompareSkip CHAR_STRING
+   当工作文件中出现符合CHAR_STRING的信息后，这一行将不作为比对判断依据，即即使这一行不同，比对的结果仍然是符合
+   CHAR_STRING为一个合法的正则表达式，需要注意的是：这里是一个完全匹配的正则表达式。
+   例如，如果我们想忽略日志中所有包含”当前时间“字样的行，这里应该写作：
+   SQL> __internal__ test set CompareSkip .*当前时间.*
+
+   SQL> __internal__ test set CompareNotSkip CHAR_STRING
+   反向取消之前设置的CompareSkip对应信息
+
+   SQL> __internal__ test set CompareMask CHAR_STRING1=>CHAR_STRING2
+   当工作文件中出现符合CHAR_STRING1的信息后，在比对过程中，CHAR_STRING1会被首先替换成CHAR_STRING2，随后进行比对
+   CHAR_STRING1为一个合法的正则表达式，需要注意的是：这里是一个部分匹配的正则表达式。（和之前的CompareSkip不一样）
+   例如，如果我们想替换日志中所有包含”当前时间“中具体的时间信息，这里应该写作：
+   SQL> __internal__ test set CompareMask 当前时间.*=>当前时间*****
+   这样，如下的输出”当前时间： 2021-03-13“ 会在比对中被替换成”当前时间*****“
+
+   SQL> __internal__ test set CompareNotSMask CHAR_STRING1=>CHAR_STRING2
+   反向取消之前设置的CompareMask对应信息
+
+   SQL> __internal__ test Compare  WORKFILE  REFFILE
+   比对WORKFILE和REFFILE的文件内容，并输出比对结果
 
 ```
 ***    

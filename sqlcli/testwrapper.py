@@ -14,9 +14,6 @@ class DiffException(Exception):
 class POSIXCompare:
     CompiledRegexPattern = {}
 
-    def m_initm_(self):
-        pass
-
     # 正则表达比较两个字符串
     # p_str1                  原字符串
     # p_str2                  正则表达式
@@ -277,8 +274,8 @@ class TestWrapper(object):
     c_CompareResultEncoding = 'UTF-8'         # Compare结果文件字符集
     c_CompareRefEncoding = 'UTF-8'            # Compare参考文件字符集
     c_CompareReportDetailMode = False         # Compare日志显示样式， 是否显示详细内容
-    c_GenerateReport = False                  # 是否在本地生成Dif/Suc/xLog文件报告
-    c_GenerateReportDir = None                # 本地Dif/Suc/xLog报告的生成目录
+    c_CompareGenerateReport = False           # 是否在本地生成Dif/Suc/xLog文件报告
+    c_CompareGenerateReportDir = None         # 本地Dif/Suc/xLog报告的生成目录
 
     def setTestOptions(self, p_szParameter, p_szValue):
         if p_szParameter.upper() == "IgnoreEmptyLine".upper():
@@ -361,16 +358,16 @@ class TestWrapper(object):
             else:
                 raise SQLCliException("Invalid option value [" + str(p_szValue) + "]. True/False only.")
             return
-        if p_szParameter.upper() == "GenerateReport".upper():
+        if p_szParameter.upper() == "CompareGenerateReport".upper():
             if p_szValue.upper() == "TRUE":
-                self.c_GenerateReport = True
+                self.c_CompareGenerateReport = True
             elif p_szValue.upper() == "FALSE":
-                self.c_GenerateReport = False
+                self.c_CompareGenerateReport = False
             else:
                 raise SQLCliException("Invalid option value [" + str(p_szValue) + "]. True/False only.")
             return
-        if p_szParameter.upper() == "GenerateReportDir".upper():
-            self.c_GenerateReportDir = p_szValue
+        if p_szParameter.upper() == "CompareGenerateReportDir".upper():
+            self.c_CompareGenerateReportDir = p_szValue
             return
 
         raise SQLCliException("Invalid parameter [" + str(p_szParameter) + "].")
@@ -384,10 +381,10 @@ class TestWrapper(object):
 
         # 检查文件是否存在
         if not os.path.isfile(p_szWorkFile):
-            m_Result = "Compare failed! Work log [' + p_szWorkFile + '] does not exist!"
+            m_Result = "Compare failed! Work log ['" + p_szWorkFile + "'] does not exist!"
             return m_Title, None, None, None, m_Result
         if not os.path.isfile(p_szReferenceFile):
-            m_Result = "Compare failed! Reference log [' + p_szReferenceFile + '] does not exist!"
+            m_Result = "Compare failed! Reference log ['" + p_szReferenceFile + "'] does not exist!"
             return m_Title, None, None, None, m_Result
 
         # 比对文件
@@ -413,8 +410,8 @@ class TestWrapper(object):
             m_DifFileName = m_ShortWorkFileName + '.dif'
             m_SucFileName = m_ShortWorkFileName + '.suc'
             m_xlogFileName = m_ShortWorkFileName + '.xlog'
-            if self.c_GenerateReportDir is not None:
-                m_WorkFilePath = self.c_GenerateReportDir
+            if self.c_CompareGenerateReportDir is not None:
+                m_WorkFilePath = self.c_CompareGenerateReportDir
             else:
                 m_WorkFilePath = os.getcwd()  # 默认当前目录
             m_DifFullFileName = os.path.join(m_WorkFilePath, m_DifFileName)
@@ -429,7 +426,7 @@ class TestWrapper(object):
                 os.remove(m_xlogFullFileName)
 
             if m_CompareResult:
-                if self.c_GenerateReport:
+                if self.c_CompareGenerateReport:
                     m_Title = m_Title + "\n" + "  Sucfile:           [" + str(m_SucFullFileName) + "]"
                     m_Title = m_Title + "\n" + "  xLogfile:          [" + str(m_xlogFullFileName) + "]"
                     m_Title = m_Title + "\n" + "  Mask flag:         [" + str(self.c_CompareEnableMask) + "]"
@@ -446,7 +443,7 @@ class TestWrapper(object):
                 # 返回比对结果
                 m_Result = "Compare Successful!"
             else:
-                if self.c_GenerateReport:
+                if self.c_CompareGenerateReport:
                     m_Title = m_Title + "\n" + "  Diffile:           [" + str(m_DifFullFileName) + "]"
                     m_Title = m_Title + "\n" + "  xLogfile:          [" + str(m_xlogFullFileName) + "]"
                     m_Title = m_Title + "\n" + "  Mask flag:         [" + str(self.c_CompareEnableMask) + "]"
@@ -463,7 +460,10 @@ class TestWrapper(object):
                     print(line, file=m_CompareResultFile)
                 m_CompareResultFile.close()
                 # 返回比对结果
-                m_Result = "Compare Failed! Please check report files for more information."
+                if self.c_CompareGenerateReport:
+                    m_Result = "Compare Failed! Please check report files for more information."
+                else:
+                    m_Result = "Compare Failed!"
 
             # 用于Scenario分析
             m_ScenarioName = "NONE-0"
@@ -475,7 +475,6 @@ class TestWrapper(object):
             while True:
                 if m_nPos >= len(m_CompareResultList):
                     break
-
                 matchObj = re.search(r"--(\s+)?\[Hint](\s+)?setup:", m_CompareResultList[m_nPos],
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
@@ -575,10 +574,9 @@ class TestWrapper(object):
                 else:
                     m_nPos = m_nPos + 1
             if not m_bSaveResult:
-                if not m_ScenarioName.startswith("NONE"):
-                    m_ScenariosResults[m_ScenarioName] = "Successful"
-                    m_ScenariosStatus[m_ScenarioName] = 'Successful'
-            if self.c_GenerateReport:
+                m_ScenariosResults[m_ScenarioName] = "Successful"
+                m_ScenariosStatus[m_ScenarioName] = 'Successful'
+            if self.c_CompareGenerateReport:
                 m_xlogResults = {"ScenarioResults": m_ScenariosResults}
                 with open(m_xlogFullFileName, 'w', encoding=self.c_CompareResultEncoding) as f:
                     json.dump(m_xlogResults, f)
@@ -586,6 +584,10 @@ class TestWrapper(object):
             m_Headers = ["Scenario", "Result"]
             m_ReturnResult = []
             for m_ScenarioName, m_ScenarioStatus in m_ScenariosStatus.items():
+                if self.c_CompareReportDetailMode:
+                    if m_ScenarioStatus == "Failed":
+                        m_Result = m_Result + "\n... >>>>>>> ...\n" + "Scenario:[" + m_ScenarioName + "]"
+                        m_Result = m_Result + "\n" + m_ScenariosResults[m_ScenarioName]
                 m_ReturnResult.append([m_ScenarioName, m_ScenarioStatus])
             return m_Title, m_ReturnResult, m_Headers, None, m_Result
         except DiffException as de:
@@ -594,7 +596,7 @@ class TestWrapper(object):
     def Process_SQLCommand(self, p_szSQL):
         m_szSQL = p_szSQL.strip()
 
-        matchObj = re.match(r"test\s+set\s+(.*)\s+(.*)$",
+        matchObj = re.match(r"test\s+set\s+(.*?)\s+(.*?)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_Parameter = matchObj.group(1).strip()
