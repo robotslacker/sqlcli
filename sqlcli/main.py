@@ -303,11 +303,13 @@ class SQLCli(object):
         register_special_command(
             self.execute_internal_command,
             command="__internal__",
-            description="execute internal command.\n"
-                        "    __internal__ hdfs   HDFS文件操作\n"
-                        "    __internal__ kafka  kafka队列操作\n"
-                        "    __internal__ data   随机测试数据管理\n"
-                        "    __internal__ test   测试管理",
+            description="执行内部操作命令：\n"
+                        "    __internal__ hdfs          HDFS文件操作\n"
+                        "    __internal__ kafka         kafka队列操作\n"
+                        "    __internal__ data          随机测试数据管理\n"
+                        "    __internal__ test          测试管理\n"
+                        "    __internal__ job           后台并发测试任务管理\n"
+                        "    __internal__ transaction   后台并发测试事务管理",
             hidden=False
         )
 
