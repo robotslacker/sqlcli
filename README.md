@@ -189,7 +189,7 @@ Checking driver [mysql] ...
 File=[mysql-connector-java-8.0.20.jar], MD5=[48d69b9a82cbe275af9e45cb80f6b15f]
 Driver [mysql_driver] is up-to-date.
 ```
-#### 程序的命令行参数
+### 程序的命令行参数
 ```
 (base) sqlcli --help
 Usage: sqlcli [OPTIONS]
@@ -322,7 +322,7 @@ Script  Started elapsed SQLPrefix       SQLStatus       ErrorMessage    Scenario
 'sub_1.sql' '2020-05-25 17:46:26'       0.54        'CREATE USER testuser PASSWORD '123456''        0       ''      'Scenario3'
 ```
 ***
-#### 在SQLCli里面查看当前支持的命令
+### 在SQLCli里面查看当前支持的命令
 ```
 (base) sqlcli 
 SQL*Cli Release 0.0.32
