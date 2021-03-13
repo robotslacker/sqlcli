@@ -327,27 +327,35 @@ Script  Started elapsed SQLPrefix       SQLStatus       ErrorMessage    Scenario
 (base) sqlcli 
 SQL*Cli Release 0.0.32
 SQL> help
-+--------------+-----------------------------+
-| Command      | Description                 |
-+--------------+-----------------------------+
-| __internal__ | execute internal command.   |
-| abortjob     | Abort Jobs                  |
-| connect      | Connect to database .       |
-| disconnect   | Disconnect database .       |
-| exit         | Exit program.               |
-| help         | Show this help.             |
-| loadsqlmap   | load SQL Mapping file .     |
-| quit         | Quit.                       |
-| set          | set options .               |
-| sleep        | Sleep some time (seconds)   |
-| start        | Execute commands from file. |
-+--------------+-----------------------------+
++--------------+------------------------------------------+
+| Command      | Description                              |
++--------------+------------------------------------------+
+| __internal__ | execute internal command.                |
+| __internal__ |     __internal__ hdfs   HDFS文件操作     |
+| __internal__ |     __internal__ kafka  kafka队列操作    |
+| __internal__ |     __internal__ data   随机测试数据管理 |
+| __internal__ |     __internal__ test   测试管理         |
+| connect      | 连接到指定的数据库                       |
+| disconnect   | 断开数据库连接                           |
+| echo         | 回显输入到指定的文件                     |
+| exit         | 正常退出当前应用程序                     |
+| help         | Show this help.                          |
+| host         | 执行操作系统命令                         |
+| loaddriver   | 加载数据库驱动文件                       |
+| loadsqlmap   | 加载SQL映射文件                          |
+| quit         | Quit.                                    |
+| session      | 数据库连接会话管理                       |
+| set          | 设置运行时选项                           |
+| sleep        | 程序休眠(单位是秒)                       |
+| spool        | 将输出打印到指定文件                     |
+| start        | 执行指定的测试脚本                       |
++--------------+------------------------------------------+
 这里显示的是所有除了标准SQL语句外，可以被执行的各种命令开头。
 标准的SQL语句并没有在这里显示出来，你可以直接在控制行内或者脚本里头执行SQL脚本。
 ```
 
 ***
-#### 连接数据库
+### 连接数据库
 在sqlcli命令行里头，可以通过connect命令来连接到具体的数据库
 ```
 (base) sqlcli 
@@ -394,7 +402,7 @@ LinkoopDB:
     connect username/password@jdbc:linkoopdb:tcp://IP:Port/Service_Name
 ```
 
-#### 断开数据库连接
+### 断开数据库连接
 ```
 (base) sqlcli 
 SQL*Cli Release 0.0.32
@@ -405,7 +413,7 @@ Database disconnected.
 ```
 ***
 
-#### 会话的切换和保存
+### 会话的切换和保存
 ```
 (base) sqlcli 
 SQL*Cli Release 0.0.32
@@ -450,7 +458,7 @@ Session released.
 ```
 ***
 
-#### 从脚本中执行SQL语句
+### 从脚本中执行SQL语句
 我们可以把语句保存在一个SQL文件中，并通过执行SQL文件的方式来执行具体的SQL  
 语法格式为：
 ```
@@ -475,7 +483,7 @@ SQL> disconnect
 如果有多个文件，可以依次填写，如SQL> start aa.sql bb.sql .... loop 10
 
 ```
-#### 让程序休息一会
+### 让程序休息一会
 ```
 (base) sqlcli 
 SQL*Cli Release 0.0.32
@@ -485,7 +493,7 @@ Database disconnected.
 这里的10指的是10秒，通过这个命令可以让程序暂停10秒钟。
 Sleep的做法主要用在一些定期循环反复脚本的执行上
 ```
-#### 执行主机的操作命令
+### 执行主机的操作命令
 ```
 (base) sqlcli 
 SQL*Cli Release 0.0.32
@@ -495,7 +503,7 @@ SQL> disconnect
 Database disconnected.
 这里的date是主机的命令，需要注意的是：在Windows和Linux上命令的不同，脚本可能因此无法跨平台执行
 ```
-#### 回显指定的文件
+### 回显指定的文件
 ```
 (base) sqlcli 
 SQL*Cli Release 0.0.32
@@ -508,7 +516,7 @@ SQL> echo off
 同样的操作，这里也可以用来生成一些简单的配置文件，简单的报告信息等
 ```
 
-#### 加载数据库驱动
+### 加载数据库驱动
 SQLCli会默认加载所有配置在conf/sqlcli.ini中的JDBC驱动
 ```
 (base) sqlcli 
@@ -519,7 +527,7 @@ SQL> loaddriver [database_name]  [jdbc_jarfile]
 将用参数中jdbc_jarfile指定的文件替换掉配置文件中的文件信息
 ```
 
-#### 加载SQL重写配置文件
+### 加载SQL重写配置文件
 在sqlcli命令行里头，可以通过loadsqlmap命令来加载SQL重写配置文件
 ```
 (base) sqlcli 
@@ -576,7 +584,7 @@ Mapping file loaded.
 
 ```
 
-#### 执行数据库SQL语句
+### 执行数据库SQL语句
 在数据库连接成功后，我们就可以执行我们需要的SQL语句了，对于不同的SQL语句我们有不同的语法格式要求。  
 * 对于SQL语句块的格式要求：  
   SQL语句块是指用来创建存储过程、SQL函数等较长的SQL语句  
@@ -585,6 +593,7 @@ Mapping file loaded.
      CREATE | REPLACE ******   FUNCTION|PROCEDURE **** | DECLARE ****
      这里并没有完整描述，具体的信息可以从代码文件中查阅
 ```
+#### 执行SQL语句块
 &emsp; SQL语句块的结束符为【/】，且【/】必须出现在具体一行语句的开头  比如：
 ```
     SQL> CREATE PROCEDURE PROC_TEST()
@@ -603,6 +612,7 @@ Mapping file loaded.
     CREATE | SELECT | UPDATE | DELETE | INSERT | __INTERNAL__ | DROP | REPLACE | ALTER
 
 ```
+#### 执行多行SQL语句
 &emsp; 多行SQL结束符为分号【 ；】 比如：
 ```
     SQL> CREATE TABLE TEST_TAB
@@ -613,12 +623,14 @@ Mapping file loaded.
     SQL> 
     对于多行SQL语句，同样也可以使用行首的【/】作为多行语句的结束符
 ```
-&emsp; 对于SQL多行语句，SQLCli将被等待语句结束符后把全部的SQL一起送给SQL引擎（包括语句结束符）。
+&emsp; 对于SQL多行语句，SQLCli将被等待语句结束符后把全部的SQL一起送给SQL引擎（包括可能的语句结束符分号）。
 
+#### 其他SQL语句
 * 其他SQL语句  
   不符合上述条件的，即不是语句块也不是多行语句的，则在输入或者脚本回车换行后结束当前语句。  
   结束后的语句会被立刻送到SQL引擎中执行。
 
+#### SQL语句中的注释
 * 语句中的注释  
   注释信息分为行注释和段落注释，这些注释信息不会被送入到SQL引擎中，而是会被SQLCli直接忽略。  
   
@@ -642,36 +654,37 @@ Mapping file loaded.
 
 ```  
 ***
-#### 设置程序的运行选项
+### 设置程序的运行选项
 通过SET命令，我们可以改变SQLCli的一些行为或者显示选项。
 ```
     SQL> set
     Current set options: 
-    +-------------------+----------+----------+
-    | Name              | Value    | Comments |
-    +-------------------+----------+----------+
-    | WHENEVER_SQLERROR | CONTINUE | ----     |
-    | PAGE              | OFF      | ----     |
-    | ECHO              | ON       | ----     |
-    | TIMING            | OFF      | ----     |
-    | TIME              | OFF      | ----     |
-    | OUTPUT_FORMAT     | ASCII    | ----     |
-    | CSV_HEADER        | OFF      | ----     |
-    | CSV_DELIMITER     | ,        | ----     |
-    | CSV_QUOTECHAR     |          | ----     |
-    | FEEDBACK          | ON       | ----     |
-    | TERMOUT           | ON       | ----     |
-    | ARRAYSIZE         | 10000    | ----     |
-    | SQLREWRITE        | OFF      | ----     |
-    | DEBUG             | OFF      | ----     |
-    | LOB_LENGTH        | 20       | ----     |
-    | FLOAT_FORMAT      | %.7g     | ----     |
-    | DOUBLE_FORMAT     | %.10g    | ----     |
-    +-------------------+----------+----------+
+    +-------------------+----------+----------------------+
+    | Name              | Value    | Comments             |
+    +-------------------+----------+----------------------+
+    | WHENEVER_SQLERROR | CONTINUE | ----                 |
+    | PAGE              | OFF      | ----                 |
+    | ECHO              | ON       | ----                 |
+    | TIMING            | OFF      | ----                 |
+    | TIME              | OFF      | ----                 |
+    | OUTPUT_FORMAT     | ASCII    | ASCII|CSV|VERTICAL   |
+    | CSV_HEADER        | OFF      | ----                 |
+    | CSV_DELIMITER     | ,        | ----                 |
+    | CSV_QUOTECHAR     |          | ----                 |
+    | FEEDBACK          | ON       | ----                 |
+    | TERMOUT           | ON       | ----                 |
+    | ARRAYSIZE         | 10000    | ----                 |
+    | SQLREWRITE        | OFF      | ----                 |
+    | LOB_LENGTH        | 20       | ----                 |
+    | FLOAT_FORMAT      | %.7g     | ----                 |
+    | DOUBLE_FORMAT     | %.10g    | ----                 |
+    | DECIMAL_FORMAT    |          | ----                 |
+    | CONN_RETRY_TIMES  | 1        | Connect retry times. |
+    +-------------------+----------+----------------------+
   没有任何参数的set将会列出程序所有的配置情况。
 
 ```
-   
+#### 控制参数解释-ECHO
 &emsp; &emsp; 主要的控制参数解释：  
 &emsp; &emsp; 1.ECHO    SQL回显标志， 默认为ON，即SQL内容在LOG中回显
 ```
@@ -696,14 +709,17 @@ Mapping file loaded.
         SQL> 1 rows selected.
 ```
 
+#### 控制参数解释-WHENEVER_SQLERROR
 &emsp; &emsp; 2. WHENEVER_SQLERROR  SQL错误终端表示， 用来控制在执行SQL过程中遇到SQL错误，是否继续。 默认是CONTINUE，即继续。   
 &emsp; 目前支持的选项有：    
 ```
        CONTINUE |     遇到SQL语句错误继续执行 
        EXIT     |     遇到SQL语句错误直接退出SQLCli程序
 ```
+#### 控制参数解释-PAGE
 &emsp; &emsp; 3. PAGE        是否分页显示，当执行的SQL语句结果超过了屏幕显示的内容，是否会暂停显示，等待用户输入任意键后继续显示下一页，默认是OFF，即不中断。
 
+#### 控制参数解释-OUTPUT_FORMAT
 &emsp; &emsp; 4. OUTPUT_FORMAT   显示格式， 默认是ASCII
 &emsp; 目前支持的选项有：
 ```
@@ -741,7 +757,7 @@ Mapping file loaded.
         COL2   | XYXYXYXY
         2 rows selected.
 ```
-
+#### 控制参数解释-LOB_LENGTH
 &emsp; &emsp; 5. LOB_LENGTH      控制LOB字段的输出长度，默认是20  
 &emsp; &emsp; 由于LOB字段中的文本长度可能会比较长，所以默认不会显示出所有的LOB内容到当前输出中，而是最大长度显示LOB_LENGTH值所代表的长度对于超过默认显示长度的，将在输出内容后面添加...省略号来表示   
 &emsp; &emsp; 对于BLOB类型，输出默认为16进制格式。对于超过默认显示长度的，将在输出内容后面添加...省略号来表示 
@@ -762,7 +778,7 @@ Mapping file loaded.
         SQL>    ABCDEFGHIJKLMNO...
         SQL> 1 rows selected.
 ```
-
+#### 控制参数解释-FEEDBACK
 &emsp; &emsp; 6. FEEDBACK      控制是否回显执行影响的行数，默认是ON，显示  
 ```
        SQL> set feedback on
@@ -783,6 +799,7 @@ Mapping file loaded.
        | 1  | XYXYXYXY |
        +----+----------+
 ```
+#### 控制参数解释-TERMOUT
 &emsp; &emsp; 7. TERMOUT       控制是否显示SQL查询的返回，默认是ON，显示  
 
 ```
@@ -800,6 +817,7 @@ Mapping file loaded.
        2 rows selected.
 
 ```
+#### 控制参数解释-FLOAT_FORMAT/DOUBLE_FORMAT/DECIMAL_FORMAT
 &emsp; &emsp; 8. FLOAT_FORMAT    控制浮点数字的显示格式，默认是%.7g
 ```
     SQL>  select abs(1.234567891234) from dual;
@@ -818,8 +836,9 @@ Mapping file loaded.
     +-------------+
     1 row selected.
 
-    类似的参数还有DOUBLE_FORMAT
+    类似的参数还有DOUBLE_FORMAT,DECIMAL_FORMAT
 ```
+#### 控制参数解释-CSV_HEADER/CSV_DELIMITER/CSV_QUOTECHAR
 &emsp; &emsp; 9. CSV格式控制  
 ```
     CSV_HEADER        控制CSV输出中是否包括字段名称信息， 默认是OFF
@@ -843,6 +862,32 @@ Mapping file loaded.
     3.4
     7
 ```
+#### 控制参数解释-TIMING/TIME
+&emsp; &emsp; 10. 运行时间显示  
+```
+    TIMING    ON|OFF  控制在SQL运行结束后是否显示执行消耗时间， 默认是OFF
+    TIME      ON|OFF  控制在SQL运行结束后是否显示系统当前时间， 默认是OFF
+```
+#### 控制参数解释-CONN_RETRY_TIMES
+&emsp; &emsp; 11. 连接尝试次数  
+```
+    默认是1，即数据库只尝试一次数据库连接，失败后即退回。
+    可以调整到其他数值，来应用不稳定的数据库连接环境
+```
+#### 控制参数解释-ARRAYSIZE
+&emsp; &emsp; 12. 数据读取预Fetch的缓冲区大小  
+```
+    默认是10000，即数据库每次读取数据的时候，预缓存10000条记录到本地
+    如果没有十分必要的需求，不建议修改这个参数。过低的参数将导致程序运行性能下降
+```
+#### 控制参数解释-SQLREWRITE
+&emsp; &emsp; 13. SQLREWRITE  
+```
+    控制是否启用SQL重写，默认是ON。
+    当设置为OFF的时候，无论运行是否指定了SQLMAP，映射都不会工作
+```
+
+
 #### 在SQL中使用Hint信息
 &emsp; &emsp; 在一些场景中，我们通过Hint隐含提示符来控制SQL的具体行为
 ```
@@ -863,7 +908,7 @@ Mapping file loaded.
     加入这个提示符后，SQLCli将把日志输出中所有符合Password:.*的内容替换成Password:*****
 
 ```
-#### 在SQL中使用变量信息
+### 在SQL中使用变量信息
 &emsp; &emsp; 在一些场景中，我们需要通过变量来变化SQL的运行  
 &emsp; &emsp; 这里提供的解决办法是：   
 &emsp; &emsp; * 用set的语句来定义一个变量
@@ -885,7 +930,7 @@ Mapping file loaded.
     REWROTED    > select value1 from dual
     -- 这里真实的表达意思是： select value1 from dual, 其中${var1}已经被其对应的变量替换
 ```
-#### 在SQL中使用spool命令来将当前执行结果输出到文件中
+### 在SQL中使用spool命令来将当前执行结果输出到文件中
 ```
     SQL> spool test.log
     SQL> select 1+2 from dual;
@@ -908,7 +953,7 @@ Mapping file loaded.
 ```
 
 
-#### 在SQL中用内置变量来查看上一个SQL的执行结果
+### 在SQL中用内置变量来查看上一个SQL的执行结果
 &emsp; &emsp; 有一些场景通常要求我们来下一个SQL指定的时候，将上一个SQL的结果做出参数来执行  
 &emsp; &emsp; 这里提供的解决办法是： 在SQL中引入用JQ表达式定义的表达式  
 &emsp; &emsp; 例子：  
@@ -982,10 +1027,10 @@ Mapping file loaded.
 
 ```  
 
-#### 用SQLCli来产生测试数据文件
+### 用SQLCli来产生测试数据文件
 ```
-   SQL> __internal__ CREATE [string|integer] SEEDDATAFILE [SeedName] LENGTH [row length] ROWS [row number]  
-   SQL> WITH NULL ROWS [null rows number];
+   SQL> __internal__ DATA CREATE [string|integer] SEEDDATAFILE [SeedName] LENGTH [row length] ROWS [row number]  
+      > WITH NULL ROWS [null rows number];
    这个程序将在$SQLCLI_HOME/data下创建若干seed文件，用来后续的随机函数
 
     [string|integer]          是字符型随机数据文件还是数字型随机数据文件
@@ -994,8 +1039,10 @@ Mapping file loaded.
     [row number]              数据种子的行数
     [null rows number]        在该数据文件row number的行数中有多少行为空行
 
-   __internal__ CREATE [MEM|FS|HDFS] FILE [xxx]
+   __internal__ DATA CREATE [MEM|FS|HDFS] FILE [xxx]
    (
+     此处为宏代码
+
      如果参数中提供了ROWS：
          这里将把括号内内容理解为一行内容，其中的换行符在处理过程中被去掉
          相关信息将被完成宏替换后，重复ROWS行数后构成一个文件
@@ -1039,11 +1086,11 @@ Mapping file loaded.
      {random_from_seed(seedname,start_pos, length)}       表示从seed文件中随机选取一个内容，内容从start_pos开始， 并且最大长度限制在length, 此时seedname不要引号
      使用random_from_seed需要用到seed文件，必须提前准备到$SQLCLI_HOME/data下，用来后续的随机函数  
 
-    __internal__ CREATE [MEM|FS|HDFS] FILE [From file] FROM [MEM|FS|HDFS] FILE [To file] 
+    __internal__ DATA CREATE [MEM|FS|HDFS] FILE [From file] FROM [MEM|FS|HDFS] FILE [To file] 
     这里将完成一个文件复制。 
 
    例子：
-   SQL> __internal__ CREATE FS FILE abc.txt
+   SQL> __internal__ DATA CREATE FS FILE abc.txt
       > (
       > {identity(10)},'{random_ascii_letters(5)}','{random_ascii_lowercase(3)}'
       > ) ROWS 3;
@@ -1052,7 +1099,7 @@ Mapping file loaded.
     11,'SSiAa','vtg'
     12,'SSdaa','cfg'
 
-   SQL> __internal__ CREATE FS FILE abc.txt
+   SQL> __internal__ DATA CREATE FS FILE abc.txt
       > (
       > {identity(10)},'{random_ascii_letters(5)}','{random_ascii_lowercase(3)}'
       > {identity(10)},'{random_ascii_letters(5)}','{random_ascii_lowercase(3)}'
@@ -1061,11 +1108,11 @@ Mapping file loaded.
     10,'vxbMd','jsr'
     11,'SSiAa','vtg'
 
-   SQL> __internal__ CREATE FS FILE abc.txt FROM HDFS FILE http://nodexx:port/def.txt
+   SQL> __internal__ DATA CREATE FS FILE abc.txt FROM HDFS FILE http://nodexx:port/def.txt
    会从HDFS上下载一个文件def.txt, 并保存到本地文件系统的abc.txt中
 
 ```
-#### 用SQLCli工具操作Kafka
+### 用SQLCli工具操作Kafka
 ```
    SQLCli工具可以操作Kafka，建立、删除Topic，查看Topic的状态，给Topic发送信息
 
@@ -1133,7 +1180,7 @@ Mapping file loaded.
    删除指定的topic
 ```
 
-#### 用SQLCli工具操作HDFS
+### 用SQLCli工具操作HDFS
 ```
     SQL> __internal__ hdfs connect [hdfs webui url] with user [hdfs user name]
     用HDFSweb连接到指定的HDFS上
@@ -1183,7 +1230,7 @@ Mapping file loaded.
     下载远程的HDFS文件到本地文件目录中
 
 ```
-#### 用SQLCli工具回归测试校验
+### 用SQLCli工具回归测试校验
 ```
    SQLCli可以在你执行测试脚本的时候将相关输出通过Spool命令输出到指定的日志中（具体方法参考Spool的命令）
    通过记录输出内容，比对之前的输出内容，可以完成回归测试的校验
@@ -1312,7 +1359,7 @@ Mapping file loaded.
           7 1 row selected.
 ```
 ***    
-#### 退出
+### 退出
 你可以使用exit来退出命令行程序，或者在脚本中使用Exit来退出正在执行的脚本
 ```
 SQL> exit
@@ -1454,14 +1501,18 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
 2： 脚本应用：  EXIT不会直接退出，而是会等待后台进程完成工作后再退出  
 
 ### 程序员必读部分
+#### 程序代码结构
 ```
 ---------- sqlcli
 --------------- __init__.py                   # 包标识文件，用来记录版本信息
 --------------- commandanalyze.py             # 对用户或者脚本输入的命令进行判断，判断是否需要后续解析，或者执行内部命令
+--------------- testwrapper.py                # 程序中对测试命令的相关支持
 --------------- kafkawrapper.py               # 程序中对kafka操作的相关支持
 --------------- hdfswrapper.py                # 程序中对HDFS文件操作的相关支持
 --------------- main.py                       # 主程序
 --------------- sqlcliexception.py            # 自定义程序异常类
+--------------- sqlclijdbcapi.py              # 数据库操作封装，JDBC模式
+--------------- sqlcliodbcapi.py              # 数据库操作封装，ODBC模式
 --------------- sqlclijob.py                  # 后台作业管理实现
 --------------- sqlclijobmanager.py           # 后台作业管理实现
 --------------- sqlclisga.py                  # 全局共享内存协同，用来在父子进程间通信
@@ -1489,11 +1540,28 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
 --------------  tdgssconfig.jar
 --------------  terajdbc4.jar
 --------------  xxxx1.jar                 
---------------  xxxx2.jar                 
+--------------  xxxx2.jar        
+---------- odbc                               # ODBC代码C语言封装
+--------------  ceoApiTypes.c
+--------------  ceoConnection.c
+--------------  ceoCursor.c
+--------------  ceoDbType.c
+--------------  ceoError.c
+--------------  ceoModule.c
+--------------  ceoModule.h
+--------------  ceoTransform.c
+--------------  ceoUtils.c
+--------------  ceoVar.c
+--------------  CMakeLists.txt
 ---------- .gitignore                         # git控制文件
 ---------- uploadpypi.bat                     # windows平台下用来向pypi更新安装包的相关命令
+---------- uploadpypi.sh                      # Linux平台下用来向pypi更新安装包的相关命令
 ---------- .vscode                            # Visual Stuio Code 工程配置目录
 --------------  launch.json                   # Visual Stuio Code 工程启动文件
 ```
+#### 程序调试
+```
+   SQL> set DEBUG ON
+   打开DEBUG后，程序将会输出大量的调试信息，以及错误发生时的堆栈信息
 
-
+```

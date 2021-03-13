@@ -5,35 +5,101 @@ import os
 
 class SQLOptions(object):
     """处理程序运行的各种参数."""
-    m_SQL_OptionList = []
-
     def __init__(self):
-        self.m_SQL_OptionList.append({"Name": "WHENEVER_SQLERROR", "Value": "CONTINUE", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "PAGE", "Value": "OFF", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "ECHO", "Value": "ON", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "TIMING", "Value": "OFF", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "TIME", "Value": "OFF", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "SILENT", "Value": "OFF", "Comments": '----'})
+        self.m_SQL_OptionList = []
 
-        self.m_SQL_OptionList.append({"Name": "OUTPUT_FORMAT", "Value": "ASCII", "Comments": 'ASCII|CSV|VERTICAL'})
-        self.m_SQL_OptionList.append({"Name": "CSV_HEADER", "Value": "OFF", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "CSV_DELIMITER", "Value": ",", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "CSV_QUOTECHAR", "Value": "", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "FEEDBACK", "Value": "ON", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "TERMOUT", "Value": "ON", "Comments": '----'})
+        self.m_SQL_OptionList.append({"Name": "WHENEVER_SQLERROR",
+                                      "Value": "CONTINUE",
+                                      "Comments": '',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "PAGE",
+                                      "Value": "OFF",
+                                      "Comments": '',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "ECHO",
+                                      "Value": "ON",
+                                      "Comments": '',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "TIMING",
+                                      "Value": "OFF",
+                                      "Comments": '',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "TIME",
+                                      "Value": "OFF",
+                                      "Comments": '',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "OUTPUT_FORMAT",
+                                      "Value": "ASCII",
+                                      "Comments": 'ASCII|CSV|VERTICAL',
+                                      "Hidden": False
+                                      })
+        self.m_SQL_OptionList.append({"Name": "CSV_HEADER",
+                                      "Value": "OFF",
+                                      "Comments": 'ON|OFF',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "CSV_DELIMITER",
+                                      "Value": ",",
+                                      "Comments": '',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "CSV_QUOTECHAR",
+                                      "Value": "",
+                                      "Comments": '',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "FEEDBACK",
+                                      "Value": "ON",
+                                      "Comments": 'ON|OFF',
+                                      "Hidden": False
+                                      })
+        self.m_SQL_OptionList.append({"Name": "TERMOUT",
+                                      "Value": "ON",
+                                      "Comments": 'ON|OFF',
+                                      "Hidden": False
+                                      })
 
-        self.m_SQL_OptionList.append({"Name": "ARRAYSIZE", "Value": 10000, "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "SQLREWRITE", "Value": "ON", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "DEBUG", "Value": "OFF", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "LOB_LENGTH", "Value": 20, "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "FLOAT_FORMAT", "Value": "%.7g", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "DOUBLE_FORMAT", "Value": "%.10g", "Comments": '----'})
-        self.m_SQL_OptionList.append({"Name": "DECIMAL_FORMAT", "Value": "", "Comments": '----'})
-
-        self.m_SQL_OptionList.append({"Name": "CONNURL", "Value": "", "Comments": 'Connection URL'})
-        self.m_SQL_OptionList.append({"Name": "CONNPROP", "Value": "", "Comments": 'Connection Props'})
-
-        self.m_SQL_OptionList.append({"Name": "CONN_RETRY_TIMES", "Value": "1", "Comments": 'Connect retry times.'})
+        self.m_SQL_OptionList.append({"Name": "ARRAYSIZE",
+                                      "Value": 10000,
+                                      "Comments": '',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "SQLREWRITE",
+                                      "Value": "ON",
+                                      "Comments": 'ON|OFF',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "LOB_LENGTH",
+                                      "Value": 20,
+                                      "Comments": '',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "FLOAT_FORMAT",
+                                      "Value": "%.7g",
+                                      "Comments": '',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "DOUBLE_FORMAT",
+                                      "Value": "%.10g",
+                                      "Comments": '',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "DECIMAL_FORMAT",
+                                      "Value": "",
+                                      "Comments": '',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "CONN_RETRY_TIMES",
+                                      "Value": "1",
+                                      "Comments": 'Connect retry times.',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "DEBUG",
+                                      "Value": "OFF",
+                                      "Comments": 'ON|OFF',
+                                      "Hidden": True})
+        self.m_SQL_OptionList.append({"Name": "CONNURL",
+                                      "Value": "",
+                                      "Comments": 'Connection URL',
+                                      "Hidden": True})
+        self.m_SQL_OptionList.append({"Name": "CONNPROP",
+                                      "Value": "",
+                                      "Comments": 'Connection Props',
+                                      "Hidden": True})
+        self.m_SQL_OptionList.append({"Name": "SILENT",
+                                      "Value": "OFF",
+                                      "Comments": '',
+                                      "Hidden": True})
 
     def get(self, p_ParameterName):
         """根据参数名称返回参数，若不存在该参数，返回None."""

@@ -952,7 +952,8 @@ class SQLCli(object):
         elif arg == "":      # 显示所有的配置
             m_Result = []
             for row in self.SQLOptions.getOptionList():
-                m_Result.append([row["Name"], row["Value"], row["Comments"]])
+                if not row["Hidden"]:
+                    m_Result.append([row["Name"], row["Value"], row["Comments"]])
             yield (
                 "Current Options: ",
                 m_Result,
@@ -1072,7 +1073,7 @@ class SQLCli(object):
 
         # 创建数据文件, 根据末尾的rows来决定创建的行数
         # 此时，SQL语句中的回车换行符没有意义
-        matchObj = re.match(r"create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+(\d+)(\s+)?$",
+        matchObj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+(\d+)(\s+)?$",
                             arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_filetype = str(matchObj.group(1)).strip()
@@ -1092,7 +1093,7 @@ class SQLCli(object):
                 str(m_rows) + ' rows created Successful.')
             return
 
-        matchObj = re.match(r"create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?$",
+        matchObj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?$",
                             arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_filetype = str(matchObj.group(1)).strip()
@@ -1113,7 +1114,7 @@ class SQLCli(object):
             return
 
         #  在不同的文件中进行相互转换
-        matchObj = re.match(r"create\s+(.*?)\s+file\s+(.*?)\s+from\s+(.*?)file(.*?)(\s+)?$",
+        matchObj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\s+from\s+(.*?)file(.*?)(\s+)?$",
                             arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             # 在不同的文件中相互转换
@@ -1130,7 +1131,7 @@ class SQLCli(object):
             return
 
         # 创建随机数Seed的缓存文件
-        matchObj = re.match(r"create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
+        matchObj = re.match(r"data\s+create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
                             r"length\s+(\d+)\s+rows\s+(\d+)\s+with\s+null\s+rows\s+(\d+)$",
                             arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
@@ -1150,7 +1151,7 @@ class SQLCli(object):
             return
 
         # 创建随机数Seed的缓存文件
-        matchObj = re.match(r"create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
+        matchObj = re.match(r"data\s+create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
                             r"length\s+(\d+)\s+rows\s+(\d+)(\s+)?$",
                             arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
