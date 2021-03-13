@@ -100,7 +100,8 @@ def show_help(arg):
 
     for _, value in sorted(COMMANDS.items()):
         if not value.hidden:
-            result.append((value.command, value.description))
+            for m_desc in value.description.split('\n'):
+                result.append((value.command, m_desc))
     return [(None, result, headers, None, None)]
 
 
