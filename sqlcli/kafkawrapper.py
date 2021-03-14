@@ -7,7 +7,7 @@ import traceback
 from .sqlcliexception import SQLCliException
 import concurrent.futures
 
-from .sqlinternal import parse_formula_str, get_final_string
+from .datawrapper import parse_formula_str, get_final_string
 try:
     from confluent_kafka import Producer, Consumer, TopicPartition, KafkaException
     from confluent_kafka.admin import AdminClient, NewTopic, ConfigResource

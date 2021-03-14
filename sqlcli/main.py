@@ -34,9 +34,7 @@ from .testwrapper import TestWrapper
 from .hdfswrapper import HDFSWrapper
 from .sqlcliexception import SQLCliException
 from .sqlclisga import SQLCliGlobalSharedMemory
-from .sqlinternal import Create_file
-from .sqlinternal import Convert_file
-from .sqlinternal import Create_SeedCacheFile
+from .datawrapper import DataWrapper
 from .commandanalyze import register_special_command
 from .commandanalyze import CommandNotFound
 from .sqloption import SQLOptions
@@ -105,6 +103,7 @@ class SQLCli(object):
         self.HdfsHandler = HDFSWrapper()                 # HDFS文件操作
         self.JobHandler = JOBManager()                   # 并发任务管理器
         self.TransactionHandler = TransactionManager()   # 事务管理器
+        self.DataHandler = DataWrapper()                 # 随机临时数处理
         self.SpoolFileHandler = []                       # Spool文件句柄, 是一个数组，可能发生嵌套
         self.EchoFileHandler = None                      # 当前回显文件句柄
         self.AppOptions = None                           # 应用程序的配置参数
@@ -123,9 +122,9 @@ class SQLCli(object):
             self.Result_Charset = self.Client_Charset    # 结果输出字符集
         else:
             self.Result_Charset = resultcharset
-        self.WorkerName = WorkerName                        # 当前进程名称. 如果有参数传递，以参数为准
-        self.MultiProcessManager = None                     # 进程间共享消息管理器， 如果为子进程，该参数为空
-        self.profile = None                                 # 程序的初始化日志文件
+        self.WorkerName = WorkerName                     # 当前进程名称. 如果有参数传递，以参数为准
+        self.MultiProcessManager = None                  # 进程间共享消息管理器， 如果为子进程，该参数为空
+        self.profile = []                                # 程序的初始化日志文件
 
         # 传递各种参数
         self.sqlscript = sqlscript
@@ -150,23 +149,23 @@ class SQLCli(object):
             self.SharedProcessInfo = obj()
         else:
             self.SharedProcessInfo = SharedProcessInfo
-        if profile is None:
-            # profile的顺序， SQLCLI_HOME/profile/default,   <PYTHON_PACKAGE>/sqlcli/profile/default, user define
-            if "SQLCLI_HOME" in os.environ:
-                if os.path.exists(os.path.join(os.environ["SQLCLI_HOME"], "profile", "default")):
-                    self.profile = os.path.join(os.environ["SQLCLI_HOME"], "profile", "default")
-            if self.profile is None:
-                if os.path.exists(os.path.join(os.path.dirname(__file__), "profile", "default")):
-                    self.profile = os.path.join(os.path.dirname(__file__), "profile", "default")
-        else:
-            if os.path.exists(profile):
-                self.profile = profile
+
+        # profile的顺序， <PYTHON_PACKAGE>/sqlcli/profile/default， SQLCLI_HOME/profile/default , user define
+        if os.path.isfile(os.path.join(os.path.dirname(__file__), "profile", "default")):
+            if os.path.getsize(os.path.join(os.path.dirname(__file__), "profile", "default")) > 0:
+                self.profile.append(os.path.join(os.path.dirname(__file__), "profile", "default"))
+        if "SQLCLI_HOME" in os.environ:
+            if os.path.isfile(os.path.join(os.environ["SQLCLI_HOME"], "profile", "default")):
+                self.profile.append(os.path.join(os.environ["SQLCLI_HOME"], "profile", "default"))
+        if profile is not None:
+            if os.path.isfile(profile):
+                self.profile.append(profile)
             else:
                 if "SQLCLI_DEBUG" in os.environ:
                     print("Profile does not exist ! Will ignore it. [" + str(os.path.abspath(profile)) + "]")
         if "SQLCLI_DEBUG" in os.environ:
-            if self.profile is not None:
-                print("Profile = [" + str(self.profile) + "]")
+            for m_Profile in self.profile:
+                print("Profile = [" + str(m_Profile) + "]")
 
         # 设置self.JobHandler， 默认情况下，子进程启动的进程进程信息来自于父进程
         self.JobHandler.setProcessContextInfo("logon", self.logon)
@@ -1073,102 +1072,12 @@ class SQLCli(object):
             yield title, result, headers, columntypes, status
             return
 
-        # 创建数据文件, 根据末尾的rows来决定创建的行数
-        # 此时，SQL语句中的回车换行符没有意义
-        matchObj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+(\d+)(\s+)?$",
-                            arg, re.IGNORECASE | re.DOTALL)
+        # 处理随机数据文件
+        matchObj = re.match(r"(\s+)?data(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            m_filetype = str(matchObj.group(1)).strip()
-            m_filename = str(matchObj.group(2)).strip().replace('\r', '').replace('\n', '')
-            m_formula_str = str(matchObj.group(3).replace('\r', '').replace('\n', '').strip())
-            m_rows = int(matchObj.group(5))
-            Create_file(p_filetype=m_filetype,
-                        p_filename=m_filename,
-                        p_formula_str=m_formula_str,
-                        p_rows=m_rows,
-                        p_encoding=self.Result_Charset)
-            yield (
-                None,
-                None,
-                None,
-                None,
-                str(m_rows) + ' rows created Successful.')
-            return
-
-        matchObj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?$",
-                            arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_filetype = str(matchObj.group(1)).strip()
-            m_filename = str(matchObj.group(2)).strip().replace('\r', '').replace('\n', '')
-            m_formula_str = str(matchObj.group(3).strip())
-            m_rows = 1
-            Create_file(p_filetype=m_filetype,
-                        p_filename=m_filename,
-                        p_formula_str=m_formula_str,
-                        p_rows=m_rows,
-                        p_encoding=self.Result_Charset)
-            yield (
-                None,
-                None,
-                None,
-                None,
-                str(m_rows) + ' rows created Successful.')
-            return
-
-        #  在不同的文件中进行相互转换
-        matchObj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\s+from\s+(.*?)file(.*?)(\s+)?$",
-                            arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            # 在不同的文件中相互转换
-            Convert_file(p_srcfileType=str(matchObj.group(3)).strip(),
-                         p_srcfilename=str(matchObj.group(4)).strip(),
-                         p_dstfileType=str(matchObj.group(1)).strip(),
-                         p_dstfilename=str(matchObj.group(2)).strip())
-            yield (
-                None,
-                None,
-                None,
-                None,
-                'file converted Successful.')
-            return
-
-        # 创建随机数Seed的缓存文件
-        matchObj = re.match(r"data\s+create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
-                            r"length\s+(\d+)\s+rows\s+(\d+)\s+with\s+null\s+rows\s+(\d+)$",
-                            arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_DataType = str(matchObj.group(1)).lstrip().rstrip()
-            m_SeedFileName = str(matchObj.group(2)).lstrip().rstrip()
-            m_DataLength = int(matchObj.group(3))
-            m_nRows = int(matchObj.group(4))
-            m_nNullValueCount = int(matchObj.group(5))
-            Create_SeedCacheFile(p_szDataType=m_DataType, p_nDataLength=m_DataLength, p_nRows=m_nRows,
-                                 p_szSeedName=m_SeedFileName, p_nNullValueCount=m_nNullValueCount)
-            yield (
-                None,
-                None,
-                None,
-                None,
-                'seed file created Successful.')
-            return
-
-        # 创建随机数Seed的缓存文件
-        matchObj = re.match(r"data\s+create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
-                            r"length\s+(\d+)\s+rows\s+(\d+)(\s+)?$",
-                            arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_DataType = str(matchObj.group(1)).lstrip().rstrip()
-            m_SeedFileName = str(matchObj.group(2)).lstrip().rstrip()
-            m_DataLength = int(matchObj.group(3))
-            m_nRows = int(matchObj.group(4))
-            Create_SeedCacheFile(p_szDataType=m_DataType, p_nDataLength=m_DataLength, p_nRows=m_nRows,
-                                 p_szSeedName=m_SeedFileName)
-            yield (
-                None,
-                None,
-                None,
-                None,
-                'seed file created Successful.')
+            for (title, result, headers, columntypes, status) in \
+                    self.DataHandler.Process_SQLCommand(arg, self.Result_Charset):
+                yield title, result, headers, columntypes, status
             return
 
         # 不认识的internal命令
@@ -1427,14 +1336,15 @@ class SQLCli(object):
             self.prompt_app = PromptSession()
 
         # 处理初始化启动文件，如果需要的话，在处理的过程中不打印任何日志信息
-        if self.profile is not None:
+        if len(self.profile) != 0:
             if "SQLCLI_DEBUG" not in os.environ:
                 self.SQLOptions.set("SILENT", "ON")
-            if "SQLCLI_DEBUG" in os.environ:
-                print("DEBUG:: Begin SQL profile [" + self.profile + "] ...")
-            self.DoSQL('start ' + self.profile)
-            if "SQLCLI_DEBUG" in os.environ:
-                print("DEBUG:: End SQL profile [" + self.profile + "]")
+            for m_Profile in self.profile:
+                if "SQLCLI_DEBUG" in os.environ:
+                    print("DEBUG:: Begin SQL profile [" + m_Profile + "] ...")
+                self.DoSQL('start ' + m_Profile)
+                if "SQLCLI_DEBUG" in os.environ:
+                    print("DEBUG:: End SQL profile [" + m_Profile + "]")
             if "SQLCLI_DEBUG" not in os.environ:
                 self.SQLOptions.set("SILENT", "OFF")
 

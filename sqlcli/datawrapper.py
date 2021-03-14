@@ -11,7 +11,6 @@ from glob import glob
 import fs
 from .sqlcliexception import SQLCliException
 
-
 # 缓存seed文件，来加速后面的随机函数random_from_seed工作
 seed_cache = {}
 # 全局内存文件系统句柄
@@ -20,9 +19,9 @@ g_MemoryFSHandler = None
 
 # 创建seed文件，默认在SQLCLI_HOME/data下
 def Create_SeedCacheFile(
-        p_szDataType,                      # 种子文件的数据类型，目前支持String和integer
-        p_nDataLength,                     # 每个随机数的最大数据长度
-        p_nRows,                           # 种子文件的行数，即随机数的数量
+        p_szDataType,  # 种子文件的数据类型，目前支持String和integer
+        p_nDataLength,  # 每个随机数的最大数据长度
+        p_nRows,  # 种子文件的行数，即随机数的数量
         p_szSeedName,
         p_nNullValueCount=0):
     if "SQLCLI_HOME" not in os.environ:
@@ -73,19 +72,19 @@ def Load_SeedCacheFile():
 
     m_seedpath = os.path.join(os.environ["SQLCLI_HOME"], "data", "*.seed")
     for seed_file in glob(m_seedpath):
-        m_seedName = os.path.basename(seed_file)[:-5]            # 去掉.seed的后缀
+        m_seedName = os.path.basename(seed_file)[:-5]  # 去掉.seed的后缀
         with open(seed_file, 'r', encoding="utf-8") as f:
             m_seedlines = f.readlines()
         for m_nPos in range(0, len(m_seedlines)):
             if m_seedlines[m_nPos].endswith("\n"):
-                m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]   # 去掉回车换行
+                m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]  # 去掉回车换行
         seed_cache[m_seedName] = m_seedlines
 
 
 # 返回随机的Boolean类型
 def random_boolean(p_arg):
     if p_arg:
-        pass              # 这里用来避免p_arg参数无用的编译器警告
+        pass  # 这里用来避免p_arg参数无用的编译器警告
     return "1" if (random.randint(0, 1) == 1) else "0"
 
 
@@ -189,7 +188,7 @@ def random_from_seed(p_arg):
             if n == 0:
                 raise SQLCliException("Seed cache is zero. [" + str(p_arg[0]) + "].")
         m_RandomRow = seed_cache[m_SeedName][random.randint(0, n - 1)]
-        return m_RandomRow[m_StartPos:m_StartPos+m_nMaxLength]
+        return m_RandomRow[m_StartPos:m_StartPos + m_nMaxLength]
     else:
         raise SQLCliException("Unknown seed [" + str(p_arg[0]) + "].  Please create it first.")
 
@@ -699,7 +698,7 @@ def get_final_string(p_row_struct):
             elif col[2] == "__NO_NAME__":
                 m_Result = m_Result + col[0](col[1])
             else:
-                m_Value = col[0](col[1])              # 根据函数指针计算返回后的实际内容
+                m_Value = col[0](col[1])  # 根据函数指针计算返回后的实际内容
                 m_Saved_ColumnData[col[2]] = m_Value
                 m_Result = m_Result + m_Value
         else:
@@ -723,7 +722,7 @@ def Create_file(p_filetype, p_filename, p_formula_str, p_rows, p_encoding='UTF-8
             # HDFS 文件格式： http://node:port/xx/yy/cc.dat
             # 注意这里的node和port都是webfs端口，不是rpc端口
             m_Protocal = p_filename.split("://")[0]
-            m_NodePort = p_filename[len(m_Protocal)+3:].split("/")[0]
+            m_NodePort = p_filename[len(m_Protocal) + 3:].split("/")[0]
             m_WebFSURL = m_Protocal + "://" + m_NodePort
             m_WebFSDir, m_filename = os.path.split(p_filename[len(m_WebFSURL):])
             m_HDFS_Handler = Client(m_WebFSURL,
@@ -734,7 +733,7 @@ def Create_file(p_filetype, p_filename, p_formula_str, p_rows, p_encoding='UTF-8
 
         m_row_struct = parse_formula_str(p_formula_str)
         buf = []
-        if p_filetype.upper() == "HDFS":              # 处理HDFS文件写入
+        if p_filetype.upper() == "HDFS":  # 处理HDFS文件写入
             # 总是覆盖服务器上的文件, 每10W行提交一次服务器文件, 以避免内存的OOM问题
             if p_rows < 100000:
                 with m_HDFS_Handler.write(hdfs_path=m_filename, overwrite=True) as m_output:
@@ -753,7 +752,7 @@ def Create_file(p_filetype, p_filename, p_formula_str, p_rows, p_encoding='UTF-8
                 with m_HDFS_Handler.write(hdfs_path=m_filename, append=True) as m_output:
                     for i in range(0, p_rows % 100000):
                         m_output.write((get_final_string(m_row_struct) + "\n").encode())
-        else:                                          # 处理普通文件写入
+        else:  # 处理普通文件写入
             for i in range(0, p_rows):
                 buf.append(get_final_string(m_row_struct) + '\n')
                 if len(buf) == 100000:  # 为了提高IO效率，每10W条写入文件一次
@@ -796,7 +795,7 @@ def Convert_file(p_srcfileType, p_srcfilename, p_dstfileType, p_dstfilename):
             m_srcFSType = "HDFS"
             m_srcFullFileName = p_srcfilename
             m_Protocal = m_srcFullFileName.split("://")[0]
-            m_NodePort = m_srcFullFileName[len(m_Protocal)+3:].split("/")[0]
+            m_NodePort = m_srcFullFileName[len(m_Protocal) + 3:].split("/")[0]
             m_WebFSURL = m_Protocal + "://" + m_NodePort
             m_WebFSDir, m_srcFileName = os.path.split(m_srcFullFileName[len(m_WebFSURL):])
             m_srcFS = Client(m_WebFSURL, m_WebFSDir, proxy=None, session=None)
@@ -821,7 +820,7 @@ def Convert_file(p_srcfileType, p_srcfilename, p_dstfileType, p_dstfilename):
             m_dstFSType = "HDFS"
             m_dstFullFileName = p_dstfilename
             m_Protocal = m_dstFullFileName.split("://")[0]
-            m_NodePort = m_dstFullFileName[len(m_Protocal)+3:].split("/")[0]
+            m_NodePort = m_dstFullFileName[len(m_Protocal) + 3:].split("/")[0]
             m_WebFSURL = m_Protocal + "://" + m_NodePort
             m_WebFSDir, m_dstFileName = os.path.split(m_dstFullFileName[len(m_WebFSURL):])
             m_dstFS = Client(m_WebFSURL, m_WebFSDir, proxy=None, session=None)
@@ -854,7 +853,7 @@ def Convert_file(p_srcfileType, p_srcfilename, p_dstfileType, p_dstfilename):
             bHeaderWrite = True
             with m_srcFS.openbin(m_srcFileName, "r") as m_reader:
                 while True:
-                    m_Contents = m_reader.read(8192*10240)
+                    m_Contents = m_reader.read(8192 * 10240)
                     if len(m_Contents) == 0:
                         break
                     if bHeaderWrite:
@@ -869,7 +868,7 @@ def Convert_file(p_srcfileType, p_srcfilename, p_dstfileType, p_dstfilename):
             bHeaderWrite = True
             with m_srcFS.read(m_srcFileName) as m_reader:
                 while True:
-                    m_Contents = m_reader.read(8192*10240)
+                    m_Contents = m_reader.read(8192 * 10240)
                     if len(m_Contents) == 0:
                         break
                     if bHeaderWrite:
@@ -885,3 +884,109 @@ def Convert_file(p_srcfileType, p_srcfilename, p_dstfileType, p_dstfilename):
             raise SQLCliException(he.message)
         else:
             raise SQLCliException(he.message.split('\n')[0])
+
+
+class DataWrapper(object):
+    def Process_SQLCommand(self, p_szSQL, p_szResultCharset):
+        if self:
+            pass
+
+        # 创建数据文件, 根据末尾的rows来决定创建的行数
+        # 此时，SQL语句中的回车换行符没有意义
+        matchObj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+(\d+)(\s+)?$",
+                            p_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_filetype = str(matchObj.group(1)).strip()
+            m_filename = str(matchObj.group(2)).strip().replace('\r', '').replace('\n', '')
+            m_formula_str = str(matchObj.group(3).replace('\r', '').replace('\n', '').strip())
+            m_rows = int(matchObj.group(5))
+            Create_file(p_filetype=m_filetype,
+                        p_filename=m_filename,
+                        p_formula_str=m_formula_str,
+                        p_rows=m_rows,
+                        p_encoding=p_szResultCharset)
+            yield (
+                None,
+                None,
+                None,
+                None,
+                str(m_rows) + ' rows created Successful.')
+            return
+
+        matchObj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?$",
+                            p_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_filetype = str(matchObj.group(1)).strip()
+            m_filename = str(matchObj.group(2)).strip().replace('\r', '').replace('\n', '')
+            m_formula_str = str(matchObj.group(3).strip())
+            m_rows = 1
+            Create_file(p_filetype=m_filetype,
+                        p_filename=m_filename,
+                        p_formula_str=m_formula_str,
+                        p_rows=m_rows,
+                        p_encoding=p_szResultCharset)
+            yield (
+                None,
+                None,
+                None,
+                None,
+                str(m_rows) + ' rows created Successful.')
+            return
+
+        #  在不同的文件中进行相互转换
+        matchObj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\s+from\s+(.*?)file(.*?)(\s+)?$",
+                            p_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            # 在不同的文件中相互转换
+            Convert_file(p_srcfileType=str(matchObj.group(3)).strip(),
+                         p_srcfilename=str(matchObj.group(4)).strip(),
+                         p_dstfileType=str(matchObj.group(1)).strip(),
+                         p_dstfilename=str(matchObj.group(2)).strip())
+            yield (
+                None,
+                None,
+                None,
+                None,
+                'file converted Successful.')
+            return
+
+        # 创建随机数Seed的缓存文件
+        matchObj = re.match(r"data\s+create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
+                            r"length\s+(\d+)\s+rows\s+(\d+)\s+with\s+null\s+rows\s+(\d+)$",
+                            p_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_DataType = str(matchObj.group(1)).lstrip().rstrip()
+            m_SeedFileName = str(matchObj.group(2)).lstrip().rstrip()
+            m_DataLength = int(matchObj.group(3))
+            m_nRows = int(matchObj.group(4))
+            m_nNullValueCount = int(matchObj.group(5))
+            Create_SeedCacheFile(p_szDataType=m_DataType, p_nDataLength=m_DataLength, p_nRows=m_nRows,
+                                 p_szSeedName=m_SeedFileName, p_nNullValueCount=m_nNullValueCount)
+            yield (
+                None,
+                None,
+                None,
+                None,
+                'seed file created Successful.')
+            return
+
+        # 创建随机数Seed的缓存文件
+        matchObj = re.match(r"data\s+create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
+                            r"length\s+(\d+)\s+rows\s+(\d+)(\s+)?$",
+                            p_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_DataType = str(matchObj.group(1)).lstrip().rstrip()
+            m_SeedFileName = str(matchObj.group(2)).lstrip().rstrip()
+            m_DataLength = int(matchObj.group(3))
+            m_nRows = int(matchObj.group(4))
+            Create_SeedCacheFile(p_szDataType=m_DataType, p_nDataLength=m_DataLength, p_nRows=m_nRows,
+                                 p_szSeedName=m_SeedFileName)
+            yield (
+                None,
+                None,
+                None,
+                None,
+                'seed file created Successful.')
+            return
+
+        return None, None, None, None, "Unknown data Command."

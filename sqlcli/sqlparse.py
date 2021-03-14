@@ -3,7 +3,7 @@ import re
 import copy
 import os
 import shlex
-from .sqlinternal import random_ascii_letters_and_digits
+from .datawrapper import random_ascii_letters_and_digits
 
 
 class SQLMapping(object):
