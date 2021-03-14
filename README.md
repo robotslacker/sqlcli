@@ -1036,6 +1036,7 @@ Mapping file loaded.
     OS>  sqlcli --profile xxxx
     2. 通过创建SQLCLI_HOME/profile/default文件，并在其中输入相关信息
     3. 通过修改程序的安装目录中对应文件来指定，即<PYTHON_PACKAGE>/sqlcli/profile/default
+    同时存在上述3类文件的时候，3类文件都会被执行。叠加执行的顺序是：3，2，1
 
     除非打开调试模式，否则初始化脚本的执行不会有任何输出日志，不会影响到日志校验等
 
