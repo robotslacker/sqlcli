@@ -311,15 +311,15 @@ SQL>
 说明：上述信息都有TAB分隔，其中字符信息用单引号包括，如下是一个例子：  
 ```
 Script  Started elapsed SQLPrefix       SQLStatus       ErrorMessage    Scenario
-'sub_1.sql' '2020-05-25 17:46:23'       0.00        'loaddriver localtest\linkoopdb-jdbc-2.3.'      0       ''      'Scenario1'
-'sub_1.sql' '2020-05-25 17:46:23'       0.28        'connect admin/123456'  0       ''      'Scenario1'
-'sub_1.sql' '2020-05-25 17:46:24'       0.00        'SET ECHO ON'   0       ''      'Scenario1'
-'sub_1.sql' '2020-05-25 17:46:24'       0.00        'SET TIMING ON' 0       ''      'Scenario2'
-'sub_1.sql' '2020-05-25 17:46:24'       0.01        'LOADSQLMAP stresstest' 0       ''      'Scenario2'
-'sub_1.sql' '2020-05-25 17:46:24'       0.92        'ANALYZE TRUNCATE STATISTICS'   0       ''      'Scenario3'
-'sub_1.sql' '2020-05-25 17:46:25'       0.02        'SELECT count(SESSION_ID)  FROM INFORMATI'      0       ''      'Scenario3'
-'sub_1.sql' '2020-05-25 17:46:25'       1.37        'drop user testuser if exists cascade'  0       ''      'Scenario3'
-'sub_1.sql' '2020-05-25 17:46:26'       0.54        'CREATE USER testuser PASSWORD '123456''        0       ''      'Scenario3'
+sub_1.sql 2020-05-25 17:46:23       0.00        loaddriver localtest\linkoopdb-jdbc-2.3.      0             Scenario1
+sub_1.sql 2020-05-25 17:46:23       0.28        connect admin/123456  0             Scenario1
+sub_1.sql 2020-05-25 17:46:24       0.00        SET ECHO ON   0             Scenario1
+sub_1.sql 2020-05-25 17:46:24       0.00        SET TIMING ON 0             Scenario2
+sub_1.sql 2020-05-25 17:46:24       0.01        LOADSQLMAP stresstest 0             Scenario2
+sub_1.sql 2020-05-25 17:46:24       0.92        ANALYZE TRUNCATE STATISTICS   0             Scenario3
+sub_1.sql 2020-05-25 17:46:25       0.02        SELECT count(SESSION_ID)  FROM INFORMATI      0             Scenario3
+sub_1.sql 2020-05-25 17:46:25       1.37        drop user testuser if exists cascade  0             Scenario3
+sub_1.sql 2020-05-25 17:46:26       0.54        CREATE USER testuser PASSWORD 123456        0             Scenario3
 ```
 ***
 ### 在SQLCli里面查看当前支持的命令
@@ -1028,6 +1028,18 @@ Mapping file loaded.
    在这里，LastSQLResult后面的数据前述SQL结果集的行、列。可取值范围为： 0 - (Rowsaffected - 1), 0 - (column number -1)
 
 ```  
+### 定义SQLCli的初始化文件
+```
+    SQLCli在执行的时候可以指定初始化文件，初始化文件会在真正的脚本执行之前被执行
+    可以通过以下三种方式来定义SQLCli的初始化文件：
+    1： 通过在SQLCli的命令行参数中执行，   
+    OS>  sqlcli --profile xxxx
+    2. 通过创建SQLCLI_HOME/profile/default文件，并在其中输入相关信息
+    3. 通过修改程序的安装目录中对应文件来指定，即<PYTHON_PACKAGE>/sqlcli/profile/default
+
+    除非打开调试模式，否则初始化脚本的执行不会有任何输出日志，不会影响到日志校验等
+
+```
 
 ### 用SQLCli来产生测试数据文件
 ```
