@@ -1518,19 +1518,21 @@ class SQLCli(object):
         # 打印表格上边框
         # 计算表格输出的长度, 开头有一个竖线，随后每个字段内容前有一个空格，后有一个空格加上竖线
         # 1 + [（字段长度+3） *]
-        m_TableBoxLine = '+'
+        m_TableBoxLine = '+--------+'
         for m_Length in m_ColumnLength:
             m_TableBoxLine = m_TableBoxLine + (m_Length + 2) * '-' + '+'
         yield m_TableBoxLine
         # 打印表头以及表头下面的分割线
-        m_TableContentLine = '|'
+        m_TableContentLine = '|        |'
         for m_nPos in range(0, len(headers)):
             m_TableContentLine = m_TableContentLine + ' ' + \
                                  str(headers[m_nPos]).center(m_ColumnLength[m_nPos]) + ' |'
         yield m_TableContentLine
         yield m_TableBoxLine
         # 打印字段内容
+        m_RowNo = 0
         for m_Row in cur:
+            m_RowNo = m_RowNo + 1
             # 首先计算改行应该打印的高度（行中的内容可能右换行符号）
             m_RowHeight = 1
             for m_nPos in range(0, len(m_Row)):
@@ -1553,11 +1555,19 @@ class SQLCli(object):
                         m_SplitColumnValue = [m_Row[m_nPos], ]
                     for m_iter in range(0, m_RowHeight):
                         if len(m_SplitColumnValue) > m_iter:
+                            if str(m_SplitColumnValue[m_iter]).endswith('\r'):
+                                m_SplitColumnValue[m_iter] = m_SplitColumnValue[m_iter][:-1]
                             m_output[m_iter] = m_output[m_iter] + (m_SplitColumnValue[m_iter],)
                         else:
                             m_output[m_iter] = m_output[m_iter] + ("",)
+            m_RowNoPrinted = False
             for m_iter in m_output:
                 m_TableContentLine = '|'
+                if not m_RowNoPrinted:
+                    m_TableContentLine = m_TableContentLine + str(m_RowNo).rjust(7) + ' |'
+                    m_RowNoPrinted = True
+                else:
+                    m_TableContentLine = m_TableContentLine + '        |'
                 for m_nPos in range(0, len(m_iter)):
                     if columntypes[m_nPos] == str:
                         # 字符串左对齐
