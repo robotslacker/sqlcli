@@ -1500,7 +1500,10 @@ class SQLCli(object):
     def format_output_tab(self, headers, columntypes, cur):
         def wide_chars(s):
             # 判断字符串中包含的中文字符数量
-            return sum(unicodedata.east_asian_width(x) == 'W' for x in s)
+            if isinstance(s, str):
+                return sum(unicodedata.east_asian_width(x) == 'W' for x in s)
+            else:
+                return 0
 
         if self:
             pass
@@ -1515,7 +1518,7 @@ class SQLCli(object):
             for m_nPos in range(0, len(m_Row)):
                 if isinstance(m_Row[m_nPos], str):
                     for m_iter in m_Row[m_nPos].split('\n'):
-                        if len(m_iter)  + wide_chars(m_iter) > m_ColumnLength[m_nPos]:
+                        if len(m_iter) + wide_chars(m_iter) > m_ColumnLength[m_nPos]:
                             # 为了保持长度一致，长度计算的时候扣掉中文的显示长度
                             m_ColumnLength[m_nPos] = len(m_iter) + wide_chars(m_iter)
                 else:
@@ -1529,7 +1532,7 @@ class SQLCli(object):
             m_TableBoxLine = m_TableBoxLine + (m_Length + 2) * '-' + '+'
         yield m_TableBoxLine
         # 打印表头以及表头下面的分割线
-        m_TableContentLine = '|        |'
+        m_TableContentLine = '|   ##   |'
         for m_nPos in range(0, len(headers)):
             m_TableContentLine = m_TableContentLine + ' ' + \
                                  str(headers[m_nPos]).center(m_ColumnLength[m_nPos]) + ' |'
