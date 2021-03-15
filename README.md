@@ -661,28 +661,28 @@ Mapping file loaded.
 ```
     SQL> set
     Current set options: 
-    +-------------------+----------+----------------------+
-    | Name              | Value    | Comments             |
-    +-------------------+----------+----------------------+
-    | WHENEVER_SQLERROR | CONTINUE | ----                 |
-    | PAGE              | OFF      | ----                 |
-    | ECHO              | ON       | ----                 |
-    | TIMING            | OFF      | ----                 |
-    | TIME              | OFF      | ----                 |
-    | OUTPUT_FORMAT     | ASCII    | ASCII|CSV|VERTICAL   |
-    | CSV_HEADER        | OFF      | ----                 |
-    | CSV_DELIMITER     | ,        | ----                 |
-    | CSV_QUOTECHAR     |          | ----                 |
-    | FEEDBACK          | ON       | ----                 |
-    | TERMOUT           | ON       | ----                 |
-    | ARRAYSIZE         | 10000    | ----                 |
-    | SQLREWRITE        | OFF      | ----                 |
-    | LOB_LENGTH        | 20       | ----                 |
-    | FLOAT_FORMAT      | %.7g     | ----                 |
-    | DOUBLE_FORMAT     | %.10g    | ----                 |
-    | DECIMAL_FORMAT    |          | ----                 |
-    | CONN_RETRY_TIMES  | 1        | Connect retry times. |
-    +-------------------+----------+----------------------+
+    +-------------------+----------+------------------------+
+    | Name              | Value    | Comments               |
+    +-------------------+----------+------------------------+
+    | WHENEVER_SQLERROR | CONTINUE |                        |
+    | PAGE              | OFF      |                        |
+    | ECHO              | ON       |                        |
+    | TIMING            | OFF      |                        |
+    | TIME              | OFF      |                        |
+    | OUTPUT_FORMAT     | ASCII    | TAB|CSV|VERTICAL|ASCII |
+    | CSV_HEADER        | OFF      | ON|OFF                 |
+    | CSV_DELIMITER     | ,        |                        |
+    | CSV_QUOTECHAR     |          |                        |
+    | FEEDBACK          | ON       | ON|OFF                 |
+    | TERMOUT           | ON       | ON|OFF                 |
+    | ARRAYSIZE         | 10000    |                        |
+    | SQLREWRITE        | OFF      | ON|OFF                 |
+    | LOB_LENGTH        | 20       |                        |
+    | FLOAT_FORMAT      | %.7g     |                        |
+    | DOUBLE_FORMAT     | %.10g    |                        |
+    | DECIMAL_FORMAT    |          |                        |
+    | CONN_RETRY_TIMES  | 1        | Connect retry times.   |
+    +-------------------+----------+------------------------+
   没有任何参数的set将会列出程序所有的配置情况。
 
 ```
@@ -722,12 +722,13 @@ Mapping file loaded.
 &emsp; &emsp; 3. PAGE        是否分页显示，当执行的SQL语句结果超过了屏幕显示的内容，是否会暂停显示，等待用户输入任意键后继续显示下一页，默认是OFF，即不中断。
 
 #### 控制参数解释-OUTPUT_FORMAT
-&emsp; &emsp; 4. OUTPUT_FORMAT   显示格式， 默认是ASCII
+&emsp; &emsp; 4. OUTPUT_FORMAT   显示格式， 默认是ASCII(会择机变化成TAB)
 &emsp; 目前支持的选项有：
 ```
-      ASCII    |     显示格式为表格的格式 
+      ASCII    |     显示格式为表格的格式(第三方工具提供，暂时保留，来作为兼容性) 
       CSV      |     显示格式为CSV文件的格式
       VERTICAL |     分列显示
+      TAB      |     显示格式为表格的格式
 ```
 &emsp; 以下是一个例子：
 ```
