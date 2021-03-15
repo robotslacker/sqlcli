@@ -18,6 +18,7 @@ import itertools
 from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 from prompt_toolkit.shortcuts import PromptSession
 from multiprocessing.managers import BaseManager
+import unicodedata
 
 # 加载JDBC驱动和ODBC驱动
 from .sqlclijdbcapi import connect as jdbcconnect
@@ -1497,6 +1498,10 @@ class SQLCli(object):
             yield str(m_row)
 
     def format_output_tab(self, headers, columntypes, cur):
+        def wide_chars(s):
+            # 判断字符串中包含的中文字符数量
+            return sum(unicodedata.east_asian_width(x) == 'W' for x in s)
+
         if self:
             pass
         # 将屏幕输出按照表格进行输出
@@ -1504,17 +1509,18 @@ class SQLCli(object):
         m_ColumnLength = []
         # 首先将表头的字段长度记录其中
         for m_Header in headers:
-            m_ColumnLength.append(len(m_Header))
+            m_ColumnLength.append(len(m_Header) + wide_chars(m_Header))
         # 查找列的最大字段长度
         for m_Row in cur:
             for m_nPos in range(0, len(m_Row)):
                 if isinstance(m_Row[m_nPos], str):
                     for m_iter in m_Row[m_nPos].split('\n'):
-                        if len(m_iter) > m_ColumnLength[m_nPos]:
-                            m_ColumnLength[m_nPos] = len(m_iter)
+                        if len(m_iter)  + wide_chars(m_iter) > m_ColumnLength[m_nPos]:
+                            # 为了保持长度一致，长度计算的时候扣掉中文的显示长度
+                            m_ColumnLength[m_nPos] = len(m_iter) + wide_chars(m_iter)
                 else:
-                    if len(str(m_Row[m_nPos])) > m_ColumnLength[m_nPos]:
-                        m_ColumnLength[m_nPos] = len(str(m_Row[m_nPos]))
+                    if len(str(m_Row[m_nPos])) + wide_chars(m_Row[m_nPos]) > m_ColumnLength[m_nPos]:
+                        m_ColumnLength[m_nPos] = len(str(m_Row[m_nPos])) + wide_chars(m_Row[m_nPos])
         # 打印表格上边框
         # 计算表格输出的长度, 开头有一个竖线，随后每个字段内容前有一个空格，后有一个空格加上竖线
         # 1 + [（字段长度+3） *]
@@ -1572,7 +1578,9 @@ class SQLCli(object):
                     if columntypes[m_nPos] == str:
                         # 字符串左对齐
                         m_TableContentLine = m_TableContentLine + ' ' + \
-                                             str(m_iter[m_nPos]).ljust(m_ColumnLength[m_nPos]) + ' |'
+                                             str(m_iter[m_nPos])\
+                                                 .ljust(m_ColumnLength[m_nPos] - wide_chars(m_iter[m_nPos])) + \
+                                             ' |'
                     else:
                         # 数值类型右对齐
                         m_TableContentLine = m_TableContentLine + ' ' + \
