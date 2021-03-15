@@ -30,7 +30,7 @@ class SQLOptions(object):
                                       "Hidden": False})
         self.m_SQL_OptionList.append({"Name": "OUTPUT_FORMAT",
                                       "Value": "ASCII",
-                                      "Comments": 'ASCII|CSV|VERTICAL',
+                                      "Comments": 'TAB|CSV|VERTICAL|ASCII',
                                       "Hidden": False
                                       })
         self.m_SQL_OptionList.append({"Name": "CSV_HEADER",
