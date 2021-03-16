@@ -100,6 +100,10 @@ class SQLOptions(object):
                                       "Value": "OFF",
                                       "Comments": '',
                                       "Hidden": True})
+        self.m_SQL_OptionList.append({"Name": "SQL_EXECUTE",
+                                      "Value": "PREPARE",
+                                      "Comments": 'DIRECT|PREPARE',
+                                      "Hidden": False})
 
     def get(self, p_ParameterName):
         """根据参数名称返回参数，若不存在该参数，返回None."""

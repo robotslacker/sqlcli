@@ -434,6 +434,28 @@ class Cursor(object):
         for i in range(len(parameters)):
             prep_stmt.setObject(i + 1, parameters[i])
 
+    def execute_direct(self, operation):
+        if self._connection._closed:
+            raise Error()
+        self._close_last()
+        is_rs = False
+        m_stmt = self._connection.jconn.createStatement()
+        try:
+            is_rs = m_stmt.execute(operation)
+        except:
+            _handle_sql_exception_jpype()
+        self._rs = m_stmt.getResultSet()
+        if self._rs is not None:
+            self._meta = self._rs.getMetaData()
+            self.rowcount = m_stmt.getUpdateCount()
+        else:
+            self._meta = None
+            self.rowcount = -1
+        if is_rs:
+            self.rowcount = -1
+        else:
+            self.rowcount = m_stmt.getUpdateCount()
+
     def execute(self, operation, parameters=None):
         if self._connection._closed:
             raise Error()

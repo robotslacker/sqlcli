@@ -743,6 +743,19 @@ def SQLAnalyze(p_SQLCommandPlainText):
                         m_SQLHint["LogMask"].append(m_SQLMask)
                     else:
                         m_SQLHint["LogMask"] = [m_SQLMask]
+
+                # [Hint]  SQL_DIRECT   -- SQLCli执行的时候将不再尝试解析语句，而是直接解析执行
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?SQL_DIRECT", line,
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    m_SQLHint["SQL_DIRECT"] = True
+
+                # [Hint]  SQL_PREPARE   -- SQLCli执行的时候将首先尝试解析语句，随后执行
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?SQL_PREPARE", line,
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    m_SQLHint["SQL_PREPARE"] = True
+
             m_SQLHints.append({})     # 对于注释信息，所有的SQLHint信息都是空的
         else:
             # 这里是一个可执行SQL信息
