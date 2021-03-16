@@ -685,8 +685,10 @@ def SQLAnalyze(p_SQLCommandPlainText):
     for m_nPos in range(0, len(SQLSplitResults)):
         # 去掉行尾的空格
         SQLSplitResults[m_nPos] = SQLSplitResults[m_nPos].rstrip()
-        # 去掉行尾的最后一个分号, “但是如果是END；结尾的，最后的；不能去掉”
-        if SQLSplitResults[m_nPos][-1:] == ';' and not SQLSplitResults[m_nPos].upper().endswith("END;"):
+        # 去掉行尾的最后一个分号, “但是开头是BEGIN或者DECLARE开头的，不去掉
+        if SQLSplitResults[m_nPos][-1:] == ';' and \
+                not SQLSplitResults[m_nPos].upper().startswith("BEGIN") and \
+                not SQLSplitResults[m_nPos].upper().startswith("DECLARE"):
             SQLSplitResults[m_nPos] = SQLSplitResults[m_nPos][:-1]
 
     # 去掉注释信息中的最后一个回车换行符
