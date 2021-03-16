@@ -273,7 +273,15 @@ class SQLExecute(object):
                         if "SQLCLI_DEBUG" in os.environ:
                             click.secho("DEBUG-SQL=[" + str(sql) + "]", file=self.logfile)
                         # 执行SQL脚本
-                        cur.execute(sql)
+                        if "SQL_DIRECT" in m_SQLHint.keys():
+                            cur.execute_direct(sql)
+                        elif "SQL_PREPARE" in m_SQLHint.keys():
+                            cur.execute(sql)
+                        else:
+                            if self.SQLOptions.get("SQL_EXECUTE") == "DIRECT":
+                                cur.execute_direct(sql)
+                            else:
+                                cur.execute(sql)
                         rowcount = 0
                         while True:
                             (title, result, headers, columntypes, status, m_FetchStatus, m_FetchedRows) = \
