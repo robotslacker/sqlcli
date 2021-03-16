@@ -1613,7 +1613,7 @@ class SQLCli(object):
             if p_format_name.upper() == 'CSV':
                 # 按照CSV格式输出查询结果
                 formatted = self.format_output_csv(headers, columntypes, cur)
-            if p_format_name.upper() == 'TAB':
+            elif p_format_name.upper() == 'TAB':
                 # 按照TAB格式输出查询结果
                 formatted = self.format_output_tab(headers, columntypes, cur)
             else:
