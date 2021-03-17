@@ -593,6 +593,14 @@ class TestWrapper(object):
         except DiffException as de:
             raise SQLCliException('Fatal Diff Exception:: ' + de.message)
 
+    def AssertFormular(self, p_Formular):
+        if self:
+            pass
+        if eval(str(p_Formular)):
+            return None, None, None, None, "Assert Successful."
+        else:
+            raise SQLCliException('Test Assert Failed.')
+
     def Process_SQLCommand(self, p_szSQL):
         m_szSQL = p_szSQL.strip()
 
@@ -610,6 +618,13 @@ class TestWrapper(object):
             m_WorkFile = matchObj.group(1).strip()
             m_RefFile = matchObj.group(2).strip()
             (title, result, headers, columntypes, status) = self.Compare_Files(m_WorkFile, m_RefFile)
+            return title, result, headers, columntypes, status
+
+        matchObj = re.match(r"test\s+assert\s+(.*)$",
+                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_formular = matchObj.group(1).strip()
+            (title, result, headers, columntypes, status) = self.AssertFormular(m_formular)
             return title, result, headers, columntypes, status
 
         return None, None, None, None, "Unknown test Command."
