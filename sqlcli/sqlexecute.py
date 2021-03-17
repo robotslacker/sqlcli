@@ -51,15 +51,28 @@ class SQLExecute(object):
         self.SQLTransaction = ''
 
     def jqparse(self, obj, path='.'):
+        class DecimalEncoder(json.JSONEncoder):
+            def default(self, o):
+                if isinstance(o, decimal.Decimal):
+                    return float(o)
+                super(DecimalEncoder, self).default(o)
+
         if self is None:
             pass
+        if obj is None:
+            if "SQLCLI_DEBUG" in os.environ:
+                click.secho("JQ Parse Error: obj is None")
+            return "****"
         try:
             obj = json.loads(obj) if isinstance(obj, str) else obj
             find_str, find_map = '', ['["%s"]', '[%s]', '%s', '.%s']
             for im in path.split('.'):
                 if not im:
                     continue
-
+                if obj is None:
+                    if "SQLCLI_DEBUG" in os.environ:
+                        click.secho("JQ Parse Error: obj is none")
+                    return "****"
                 if isinstance(obj, (list, tuple, str)):
                     if im.startswith('[') and im.endswith(']'):
                         im = im[1:-1]
@@ -81,7 +94,10 @@ class SQLExecute(object):
                         else:
                             raise KeyError(im)
                 find_str += find_map[quota] % im
-            return obj if isinstance(obj, str) else json.dumps(obj, sort_keys=True, ensure_ascii=False)
+            return obj if isinstance(obj, str) else json.dumps(obj,
+                                                               sort_keys=True,
+                                                               ensure_ascii=False,
+                                                               cls=DecimalEncoder)
         except (IndexError, KeyError, ValueError) as je:
             if "SQLCLI_DEBUG" in os.environ:
                 click.secho("JQ Parse Error: " + repr(je))
