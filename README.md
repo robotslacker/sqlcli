@@ -1027,6 +1027,12 @@ Mapping file loaded.
 
 ### 用SQLCli来产生测试数据文件
 ```
+   SQL> __internal__ DATA SET HDFSUSER [USERNAME]
+   这里将指定随后操作HDFS操作时使用的用户名（程序使用InSecureClient来上传文件，所以无需口令)
+     
+   SQL> __internal__ DATA SET SEEDFILE DIR [DIRECTORY]
+   这里将指定随后程序加载种子Seed文件时所使用的目录，如果不指定，默认目录是SQLCLI_HOME\data
+   
    SQL> __internal__ DATA CREATE [string|integer] SEEDDATAFILE [SeedName] LENGTH [row length] ROWS [row number]  
       > WITH NULL ROWS [null rows number];
    这个程序将在$SQLCLI_HOME/data下创建若干seed文件，用来后续的随机函数
@@ -1037,7 +1043,7 @@ Mapping file loaded.
     [row number]              数据种子的行数
     [null rows number]        在该数据文件row number的行数中有多少行为空行
 
-   __internal__ DATA CREATE [MEM|FS|HDFS] FILE [xxx]
+   __internal__ DATA CREATE [MEM|FS|HDFS] FILE [FileName]
    (
      此处为宏代码
 
@@ -1076,16 +1082,15 @@ Mapping file loaded.
                                                frmt可以不提供，默认为%Y-%m-%d %H:%M:%S
      {random_boolean())                        表示一个随机的Boolean，可能为0，也可能为1
      {current_unixtimestamp()}                 unix时间戳格式表示的系统当前时间
-
      {column_name: macro()}                    一个带有列名的宏定义，其中macro()的写法参考前面的写法
      {value(:column_name)}                     根据列名，引用之前的一个定义
-
      {random_from_seed(seedname,length)}                  表示从seed文件中随机选取一个内容，并且最大长度限制在length, 此时seedname不要引号
-     {random_from_seed(seedname,start_pos, length)}       表示从seed文件中随机选取一个内容，内容从start_pos开始， 并且最大长度限制在length, 此时seedname不要引号
+     {random_from_seed(seedname,start_pos, length)}       表示从seed文件中随机选取一个内容，内容从start_pos开始(第一个位置为0)， 并且最大长度限制在length, 此时seedname不要引号
      使用random_from_seed需要用到seed文件，必须提前准备到$SQLCLI_HOME/data下，用来后续的随机函数  
 
-    __internal__ DATA CREATE [MEM|FS|HDFS] FILE [From file] FROM [MEM|FS|HDFS] FILE [To file] 
-    这里将完成一个文件复制。 
+   SQL> __internal__ DATA CREATE [MEM|FS|HDFS] FILE [LocalFileName] FROM [MEM|FS|HDFS] FILE [RemoteFileName]
+   如果是HDFS文件，则文件名格式为： http://HDFSHOST:HDFSRPCPORT/RemoteFileName
+   会下载相应文件, 并保存到指定目录，即完成文件复制
 
    例子：
    SQL> __internal__ DATA CREATE FS FILE abc.txt
@@ -1105,9 +1110,6 @@ Mapping file loaded.
     会在当前的文件目录下创建一个名字为abc.txt的文本文件，其中的内容为：
     10,'vxbMd','jsr'
     11,'SSiAa','vtg'
-
-   SQL> __internal__ DATA CREATE FS FILE abc.txt FROM HDFS FILE http://nodexx:port/def.txt
-   会从HDFS上下载一个文件def.txt, 并保存到本地文件系统的abc.txt中
 
 ```
 ### 用SQLCli工具操作Kafka
@@ -1304,6 +1306,9 @@ Mapping file loaded.
 
    SQL> __internal__ test Compare  WORKFILE  REFFILE
    比对WORKFILE和REFFILE的文件内容，并输出比对结果
+
+   SQL> __internal__ test assert  判断表达式
+   根据判断表达式给出结果，如果为True，显示Assert Successful。 反之显示Assert Failed.
 
    这里是一个典型的用比对方式来校验回归结果的例子：
     SQL> connect mem
