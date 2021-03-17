@@ -1010,24 +1010,6 @@ Mapping file loaded.
 
    
 ```  
-&emsp; &emsp; &emsp; &emsp; 2：  %lastsqlresult.LastSQLResult%  
-```
-    SQL>  select abs(1.234567891234) from dual;
-    +----------+
-    | C1       |
-    +----------+
-    | 1.234568 |
-    +----------+
-    1 row selected.
-    SQL> select %lastsqlresult.LastSQLResult[0][0]% From Dual;
-    +----------+
-    | C1       |
-    +----------+
-    | 1.234568 |
-    +----------+
-   这里的1.234568表示之前第一个SQL返回结果记录集中的第0行，第零列
-   在这里，LastSQLResult后面的数据前述SQL结果集的行、列。可取值范围为： 0 - (Rowsaffected - 1), 0 - (column number -1)
-
 ```  
 ### 定义SQLCli的初始化文件
 ```
