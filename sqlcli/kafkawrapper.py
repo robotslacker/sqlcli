@@ -7,7 +7,7 @@ import traceback
 from .sqlcliexception import SQLCliException
 import concurrent.futures
 
-from .datawrapper import parse_formula_str, get_final_string
+from .datawrapper import DataWrapper
 try:
     from confluent_kafka import Producer, Consumer, TopicPartition, KafkaException
     from confluent_kafka.admin import AdminClient, NewTopic, ConfigResource
@@ -28,6 +28,7 @@ class KafkaWrapper(object):
         self.__kafka_servers__ = None
         self.__kafka_createtopic_timeout = 60
         self.__kafka_deletetopic_timeout = 1800
+        self.m_DataWrapper = DataWrapper()
 
     def Kafka_Connect(self, p_szKafkaServers):
         self.__kafka_servers__ = p_szKafkaServers
@@ -346,7 +347,8 @@ class KafkaWrapper(object):
             m_Messages = []
             for m_nPos in range(0, len(m_RawMessages)):
                 if len(m_RawMessages[m_nPos]) != 0:
-                    m_Messages.append(get_final_string(parse_formula_str(m_RawMessages[m_nPos])))
+                    m_Messages.append(self.m_DataWrapper.get_final_string(
+                        self.m_DataWrapper.parse_formula_str(m_RawMessages[m_nPos])))
             m_ProduceError = []
             try:
                 nTotalCount = self.kafka_Produce(m_TopicName, m_Messages, m_ProduceError)
@@ -367,7 +369,7 @@ class KafkaWrapper(object):
         if matchObj:
             m_TopicName = str(matchObj.group(1)).strip()
             m_formula_str = str(matchObj.group(2)).replace('\r', '').replace('\n', '').strip()
-            m_row_struct = parse_formula_str(m_formula_str)
+            m_row_struct = self.m_DataWrapper.parse_formula_str(m_formula_str)
             m_row_count = int(str(matchObj.group(4)).strip())
             m_ErrorCount = 0
             nTotalCount = 0
@@ -389,7 +391,7 @@ class KafkaWrapper(object):
                 for i in range(0, m_row_count // m_BatchSize):
                     m_Messages = []
                     for j in range(0, m_BatchSize):
-                        m_Messages.append(get_final_string(m_row_struct))
+                        m_Messages.append(self.m_DataWrapper.get_final_string(m_row_struct))
                     m_ProduceError = []
                     nTotalCount = nTotalCount + self.kafka_Produce(m_TopicName, m_Messages, m_ProduceError)
                     if m_frequency != -1:
@@ -401,7 +403,7 @@ class KafkaWrapper(object):
                 m_Messages = []
                 # 一次性发送完剩余所有的消息
                 for i in range(0, m_row_count % m_BatchSize):
-                    m_Messages.append(get_final_string(m_row_struct))
+                    m_Messages.append(self.m_DataWrapper.get_final_string(m_row_struct))
                 m_ProduceError = []
                 nTotalCount = nTotalCount + self.kafka_Produce(m_TopicName, m_Messages, m_ProduceError)
                 m_ErrorCount = m_ErrorCount + len(m_ProduceError)
