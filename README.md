@@ -1010,7 +1010,6 @@ Mapping file loaded.
 
    
 ```  
-```  
 ### 定义SQLCli的初始化文件
 ```
     SQLCli在执行的时候可以指定初始化文件，初始化文件会在真正的脚本执行之前被执行
@@ -1035,7 +1034,7 @@ Mapping file loaded.
    
    SQL> __internal__ DATA CREATE [string|integer] SEEDDATAFILE [SeedName] LENGTH [row length] ROWS [row number]  
       > WITH NULL ROWS [null rows number];
-   这个程序将在$SQLCLI_HOME/data下创建若干seed文件，用来后续的随机函数
+   如果指定了SEEDFILE的目录，则会在目录下创建seed文件。否则，会在$SQLCLI_HOME/data下创建seed文件，用来后续的随机函数
 
     [string|integer]          是字符型随机数据文件还是数字型随机数据文件
     [SeedName]                数据种子的名称，根据需要编写，应简单好记
