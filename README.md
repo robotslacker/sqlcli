@@ -910,6 +910,25 @@ Mapping file loaded.
     ....
     加入这个提示符后，SQLCli将把日志输出中所有符合Password:.*的内容替换成Password:*****
 
+    SQL> -- [Hint] SQL_PREPARE
+    SQL> Select ID,Name From TestTab;
+    ....
+    加入这个提示符后，随后的SQLCli程序在执行的时候将首先解析SQL语句，随后再执行，
+    这是默认的方式
+
+    SQL> -- [Hint] SQL_DIRECT
+    SQL> Select ID,Name From TestTab;
+    ....
+    加入这个提示符后，随后的语句在SQLCli执行中将跃过解析(PrepareStatement)层面
+    这不是默认方式，和之前的SQL_PREPARE相互斥的一个设置
+    在某些情况下，有的特殊SQL语句不支持PREPARE，这是一个可以绕开问题的办法
+    可以通过设置变量的方式来全局影响这个设置.
+    SQL> SET SQL_EXECUTE PREPARE|DIRECT
+
+    SQL> -- [Hint] LOOP [LoopTimes] UNTIL [EXPRESSION] INTERVAL [INTERVAL]
+    循环执行当前SQL语句一直到表达式EXPRESSION被满足，或者循环次数满足设置要求
+    循环执行的次数是LoopTimes，每次循环的间隔是INTERVAL(秒作为单位)
+    
 ```
 ### 在SQL中使用变量信息
 &emsp; &emsp; 在一些场景中，我们需要通过变量来变化SQL的运行  

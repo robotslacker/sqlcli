@@ -756,6 +756,19 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 if matchObj:
                     m_SQLHint["SQL_PREPARE"] = True
 
+                # [Hint]  Loop   -- 循环执行特定的SQL
+                # --[Hint] LOOP [LoopTimes] UNTIL [EXPRESSION] INTERVAL [INTERVAL]
+                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LOOP\s+(\d+)"
+                                     r"\s+UNTIL\s+(.*)"
+                                     r"\s+INTERVAL\s+(\d+)(\s+)?", line,
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    m_SQLHint["SQL_LOOP"] = {
+                        "LoopTimes": matchObj.group(4),
+                        "LoopUntil": matchObj.group(5),
+                        "LoopInterval": matchObj.group(6)
+                    }
+
             m_SQLHints.append({})     # 对于注释信息，所有的SQLHint信息都是空的
         else:
             # 这里是一个可执行SQL信息

@@ -109,8 +109,9 @@ class SQLExecute(object):
         (title, rows, headers, columntypes, status).
 
         支持的SQLHint包括:
-        # [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
-        # [Hint]  scenario:XXXX   -- 相关SQL的场景ID，仅仅作为日志信息供查看
+        -- [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
+        -- [Hint]  scenario:XXXX   -- 相关SQL的场景ID，仅仅作为日志信息供查看
+        -- .....
         """
         m_SQL_Status = 0             # SQL 运行结果， 0 成功， 1 失败
         m_SQL_ErrorMessage = ""      # 错误日志信息
@@ -183,17 +184,21 @@ class SQLExecute(object):
                 old_sql = sql
                 sql = self.SQLMappingHandler.RewriteSQL(p_sqlscript, old_sql)
                 if old_sql != sql:    # SQL已经发生了改变
-                    if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
+                    if self.SQLOptions.get("SILENT").upper() == 'ON':
+                        # SILENT模式下不打印任何内容出来
+                        pass
+                    else:
+                        if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
+                            click.echo(SQLFormatWithPrefix(
+                                "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
+                        if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
+                            for m_SpoolFileHandler in self.spoolfile:
+                                click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
+                                           file=m_SpoolFileHandler)
+                        if self.logger is not None:
+                            self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
                         click.echo(SQLFormatWithPrefix(
-                            "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
-                    if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
-                        for m_SpoolFileHandler in self.spoolfile:
-                            click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
-                                       file=m_SpoolFileHandler)
-                    if self.logger is not None:
-                        self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
-                    click.echo(SQLFormatWithPrefix(
-                        "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
+                            "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
 
             # 如果是空语句，不在执行
             if len(sql.strip()) == 0:
@@ -214,17 +219,21 @@ class SQLExecute(object):
                 m_Searched = matchObj.group(0)
                 m_JQPattern = matchObj.group(1)
                 sql = sql.replace(m_Searched, self.jqparse(obj=self.LastJsonSQLResult, path=m_JQPattern))
-                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
+                if self.SQLOptions.get("SILENT").upper() == 'ON':
+                    # SILENT模式下不打印任何日志
+                    pass
+                else:
+                    if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
+                        click.echo(SQLFormatWithPrefix(
+                            "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
+                    if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
+                        for m_SpoolFileHandler in self.spoolfile:
+                            click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
+                                       file=m_SpoolFileHandler)
+                    if self.logger is not None:
+                        self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
                     click.echo(SQLFormatWithPrefix(
-                        "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.logfile)
-                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.spoolfile is not None:
-                    for m_SpoolFileHandler in self.spoolfile:
-                        click.echo(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '),
-                                   file=m_SpoolFileHandler)
-                if self.logger is not None:
-                    self.logger.info(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
-                click.echo(SQLFormatWithPrefix(
-                    "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
+                        "Your SQL has been changed to:\n" + sql, 'REWROTED '), file=self.Console)
 
             # ${var}
             bMatched = False
@@ -349,13 +358,57 @@ class SQLExecute(object):
                                                 result[i] = tuple(m_NewOutput.split(','))
                                         else:
                                             if "SQLCLI_DEBUG" in os.environ:
-                                                raise SQLCliException("LogMask Hint Error: " + m_SQLHint["LogMask"])
+                                                print("LogMask Hint Error: " + m_SQLHint["LogMask"])
+
+                            # 如果存在SQL_LOOP信息，则需要反复执行上一个SQL
+                            if "SQL_LOOP" in m_SQLHint.keys():
+                                if "SQLCLI_DEBUG" in os.environ:
+                                    print("SQL_LOOP=" + str(m_SQLHint["SQL_LOOP"]))
+                                # 循环执行SQL列表，构造参数列表
+                                m_LoopTimes = int(m_SQLHint["SQL_LOOP"]["LoopTimes"])
+                                m_LoopInterval = int(m_SQLHint["SQL_LOOP"]["LoopInterval"])
+                                m_LoopUntil = m_SQLHint["SQL_LOOP"]["LoopUntil"]
+                                if m_LoopInterval <= 0:
+                                    m_LoopTimes = 0
+                                    if "SQLCLI_DEBUG" in os.environ:
+                                        raise SQLCliException("SQLLoop Hint Error, Unexpected LoopTime: " + str(m_LoopInterval))
+                                if m_LoopInterval <= 0:
+                                    m_LoopTimes = 0
+                                    if "SQLCLI_DEBUG" in os.environ:
+                                        raise SQLCliException("SQLLoop Hint Error, Unexpected LoopInterval: " + str(m_LoopInterval))
+
+                                # 保存Silent设置
+                                m_OldSilentMode = self.SQLOptions.get("SILENT")
+                                m_OldTimingMode  = self.SQLOptions.get("TIMING")
+                                m_OldTimeMode = self.SQLOptions.get("TIME")
+                                self.SQLOptions.set("SILENT", "ON")
+                                self.SQLOptions.set("TIMING", "OFF")
+                                self.SQLOptions.set("TIME", "OFF")
+                                m_LoopFinished = False
+                                for m_nLoopPos in range(0, m_LoopTimes):
+                                    # 检查Until条件，如果达到Until条件，退出
+                                    for _, _, _, _, assert_status in self.run("__internal__ test assert " + m_LoopUntil):
+                                        if assert_status.startswith("Assert Successful"):
+                                            m_LoopFinished = True
+                                            break
+                                        else:
+                                            # 测试失败, 等待一段时间后，开始下一次检查
+                                            time.sleep(m_LoopInterval)
+                                            for title, result, headers, columntypes, status in self.run(sql):
+                                                # 最后一次执行的结果将被传递到外层，作为SQL返回结果
+                                                pass
+                                    if m_LoopFinished:
+                                        break
+                                self.SQLOptions.set("TIME", m_OldTimeMode)
+                                self.SQLOptions.set("TIMING", m_OldTimingMode)
+                                self.SQLOptions.set("SILENT", m_OldSilentMode)
 
                             # 返回SQL结果
                             if self.SQLOptions.get('TERMOUT').upper() != 'OFF':
                                 yield title, result, headers, columntypes, status
                             else:
                                 yield title, [], headers, columntypes, status
+
                             if not m_FetchStatus:
                                 break
                     except SQLCliODBCException as oe:

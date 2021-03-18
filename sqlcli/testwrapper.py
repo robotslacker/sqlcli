@@ -596,10 +596,13 @@ class TestWrapper(object):
     def AssertFormular(self, p_Formular):
         if self:
             pass
-        if eval(str(p_Formular)):
-            return None, None, None, None, "Assert Successful."
-        else:
-            raise SQLCliException('Test Assert Failed.')
+        try:
+            if eval(str(p_Formular)):
+                return None, None, None, None, "Assert Successful."
+            else:
+                raise SQLCliException('Assert Failed.')
+        except Exception as ae:
+            raise SQLCliException('Assert Error: ' + repr(ae))
 
     def Process_SQLCommand(self, p_szSQL):
         m_szSQL = p_szSQL.strip()
