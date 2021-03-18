@@ -127,6 +127,8 @@ class SQLCli(object):
         self.MultiProcessManager = None                  # 进程间共享消息管理器， 如果为子进程，该参数为空
         self.profile = []                                # 程序的初始化日志文件
 
+        self.m_LastComment = None                        # 如果当前SQL之前的内容完全是注释，则注释带到这里
+
         # 传递各种参数
         self.sqlscript = sqlscript
         self.sqlmap = sqlmap
@@ -1105,22 +1107,37 @@ class SQLCli(object):
                     self.echo("SQLCli Can't work without valid terminal. "
                               "Use \"--execute\" in case you need run script", err=True, fg="red")
                     return False
+
                 # 拼接SQL语句
                 if full_text is None:
                     full_text = text
                 else:
                     full_text = full_text + '\n' + text
                 # 判断SQL语句是否已经结束
-                (ret_bSQLCompleted, ret_SQLSplitResults, ret_SQLSplitResultsWithComments, ret_SQLFlags) = \
+                (ret_bSQLCompleted, ret_SQLSplitResults, ret_SQLSplitResultsWithComments, _) = \
                     SQLAnalyze(full_text)
                 if ret_bSQLCompleted:
                     # SQL 语句已经结束
                     break
-            text = full_text
 
-        # 如果文本是空行，直接跳过
-        if not text.strip():
-            return True
+            if len("".join(ret_SQLSplitResults).strip()) == 0 and \
+                    len("".join(ret_SQLSplitResultsWithComments).strip()) != 0:
+                # 如果一行完全是注释，则记录改行信息，传递给下一行可执行的SQL
+                if self.m_LastComment is not None:
+                    self.m_LastComment = self.m_LastComment + "\n" + "\n".join(ret_SQLSplitResultsWithComments)
+                else:
+                    self.m_LastComment = "\n".join(ret_SQLSplitResultsWithComments)
+                return True
+            else:
+                # 如果文本是空行，直接跳过
+                if not text.strip():
+                    return True
+                # 记录需要执行的SQL，包含之前保留的注释部分，传递给执行程序
+                if self.m_LastComment is None:
+                    text = full_text
+                else:
+                    text = self.m_LastComment + '\n' + full_text
+                    self.m_LastComment = None
 
         try:
             result = self.SQLExecuteHandler.run(text)
