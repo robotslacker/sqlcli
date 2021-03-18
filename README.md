@@ -62,8 +62,8 @@ SQLCli 目前支持的数据类型有：
    * 对于Linux平台，  需要提前安装gcc编译器，unixODBC开发环境，以及Python3的开发包（原因同上）  
      yum install -y gcc-c++ gcc python3-devel  
      yum install -y unixODBC  unixODBC-devel  
-   * 对于MAC平台，  需要提前安装gcc编译器，以及unixODBC开发环境
-     brew install gcc
+   * 对于MAC平台，  需要提前安装gcc编译器，以及unixODBC开发环境  
+     brew install gcc  
      brew install unixODBC
 
 依赖的第三方安装包：  
@@ -101,7 +101,7 @@ SQLCli 目前支持的数据类型有：
 
 ### 第一次使用
 安装后直接在命令下执行sqlcli命令即可。  
-如果你的$PYTHON_HOME/Scripts没有被添加到当前环境的$PATH中，你可能需要输入全路径名  
+如果你的<PYTHON_HOME>/Scripts没有被添加到当前环境的$PATH中，你可能需要输入全路径名  
 ```
 (base) >sqlcli
 SQL*Cli Release 0.0.32
