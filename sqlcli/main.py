@@ -206,7 +206,12 @@ class SQLCli(object):
     def __del__(self):
         # 如果打开了多进程管理，则关闭多进程管理
         if self.MultiProcessManager is not None:
-            self.MultiProcessManager.shutdown()
+            try:
+                self.MultiProcessManager.shutdown()
+            except Exception as ex:
+                if "SQLCLI_DEBUG" in os.environ:
+                    print('traceback.print_exc():\n%s' % traceback.print_exc())
+                    print('traceback.format_exc():\n%s' % traceback.format_exc())
 
     # 加载CLI的各种特殊命令集
     def register_special_commands(self):

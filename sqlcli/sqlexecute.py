@@ -316,40 +316,40 @@ class SQLExecute(object):
                                         if str(result[j]) > str(result[j + 1]):
                                             result[j], result[j + 1] = result[j + 1], result[j]
 
-                            if "SQLCLI_DEBUG" in os.environ:
-                                # DEBUG模式下不会过滤任何东西
-                                pass
-                            else:
-                                # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
-                                if "LogFilter" in m_SQLHint.keys() and result is not None:
-                                    for m_SQLFilter in m_SQLHint["LogFilter"]:
-                                        for item in result[:]:
-                                            if re.match(m_SQLFilter, ''.join(str(item)), re.IGNORECASE):
-                                                result.remove(item)
-                                                continue
+                            # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
+                            if "LogFilter" in m_SQLHint.keys() and result is not None:
+                                for m_SQLFilter in m_SQLHint["LogFilter"]:
+                                    for item in result[:]:
+                                        if "SQLCLI_DEBUG" in os.environ:
+                                            print("Apply Filter: " + str(''.join(str(item))) + " with " + m_SQLFilter)
+                                        if re.match(m_SQLFilter, ''.join(str(item)), re.IGNORECASE):
+                                            result.remove(item)
+                                            continue
 
-                                # 如果Hint中存在LogMask,则掩码指定的输出信息
-                                if "LogMask" in m_SQLHint.keys() and result is not None:
-                                    for i in range(0, len(result)):
-                                        m_Output = None
-                                        for j in range(0, len(result[i])):
-                                            if m_Output is None:
-                                                m_Output = str(result[i][j])
-                                            else:
-                                                m_Output = m_Output + "," + str(result[i][j])
-                                        for m_SQLMaskString in m_SQLHint["LogMask"]:
-                                            print("m_SQLMaskString=[" + m_SQLMaskString + "]")
-                                            m_SQLMask = m_SQLMaskString.split("=>")
-                                            if len(m_SQLMask) == 2:
-                                                m_SQLMaskPattern = m_SQLMask[0]
-                                                m_SQLMaskTarget = m_SQLMask[1]
-                                                m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget, m_Output,
-                                                                     re.IGNORECASE)
-                                                if m_NewOutput != m_Output:
-                                                    result[i] = tuple(m_NewOutput.split(','))
-                                            else:
-                                                if "SQLCLI_DEBUG" in os.environ:
-                                                    raise SQLCliException("LogMask Hint Error: " + m_SQLHint["LogMask"])
+                            # 如果Hint中存在LogMask,则掩码指定的输出信息
+                            if "LogMask" in m_SQLHint.keys() and result is not None:
+                                for i in range(0, len(result)):
+                                    m_Output = None
+                                    for j in range(0, len(result[i])):
+                                        if m_Output is None:
+                                            m_Output = str(result[i][j])
+                                        else:
+                                            m_Output = m_Output + "," + str(result[i][j])
+                                    for m_SQLMaskString in m_SQLHint["LogMask"]:
+                                        m_SQLMask = m_SQLMaskString.split("=>")
+                                        if len(m_SQLMask) == 2:
+                                            m_SQLMaskPattern = m_SQLMask[0]
+                                            m_SQLMaskTarget = m_SQLMask[1]
+                                            if "SQLCLI_DEBUG" in os.environ:
+                                                print("Apply Mask: " + m_Output +
+                                                      " with " + m_SQLMaskPattern + "=>" + m_SQLMaskTarget)
+                                            m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget, m_Output,
+                                                                 re.IGNORECASE)
+                                            if m_NewOutput != m_Output:
+                                                result[i] = tuple(m_NewOutput.split(','))
+                                        else:
+                                            if "SQLCLI_DEBUG" in os.environ:
+                                                raise SQLCliException("LogMask Hint Error: " + m_SQLHint["LogMask"])
 
                             # 返回SQL结果
                             if self.SQLOptions.get('TERMOUT').upper() != 'OFF':
