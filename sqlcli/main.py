@@ -206,12 +206,7 @@ class SQLCli(object):
     def __del__(self):
         # 如果打开了多进程管理，则关闭多进程管理
         if self.MultiProcessManager is not None:
-            try:
-                self.MultiProcessManager.shutdown()
-            except Exception as ex:
-                if "SQLCLI_DEBUG" in os.environ:
-                    print('traceback.print_exc():\n%s' % traceback.print_exc())
-                    print('traceback.format_exc():\n%s' % traceback.format_exc())
+            self.MultiProcessManager.shutdown()
 
     # 加载CLI的各种特殊命令集
     def register_special_commands(self):
@@ -1585,10 +1580,9 @@ class SQLCli(object):
                 for m_nPos in range(0, len(m_iter)):
                     if columntypes[m_nPos] == str:
                         # 字符串左对齐
-                        m_TableContentLine = m_TableContentLine + ' ' + \
-                                             str(m_iter[m_nPos])\
-                                                 .ljust(m_ColumnLength[m_nPos] - wide_chars(m_iter[m_nPos])) + \
-                                             ' |'
+                        m_TableContentLine = \
+                            m_TableContentLine + ' ' + \
+                            str(m_iter[m_nPos]).ljust(m_ColumnLength[m_nPos] - wide_chars(m_iter[m_nPos])) + ' |'
                     else:
                         # 数值类型右对齐
                         m_TableContentLine = m_TableContentLine + ' ' + \

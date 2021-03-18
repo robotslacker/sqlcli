@@ -371,15 +371,17 @@ class SQLExecute(object):
                                 if m_LoopInterval <= 0:
                                     m_LoopTimes = 0
                                     if "SQLCLI_DEBUG" in os.environ:
-                                        raise SQLCliException("SQLLoop Hint Error, Unexpected LoopTime: " + str(m_LoopInterval))
+                                        raise SQLCliException(
+                                            "SQLLoop Hint Error, Unexpected LoopTime: " + str(m_LoopInterval))
                                 if m_LoopInterval <= 0:
                                     m_LoopTimes = 0
                                     if "SQLCLI_DEBUG" in os.environ:
-                                        raise SQLCliException("SQLLoop Hint Error, Unexpected LoopInterval: " + str(m_LoopInterval))
+                                        raise SQLCliException(
+                                            "SQLLoop Hint Error, Unexpected LoopInterval: " + str(m_LoopInterval))
 
                                 # 保存Silent设置
                                 m_OldSilentMode = self.SQLOptions.get("SILENT")
-                                m_OldTimingMode  = self.SQLOptions.get("TIMING")
+                                m_OldTimingMode = self.SQLOptions.get("TIMING")
                                 m_OldTimeMode = self.SQLOptions.get("TIME")
                                 self.SQLOptions.set("SILENT", "ON")
                                 self.SQLOptions.set("TIMING", "OFF")
@@ -387,7 +389,8 @@ class SQLExecute(object):
                                 m_LoopFinished = False
                                 for m_nLoopPos in range(0, m_LoopTimes):
                                     # 检查Until条件，如果达到Until条件，退出
-                                    for _, _, _, _, assert_status in self.run("__internal__ test assert " + m_LoopUntil):
+                                    for _, _, _, _, assert_status in \
+                                            self.run("__internal__ test assert " + m_LoopUntil):
                                         if assert_status.startswith("Assert Successful"):
                                             m_LoopFinished = True
                                             break

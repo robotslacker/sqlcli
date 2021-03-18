@@ -3,9 +3,7 @@ import re
 import time
 import datetime
 from multiprocessing import Lock
-from multiprocessing.managers import BaseManager
 from .sqlcliexception import SQLCliException
-from .sqlclisga import SQLCliGlobalSharedMemory
 
 
 # Transaction事务管理
