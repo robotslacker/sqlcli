@@ -312,7 +312,11 @@ class SQLExecute(object):
                             (title, result, headers, columntypes, status, m_FetchStatus, m_FetchedRows) = \
                                 self.get_result(cur, rowcount)
                             rowcount = m_FetchedRows
-
+                            if "SQLCLI_DEBUG" in os.environ:
+                                for m_RowPos in range(0, len(result)):
+                                    for m_CellPos in range(0, len(result[m_RowPos])):
+                                        print("Cell[" + str(m_RowPos) + ":" +
+                                              str(m_CellPos) + "]=[" + str(result[m_RowPos][m_CellPos]) + "]")
                             self.LastJsonSQLResult = {"desc": headers,
                                                       "rows": rowcount,
                                                       "elapsed": time.time() - start,
