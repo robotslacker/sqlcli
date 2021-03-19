@@ -891,7 +891,7 @@ Mapping file loaded.
 ```
 
 
-#### 在SQL中使用Hint信息
+### 在SQL中使用Hint信息
 &emsp; &emsp; 在一些场景中，我们通过Hint隐含提示符来控制SQL的具体行为
 ```
     SQL> -- [Hint] Order
@@ -1028,7 +1028,21 @@ Mapping file loaded.
         string切片step          ..与list相同
 
    
-```  
+```
+### 在SQLCli中完成简单的循环语句
+```
+    通过使用SQLHint，我们可以实现简单的语句循环。
+    例子：
+    SQL> -- [Hint] LOOP 100 UNTIL False INTERVAL 2
+    Select * From Cat;
+    -- 以上的语句将以间隔2秒执行一次的节奏执行100次的“Select * From Cat”
+
+    SQL> -- [Hint] LOOP 100 UNTIL ${LastSQLResult(.result.0.0)}>10 INTERVAL 2
+    Select * From Cat;
+    以上的语句将以间隔2秒执行一次的节奏执行“Select * From Cat”
+    一直执行到100次或者该语句返回结果集的第一行第一内内容大于10
+    其中： ${LastSQLResult(.result.0.0)}是一个标准的JQ表达式，写法参考__internal__ test assert中写法说明
+``` 
 ### 定义SQLCli的初始化文件
 ```
     SQLCli在执行的时候可以指定初始化文件，初始化文件会在真正的脚本执行之前被执行
