@@ -2,6 +2,7 @@
 import os
 import re
 import json
+import configparser
 from .sqlcliexception import SQLCliException
 
 
@@ -604,6 +605,23 @@ class TestWrapper(object):
         except Exception as ae:
             raise SQLCliException('Assert Error: ' + repr(ae))
 
+    def LoadEnv(self, p_EnvFileName, p_EnvSectionName):
+        if not os.path.exists(p_EnvFileName):
+            raise SQLCliException("Env file [" + p_EnvFileName + "] does not exist!")
+
+        m_EnvSettings = configparser.ConfigParser()
+        m_EnvSettings.optionxform = str
+        m_EnvSettings.read(p_EnvFileName)
+        if not m_EnvSettings.has_section(p_EnvSectionName):
+            raise SQLCliException(
+                "Section [" + p_EnvSectionName + "] does not exist in file [" + p_EnvFileName + "]!")
+
+        for m_ConfigName, m_ConfigValue in m_EnvSettings.items(p_EnvSectionName):
+            os.environ[m_ConfigName.strip()] = m_ConfigValue.strip()
+            if "SQLCLI_DEBUG" in os.environ:
+                print("Load Env :: " + m_ConfigName + "=" + m_ConfigValue)
+        return None, None, None, None, "Env [" + p_EnvSectionName + "] load successful."
+
     def Process_SQLCommand(self, p_szSQL):
         m_szSQL = p_szSQL.strip()
 
@@ -628,6 +646,14 @@ class TestWrapper(object):
         if matchObj:
             m_formular = matchObj.group(1).strip()
             (title, result, headers, columntypes, status) = self.AssertFormular(m_formular)
+            return title, result, headers, columntypes, status
+
+        matchObj = re.match(r"test\s+loadenv\s+(.*)\s+(.*)$",
+                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_EnvFileName = matchObj.group(1).strip()
+            m_EnvSectionName = matchObj.group(2).strip()
+            (title, result, headers, columntypes, status) = self.LoadEnv(m_EnvFileName, m_EnvSectionName)
             return title, result, headers, columntypes, status
 
         return None, None, None, None, "Unknown test Command."
