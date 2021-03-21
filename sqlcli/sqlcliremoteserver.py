@@ -29,11 +29,6 @@ class SQLCliRemoteServer:
         pass
 
     @staticmethod
-    @app.exception_handler(RequestValidationError)
-    def request_validation_exception_handler(request: Request, exc: RequestValidationError):
-        return {"ret": -1, "message": exc.errors()}
-
-    @staticmethod
     @app.post("/DoLogin")
     def Process_LoginRequest(p_RequestData: LoginData):
         # 用户登录，返回一个随机生成的token
@@ -41,18 +36,19 @@ class SQLCliRemoteServer:
         m_ClientID = ''.join(random.choice(string.digits) for i in range(4))
         m_SQLCli = SQLCli(
             HeadlessMode=True,
-            WorkerName=m_ClientID,
-            EnableJobManager=False
+            WorkerName=m_ClientID
         )
+        m_SQLCli.ClientID = m_ClientID
         sga[m_ClientID] = m_SQLCli
+
         return {"clientid": m_ClientID}
 
     @staticmethod
-    @app.post("/DoLogOut")
+    @app.post("/DoLogout")
     def Process_LogOut(p_RequestData: LogoutData):
         if p_RequestData.clientid in sga.keys():
             m_SQLCli = SQLCli(sga[p_RequestData.clientid])
-            m_SQLCli.exit(None)
+            m_SQLCli.exit(cls=None, arg=None)
             sga.pop(p_RequestData.clientid)
             return {"ret": 0}
         else:
@@ -63,23 +59,13 @@ class SQLCliRemoteServer:
     def Process_CommandRequest(p_RequestData: CommandData):
         if p_RequestData.clientid in sga.keys():
             try:
-                if p_RequestData.op == "connect":
-                    for title, cur, headers, columntypes, status in \
-                            sga[p_RequestData.clientid].connect_db(p_RequestData.command):
-                        return {
-                            "ret": 0,
-                            "title": title,
-                            "cur": cur,
-                            "headers": headers,
-                            "columntyps": columntypes,
-                            "status": status
-                        }
-                elif p_RequestData.op == "execute":
-                    m_SQLExecuteHandler = sga[p_RequestData.clientid].SQLExecuteHandler
+                if p_RequestData.op == "execute":
                     m_PostResult = []
-                    for title, cur, headers, columntypes, status in m_SQLExecuteHandler.run(p_RequestData.command):
+                    m_SQLCli = sga[p_RequestData.clientid]
+                    for title, cur, headers, columntypes, status in \
+                            m_SQLCli.SQLExecuteHandler.run(p_RequestData.command):
                         m_PostResult.append((title, cur, headers, columntypes, status))
-                    print("dataset=" + str(m_PostResult))
+                    sga[p_RequestData.clientid] = m_SQLCli
                     return {
                         "ret": 0,
                         "dataset": m_PostResult
@@ -92,7 +78,6 @@ class SQLCliRemoteServer:
                         "message": se.message}
         else:
             return {"ret": -1, "message": "clientid [" + p_RequestData.clientid + "] does not exist."}
-        return p_RequestData
 
     @staticmethod
     def Start_SQLCliServer(p_ServerPort):

@@ -19,18 +19,19 @@ from SQLCliODBC import SQLCliODBCException
 
 
 class SQLExecute(object):
-    conn = None                         # 数据库连接
-    logfile = None                      # 打印的日志文件
-    sqlscript = None                    # 需要执行的SQL脚本
-    SQLMappingHandler = None            # SQL重写处理
-    SQLOptions = None                   # 程序处理参数
-    Console = False                     # 屏幕输出Console
-    logger = None                       # 日志输出
-    m_PerfFileLocker = None             # 进程锁, 用来在输出perf文件的时候控制并发写文件
-    SQLPerfFile = None                  # SQLPerf文件
-    SQLPerfFileHandle = None            # SQLPerf文件句柄
-
     def __init__(self):
+        self.conn = None                    # 数据库连接
+        self.logfile = None                 # 打印的日志文件
+        self.sqlscript = None               # 需要执行的SQL脚本
+        self.SQLMappingHandler = None       # SQL重写处理
+        self.SQLOptions = None              # 程序处理参数
+        self.Console = False                # 屏幕输出Console
+        self.logger = None                  # 日志输出
+        self.m_PerfFileLocker = None        # 进程锁, 用来在输出perf文件的时候控制并发写文件
+        self.SQLPerfFile = None             # SQLPerf文件
+        self.SQLPerfFileHandle = None       # SQLPerf文件句柄
+        self.SQLCliHandler = None
+
         # 记录最后SQL返回的结果
         self.LastJsonSQLResult = None
         self.LastElapsedTime = 0
@@ -49,6 +50,9 @@ class SQLExecute(object):
 
         # Transaction信息
         self.SQLTransaction = ''
+
+        # 当前SQL游标
+        self.cur = None
 
     def jqparse(self, obj, path='.'):
         class DecimalEncoder(json.JSONEncoder):
@@ -107,6 +111,11 @@ class SQLExecute(object):
         """
         返回结果包含5个方面的内容
         (title, rows, headers, columntypes, status).
+        title       表头信息
+        rows        结果数据集
+        headers     结果集的header定义，列名信息
+        columntypes 列类型，字符串格式
+        status       返回结果汇总消息
 
         支持的SQLHint包括:
         -- [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
@@ -204,9 +213,6 @@ class SQLExecute(object):
             if len(sql.strip()) == 0:
                 continue
 
-            # 打开游标
-            cur = self.conn.cursor() if self.conn else None
-
             # 检查SQL中是否包含特殊内容，如果有，改写SQL
             # 特殊内容都有：
             # 1. ${LastSQLResult(.*)}       # .* JQ Parse Pattern
@@ -281,10 +287,14 @@ class SQLExecute(object):
             # 执行SQL
             try:
                 # 首先尝试这是一个特殊命令，如果返回CommandNotFound，则认为其是一个标准SQL
-                for (title, result, headers, columntypes, status) in execute(sql):
+                for (title, result, headers, columntypes, status) in execute(self.SQLCliHandler,  sql):
                     yield title, result, headers, columntypes, status
             except CommandNotFound:
-                if cur is None:
+                # 进入到SQL执行阶段, 开始执行SQL语句
+                if self.conn:
+                    # 打开游标
+                    self.cur = self.conn.cursor()
+                else:
                     # 进入到SQL执行阶段，不是特殊命令, 数据库连接也不存在
                     if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                         raise SQLCliException("Not Connected. ")
@@ -293,24 +303,24 @@ class SQLExecute(object):
                         yield None, None, None, None, "Not connected. "
 
                 # 执行正常的SQL语句
-                if cur is not None:
+                if self.cur is not None:
                     try:
                         if "SQLCLI_DEBUG" in os.environ:
                             click.secho("DEBUG-SQL=[" + str(sql) + "]", file=self.logfile)
                         # 执行SQL脚本
                         if "SQL_DIRECT" in m_SQLHint.keys():
-                            cur.execute_direct(sql)
+                            self.cur.execute_direct(sql)
                         elif "SQL_PREPARE" in m_SQLHint.keys():
-                            cur.execute(sql)
+                            self.cur.execute(sql)
                         else:
                             if self.SQLOptions.get("SQL_EXECUTE") == "DIRECT":
-                                cur.execute_direct(sql)
+                                self.cur.execute_direct(sql)
                             else:
-                                cur.execute(sql)
+                                self.cur.execute(sql)
                         rowcount = 0
                         while True:
                             (title, result, headers, columntypes, status, m_FetchStatus, m_FetchedRows) = \
-                                self.get_result(cur, rowcount)
+                                self.get_result(self.cur, rowcount)
                             rowcount = m_FetchedRows
                             if "SQLCLI_DEBUG" in os.environ:
                                 for m_RowPos in range(0, len(result)):

@@ -15,6 +15,8 @@ import subprocess
 import pyparsing
 import unicodedata
 import itertools
+import requests
+import json
 from urllib.error import URLError
 from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 from prompt_toolkit.shortcuts import PromptSession
@@ -94,7 +96,7 @@ class SQLCli(object):
             resultcharset='UTF-8',
             EnableJobManager=True,
             SharedProcessInfo=None,
-            profile=None,
+            profile=None
     ):
         self.db_saved_conn = {}                          # 数据库Session备份
         self.SQLMappingHandler = SQLMapping()            # 函数句柄，处理SQLMapping信息
@@ -116,6 +118,8 @@ class SQLCli(object):
         self.db_conntype = None                          # 数据库连接方式，  JDBC或者是ODBC
         self.echofilename = None                         # 当前回显文件的文件名称
         self.Version = __version__                       # 当前程序版本
+        self.ClientID = None                             # 远程连接时的客户端ID
+
         if clientcharset is None:                        # 客户端字符集
             self.Client_Charset = 'UTF-8'
         else:
@@ -186,6 +190,7 @@ class SQLCli(object):
         self.TransactionHandler.SQLExecuteHandler = self.SQLExecuteHandler
 
         # 设置其他的变量
+        self.SQLExecuteHandler.SQLCliHandler = self
         self.SQLExecuteHandler.sqlscript = sqlscript
         self.SQLExecuteHandler.SQLMappingHandler = self.SQLMappingHandler
         self.SQLExecuteHandler.SQLOptions = self.SQLOptions
@@ -300,6 +305,18 @@ class SQLCli(object):
         if not os.environ.get("LESS"):
             os.environ["LESS"] = "-RXF"
 
+        # 如果需要连接到远程，则创建连接
+        if "SQLCLI_REMOTESERVER" in os.environ:
+            try:
+                request_data = json.dumps({})
+                headers = {'Content-Type': 'application/json', 'accept': 'application/json'}
+                ret = requests.post("http://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoLogin",
+                                    data=request_data,
+                                    headers=headers)
+                self.ClientID = json.loads(ret.text)["clientid"]
+            except Exception as e:
+                raise SQLCliException("Connect to RemoteServer failed. " + repr(e))
+
         # 处理初始化启动文件，如果需要的话，在处理的过程中不打印任何日志信息
         if len(self.profile) != 0:
             if "SQLCLI_DEBUG" not in os.environ:
@@ -314,6 +331,22 @@ class SQLCli(object):
                 self.SQLOptions.set("SILENT", "OFF")
 
     def __del__(self):
+        # 如果已经连接到远程，则断开连接
+        if "SQLCLI_REMOTESERVER" in os.environ:
+            if self.ClientID is not None:
+                try:
+                    request_data = json.dumps(
+                        {
+                            "clientid": self.ClientID
+                        })
+                    headers = {'Content-Type': 'application/json', 'accept': 'application/json'}
+                    ret = requests.post("http://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoLogout",
+                                        data=request_data,
+                                        headers=headers)
+                    self.ClientID = None
+                except Exception as e:
+                    raise SQLCliException("Logout from RemoteServer failed. " + repr(e))
+
         # 如果打开了多进程管理，则关闭多进程管理
         if self.MultiProcessManager is not None:
             self.MultiProcessManager.shutdown()
@@ -323,7 +356,7 @@ class SQLCli(object):
 
         # 加载SQL映射文件
         register_special_command(
-            self.load_driver,
+            handler=self.load_driver,
             command="loaddriver",
             description="加载数据库驱动文件",
             hidden=False
@@ -331,7 +364,7 @@ class SQLCli(object):
 
         # 加载SQL映射文件
         register_special_command(
-            self.load_sqlmap,
+            handler=self.load_sqlmap,
             command="loadsqlmap",
             description="加载SQL映射文件",
             hidden=False
@@ -363,7 +396,7 @@ class SQLCli(object):
 
         # 从文件中执行脚本
         register_special_command(
-            self.execute_from_file,
+            handler=self.execute_from_file,
             command="start",
             description="执行指定的测试脚本",
             hidden=False
@@ -371,7 +404,7 @@ class SQLCli(object):
 
         # sleep一段时间
         register_special_command(
-            self.sleep,
+            handler=self.sleep,
             command="sleep",
             description="程序休眠(单位是秒)",
             hidden=False
@@ -379,7 +412,7 @@ class SQLCli(object):
 
         # 设置各种参数选项
         register_special_command(
-            self.set_options,
+            handler=self.set_options,
             command="set",
             description="设置运行时选项",
             hidden=False
@@ -387,7 +420,7 @@ class SQLCli(object):
 
         # 将SQL信息Spool到指定的文件中
         register_special_command(
-            self.spool,
+            handler=self.spool,
             command="spool",
             description="将输出打印到指定文件",
             hidden=False
@@ -395,7 +428,7 @@ class SQLCli(object):
 
         # ECHO 回显信息到指定的文件中
         register_special_command(
-            self.echo_input,
+            handler=self.echo_input,
             command="echo",
             description="回显输入到指定的文件",
             hidden=False
@@ -403,7 +436,7 @@ class SQLCli(object):
 
         # HOST 执行主机的各种命令
         register_special_command(
-            self.host,
+            handler=self.host,
             command="host",
             description="执行操作系统命令",
             hidden=False
@@ -411,7 +444,7 @@ class SQLCli(object):
 
         # 执行特殊的命令
         register_special_command(
-            self.execute_internal_command,
+            handler=self.execute_internal_command,
             command="__internal__",
             description="执行内部操作命令：\n"
                         "    __internal__ hdfs          HDFS文件操作\n"
@@ -425,43 +458,44 @@ class SQLCli(object):
 
         # 退出当前应用程序
         register_special_command(
-            self.exit,
+            handler=self.exit,
             command="exit",
             description="正常退出当前应用程序",
             hidden=False
         )
 
     # 退出当前应用程序
-    def exit(self, arg, **_):
+    @staticmethod
+    def exit(cls, arg, **_):
         if arg:
             # 不处理任何exit的参数信息
             pass
 
-        if self.sqlscript is not None:
+        if cls.sqlscript is not None:
             # 运行在脚本模式下，会一直等待所有子进程退出后，再退出本程序
             while True:
-                if not self.JobHandler.isAllJobClosed():
+                if not cls.JobHandler.isAllJobClosed():
                     # 如果还有没有退出的进程，则不会直接退出程序，会继续等待进程退出
                     time.sleep(3)
                 else:
                     break
             # 等待那些已经Running的进程完成， 但是只有Submitted的不考虑在内
-            self.JobHandler.waitjob("all")
+            cls.JobHandler.waitjob("all")
             # 断开数据库连接
-            if self.db_conn:
-                self.db_conn.close()
-            self.db_conn = None
-            self.SQLExecuteHandler.conn = None
+            if cls.db_conn:
+                cls.db_conn.close()
+            cls.db_conn = None
+            cls.SQLExecuteHandler.conn = None
             # 断开之前保存的其他数据库连接
-            for m_conn in self.db_saved_conn.values():
+            for m_conn in cls.db_saved_conn.values():
                 m_conn.close()
             # 取消进程共享服务的注册信息
-            self.JobHandler.unregister()
+            cls.JobHandler.unregister()
             # 退出应用程序
             raise EOFError
         else:
             # 运行在控制台模式下
-            if not self.JobHandler.isAllJobClosed():
+            if not cls.JobHandler.isAllJobClosed():
                 yield (
                     None,
                     None,
@@ -474,10 +508,11 @@ class SQLCli(object):
 
     # 加载数据库驱动
     # 标准的默认驱动程序并不需要使用这个函数，这个函数是用来覆盖标准默认驱动程序的加载信息
-    def load_driver(self, arg, **_):
+    @staticmethod
+    def load_driver(cls, arg, **_):
         if arg == "":      # 显示当前的Driver配置
             m_Result = []
-            for row in self.connection_configs:
+            for row in cls.connection_configs:
                 m_Result.append([row["Database"], row["ClassName"], row["FullName"],
                                  row["JDBCURL"], row["ODBCURL"], row["JDBCProp"]])
             yield (
@@ -496,7 +531,7 @@ class SQLCli(object):
         if len(options_parameters) == 1:
             m_DriverName = str(options_parameters[0])
             m_Result = []
-            for row in self.connection_configs:
+            for row in cls.connection_configs:
                 if row["Database"] == m_DriverName:
                     m_Result.append([row["Database"], row["ClassName"], row["FullName"],
                                      row["JDBCURL"], row["ODBCURL"], row["JDBCProp"]])
@@ -514,19 +549,19 @@ class SQLCli(object):
         if len(options_parameters) == 2:
             m_DriverName = str(options_parameters[0])
             m_DriverFullName = str(options_parameters[1])
-            if self.sqlscript is None:
+            if cls.sqlscript is None:
                 m_DriverFullName = os.path.join(sys.path[0], m_DriverFullName)
             else:
-                m_DriverFullName = os.path.abspath(os.path.join(os.path.dirname(self.sqlscript), m_DriverFullName))
+                m_DriverFullName = os.path.abspath(os.path.join(os.path.dirname(cls.sqlscript), m_DriverFullName))
             if not os.path.isfile(m_DriverFullName):
                 raise SQLCliException("Driver not loaded. file [" + m_DriverFullName + "] does not exist!")
             bFound = False
-            for nPos in range(0, len(self.connection_configs)):
-                if self.connection_configs[nPos]["Database"].upper() == m_DriverName.strip().upper():
-                    m_Config = self.connection_configs[nPos]
+            for nPos in range(0, len(cls.connection_configs)):
+                if cls.connection_configs[nPos]["Database"].upper() == m_DriverName.strip().upper():
+                    m_Config = cls.connection_configs[nPos]
                     m_Config["FullName"] = [m_DriverFullName, ]
                     bFound = True
-                    self.connection_configs[nPos] = m_Config
+                    cls.connection_configs[nPos] = m_Config
             if not bFound:
                 raise SQLCliException("Driver not loaded. Please config it in configfile first.")
             yield (
@@ -541,10 +576,11 @@ class SQLCli(object):
         raise SQLCliException("Bad command.  loaddriver [database] [new jar name]")
 
     # 加载数据库SQL映射
-    def load_sqlmap(self, arg, **_):
-        self.SQLOptions.set("SQLREWRITE", "ON")
-        self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, arg)
-        self.sqlmap = arg
+    @staticmethod
+    def load_sqlmap(cls, arg, **_):
+        cls.SQLOptions.set("SQLREWRITE", "ON")
+        cls.SQLMappingHandler.Load_SQL_Mappings(cls.sqlscript, arg)
+        cls.sqlmap = arg
         yield (
             None,
             None,
@@ -554,16 +590,18 @@ class SQLCli(object):
         )
 
     # 连接数据库
-    def connect_db(self, arg, **_):
+    @staticmethod
+    def connect_db(cls, arg, **_):
         # 一旦开始数据库连接，则当前连接会被置空，以保证连接错误的影响能够对后续的语句产生作用
-        self.db_conn = None
-        self.SQLExecuteHandler.conn = None
+        cls.db_conn = None
+        cls.SQLExecuteHandler.conn = None
 
         if arg is None or len(str(arg)) == 0:
             raise SQLCliException(
-                "Missing required argument\n." + "connect [user name]/[password]@" +
+                "Missed required argument\n." + "connect [user name]/[password]@" +
                 "jdbc|odbc:[db type]:[driver type]://[host]:[port]/[service name]")
-        elif self.connection_configs is None:
+
+        if cls.connection_configs is None:
             raise SQLCliException("Please load driver first.")
 
         # 如果连接内容仅仅就一个mem，则连接到内置的memory db
@@ -601,16 +639,16 @@ class SQLCli(object):
             if len(m_userandpasslist) == 4 and \
                     m_userandpasslist[0].upper() == "USER" and \
                     m_userandpasslist[2].upper() == "PASSWORD":
-                self.db_username = m_userandpasslist[1]
-                self.db_password = m_userandpasslist[3].replace("'", "").replace('"', "")
+                cls.db_username = m_userandpasslist[1]
+                cls.db_password = m_userandpasslist[3].replace("'", "").replace('"', "")
             else:
                 raise SQLCliException("Missed user or password in connect command.")
         else:
-            self.db_username = m_userandpasslist[0].strip()
+            cls.db_username = m_userandpasslist[0].strip()
             if len(m_userandpasslist) == 2:
-                self.db_password = m_userandpasslist[1]
+                cls.db_password = m_userandpasslist[1]
             else:
-                self.db_password = ""
+                cls.db_password = ""
 
         # 判断连接字符串中是否含有服务器信息
         if len(m_connect_parameterlist) == 2:
@@ -622,9 +660,9 @@ class SQLCli(object):
                 raise SQLCliException("Missed SQLCLI_CONNECTION_URL in env.")
 
         # 初始化连接参数
-        self.db_service_name = ""
-        self.db_host = ""
-        self.db_port = ""
+        cls.db_service_name = ""
+        cls.db_host = ""
+        cls.db_port = ""
         m_jdbcprop = ""
 
         # 在serverurl中查找//
@@ -638,30 +676,30 @@ class SQLCli(object):
         if len(m_serverurllist) == 3:
             # //protocol/IP:Port/Service
             m_jdbcprop = m_serverurllist[0]
-            self.db_service_name = m_serverurllist[2]
+            cls.db_service_name = m_serverurllist[2]
             m_ipandhost = m_serverurllist[1]
             m_serverparameter = m_ipandhost.split(':')
             if len(m_serverparameter) > 2:
                 # IP:Port|IP:Port|IP:Port
-                self.db_host = m_ipandhost
-                self.db_port = ""
+                cls.db_host = m_ipandhost
+                cls.db_port = ""
             elif len(m_serverparameter) == 2:
                 # IP:Port
-                self.db_host = m_serverparameter[0]
-                self.db_port = m_serverparameter[1]
+                cls.db_host = m_serverparameter[0]
+                cls.db_port = m_serverparameter[1]
             elif len(m_serverparameter) == 1:
                 # IP  sqlserver/teradata
-                self.db_host = m_serverparameter[0]
-                self.db_port = ""
+                cls.db_host = m_serverparameter[0]
+                cls.db_port = ""
         elif len(m_serverurllist) == 2:
             # //protocol/IP:Port:Service
             m_jdbcprop = m_serverurllist[0]
             m_serverparameter = m_serverurllist[1].split(':')
             if len(m_serverparameter) == 3:
                 # IP:Port:Service, Old oracle version
-                self.db_host = m_serverparameter[0]
-                self.db_port = m_serverparameter[1]
-                self.db_service_name = m_serverparameter[2]
+                cls.db_host = m_serverparameter[0]
+                cls.db_port = m_serverparameter[1]
+                cls.db_service_name = m_serverparameter[2]
 
         # 处理JDBC属性
         m_jdbcproplist = shlex.shlex(m_jdbcprop)
@@ -671,27 +709,27 @@ class SQLCli(object):
         m_jdbcproplist = list(m_jdbcproplist)
         if len(m_jdbcproplist) < 2:
             raise SQLCliException("Missed jdbc prop in connect command.")
-        self.db_conntype = m_jdbcproplist[0].upper()
-        if self.db_conntype not in ['ODBC', 'JDBC']:
+        cls.db_conntype = m_jdbcproplist[0].upper()
+        if cls.db_conntype not in ['ODBC', 'JDBC']:
             raise SQLCliException("Unexpected connection type. Please use ODBC or JDBC.")
-        self.db_type = m_jdbcproplist[1]
+        cls.db_type = m_jdbcproplist[1]
         if len(m_jdbcproplist) == 3:
-            self.db_driver_type = m_jdbcproplist[2]
+            cls.db_driver_type = m_jdbcproplist[2]
         else:
-            self.db_driver_type = ""
+            cls.db_driver_type = ""
 
         # 连接数据库
         try:
-            if self.db_conntype == 'JDBC':   # JDBC 连接数据库
+            if cls.db_conntype == 'JDBC':   # JDBC 连接数据库
                 # 加载所有的Jar包， 根据class的名字加载指定的文件
                 m_JarList = []
                 m_driverclass = ""
                 m_JDBCURL = ""
                 m_JDBCProp = ""
-                for m_Jar_Config in self.connection_configs:
+                for m_Jar_Config in cls.connection_configs:
                     m_JarList.extend(m_Jar_Config["FullName"])
-                for m_Jar_Config in self.connection_configs:
-                    if m_Jar_Config["Database"].upper() == self.db_type.upper():
+                for m_Jar_Config in cls.connection_configs:
+                    if m_Jar_Config["Database"].upper() == cls.db_type.upper():
                         m_driverclass = m_Jar_Config["ClassName"]
                         m_JDBCURL = m_Jar_Config["JDBCURL"]
                         m_JDBCProp = m_Jar_Config["JDBCProp"]
@@ -699,19 +737,19 @@ class SQLCli(object):
                 if "SQLCLI_DEBUG" in os.environ:
                     print("Driver Jar List: " + str(m_JarList))
                 if m_JDBCURL is None:
-                    raise SQLCliException("Unknown database [" + self.db_type.upper() + "]. Connect Failed. \n" +
+                    raise SQLCliException("Unknown database [" + cls.db_type.upper() + "]. Connect Failed. \n" +
                                           "Maybe you forgot download jlib files. ")
-                m_JDBCURL = m_JDBCURL.replace("${host}", self.db_host)
-                m_JDBCURL = m_JDBCURL.replace("${driver_type}", self.db_driver_type)
-                if self.db_port == "":
+                m_JDBCURL = m_JDBCURL.replace("${host}", cls.db_host)
+                m_JDBCURL = m_JDBCURL.replace("${driver_type}", cls.db_driver_type)
+                if cls.db_port == "":
                     m_JDBCURL = m_JDBCURL.replace(":${port}", "")
                 else:
-                    m_JDBCURL = m_JDBCURL.replace("${port}", self.db_port)
-                m_JDBCURL = m_JDBCURL.replace("${service}", self.db_service_name)
+                    m_JDBCURL = m_JDBCURL.replace("${port}", cls.db_port)
+                m_JDBCURL = m_JDBCURL.replace("${service}", cls.db_service_name)
                 if m_driverclass is None:
-                    raise SQLCliException("Missed driver [" + self.db_type.upper() + "] in config. "
-                                                                                     "Database Connect Failed. ")
-                m_jdbcconn_prop = {'user': self.db_username, 'password': self.db_password}
+                    raise SQLCliException(
+                        "Missed driver [" + cls.db_type.upper() + "] in config. Database Connect Failed. ")
+                m_jdbcconn_prop = {'user': cls.db_username, 'password': cls.db_password}
                 if m_JDBCProp is not None:
                     for row in m_JDBCProp.strip().split(','):
                         props = row.split(':')
@@ -720,50 +758,49 @@ class SQLCli(object):
                             m_PropValue = str(props[1]).strip()
                             m_jdbcconn_prop[m_PropName] = m_PropValue
                 # 将当前DB的连接字符串备份到变量中
-                self.SQLOptions.set("CONNURL", str(self.db_url))
-                self.SQLOptions.set("CONNPROP", str(m_JDBCProp))
+                cls.SQLOptions.set("CONNURL", str(cls.db_url))
+                cls.SQLOptions.set("CONNPROP", str(m_JDBCProp))
                 # 数据库连接
-                if self.db_conn is not None:
-                    if self.SessionName is None:
+                if cls.db_conn is not None:
+                    if cls.SessionName is None:
                         # 如果之前数据库连接没有被保存，则强制断开连接
-                        self.db_conn.close()
-                        self.db_conn = None
-                        self.SQLExecuteHandler.conn = None
+                        cls.db_conn.close()
+                        cls.db_conn = None
+                        cls.SQLExecuteHandler.conn = None
                     else:
-                        if self.db_saved_conn[self.SessionName][0] is None:
+                        if cls.db_saved_conn[cls.SessionName][0] is None:
                             # 之前并没有保留数据库连接
-                            self.db_conn.close()
-                            self.db_conn = None
-                            self.SQLExecuteHandler.conn = None
+                            cls.db_conn.close()
+                            cls.db_conn = None
+                            cls.SQLExecuteHandler.conn = None
                 if "SQLCLI_DEBUG" in os.environ:
                     print("Connect to [" + m_JDBCURL + "]...")
-                self.db_conn = jdbcconnect(jclassname=m_driverclass,
-                                           url=m_JDBCURL,
-                                           driver_args=m_jdbcconn_prop,
-                                           jars=m_JarList,
-                                           sqloptions=self.SQLOptions)
-                self.db_url = m_JDBCURL
-                self.SQLExecuteHandler.conn = self.db_conn
-            if self.db_conntype == 'ODBC':   # ODBC 连接数据库
+                cls.db_conn = jdbcconnect(
+                    jclassname=m_driverclass,
+                    url=m_JDBCURL, driver_args=m_jdbcconn_prop,
+                    jars=m_JarList, sqloptions=cls.SQLOptions)
+                cls.db_url = m_JDBCURL
+                cls.SQLExecuteHandler.conn = cls.db_conn
+            if cls.db_conntype == 'ODBC':   # ODBC 连接数据库
                 m_ODBCURL = ""
-                for m_Connection_Config in self.connection_configs:
-                    if m_Connection_Config["Database"].upper() == self.db_type.upper():
+                for m_Connection_Config in cls.connection_configs:
+                    if m_Connection_Config["Database"].upper() == cls.db_type.upper():
                         m_ODBCURL = m_Connection_Config["ODBCURL"]
                         break
                 if m_ODBCURL is None:
-                    raise SQLCliException("Unknown database [" + self.db_type.upper() + "]. Connect Failed. \n" +
+                    raise SQLCliException("Unknown database [" + cls.db_type.upper() + "]. Connect Failed. \n" +
                                           "Maybe you have a bad config file. ")
-                m_ODBCURL = m_ODBCURL.replace("${host}", self.db_host)
-                m_ODBCURL = m_ODBCURL.replace("${port}", self.db_port)
-                m_ODBCURL = m_ODBCURL.replace("${service}", self.db_service_name)
-                m_ODBCURL = m_ODBCURL.replace("${username}", self.db_username)
-                m_ODBCURL = m_ODBCURL.replace("${password}", self.db_password)
+                m_ODBCURL = m_ODBCURL.replace("${host}", cls.db_host)
+                m_ODBCURL = m_ODBCURL.replace("${port}", cls.db_port)
+                m_ODBCURL = m_ODBCURL.replace("${service}", cls.db_service_name)
+                m_ODBCURL = m_ODBCURL.replace("${username}", cls.db_username)
+                m_ODBCURL = m_ODBCURL.replace("${password}", cls.db_password)
 
-                self.db_conn = odbcconnect(m_ODBCURL)
-                self.db_url = m_ODBCURL
-                self.SQLExecuteHandler.conn = self.db_conn
+                cls.db_conn = odbcconnect(m_ODBCURL)
+                cls.db_url = m_ODBCURL
+                cls.SQLExecuteHandler.conn = cls.db_conn
                 # 将当前DB的连接字符串备份到变量中
-                self.SQLOptions.set("CONNURL", str(self.db_url))
+                cls.SQLOptions.set("CONNURL", str(cls.db_url))
         except SQLCliException as se:  # Connecting to a database fail.
             raise se
         except SQLCliODBCException as soe:
@@ -772,14 +809,14 @@ class SQLCli(object):
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
-                print("db_user = [" + str(self.db_username) + "]")
-                print("db_pass = [" + str(self.db_password) + "]")
-                print("db_type = [" + str(self.db_type) + "]")
-                print("db_host = [" + str(self.db_host) + "]")
-                print("db_port = [" + str(self.db_port) + "]")
-                print("db_service_name = [" + str(self.db_service_name) + "]")
-                print("db_url = [" + str(self.db_url) + "]")
-                print("jar_file = [" + str(self.connection_configs) + "]")
+                print("db_user = [" + str(cls.db_username) + "]")
+                print("db_pass = [" + str(cls.db_password) + "]")
+                print("db_type = [" + str(cls.db_type) + "]")
+                print("db_host = [" + str(cls.db_host) + "]")
+                print("db_port = [" + str(cls.db_port) + "]")
+                print("db_service_name = [" + str(cls.db_service_name) + "]")
+                print("db_url = [" + str(cls.db_url) + "]")
+                print("jar_file = [" + str(cls.connection_configs) + "]")
             if str(e).find("SQLInvalidAuthorizationSpecException") != -1:
                 raise SQLCliException(str(jpype.java.sql.SQLInvalidAuthorizationSpecException(e).getCause()))
             else:
@@ -793,13 +830,14 @@ class SQLCli(object):
         )
 
     # 断开数据库连接
-    def disconnect_db(self, arg, **_):
+    @staticmethod
+    def disconnect_db(cls, arg, **_):
         if arg:
             return [(None, None, None, None, "unnecessary parameter")]
-        if self.db_conn:
-            self.db_conn.close()
-        self.db_conn = None
-        self.SQLExecuteHandler.conn = None
+        if cls.db_conn:
+            cls.db_conn.close()
+        cls.db_conn = None
+        cls.SQLExecuteHandler.conn = None
         yield (
             None,
             None,
@@ -809,7 +847,8 @@ class SQLCli(object):
         )
 
     # 执行主机的操作命令
-    def host(self, arg, **_):
+    @staticmethod
+    def host(cls, arg, **_):
         if arg is None or len(str(arg)) == 0:
             raise SQLCliException(
                 "Missing OS command\n." + "host xxx")
@@ -838,22 +877,23 @@ class SQLCli(object):
                 None,
                 None,
                 None,
-                str(stdoutdata.decode(encoding=self.Result_Charset))
+                str(stdoutdata.decode(encoding=cls.Result_Charset))
             )
             yield (
                 None,
                 None,
                 None,
                 None,
-                str(stderrdata.decode(encoding=self.Result_Charset))
+                str(stderrdata.decode(encoding=cls.Result_Charset))
             )
         except UnicodeDecodeError:
-            raise SQLCliException("The character set [" + self.Result_Charset + "]" +
+            raise SQLCliException("The character set [" + cls.Result_Charset + "]" +
                                   " does not match the terminal character set, " +
                                   "so the terminal information cannot be output correctly.")
 
     # 数据库会话管理
-    def session_manage(self, arg, **_):
+    @staticmethod
+    def session_manage(cls, arg, **_):
         if arg is None or len(str(arg)) == 0:
             raise SQLCliException(
                 "Missing required argument: " + "Session save/saveurl/restore/release/show [session name]")
@@ -866,14 +906,14 @@ class SQLCli(object):
         #   3:   URL
         if len(m_Parameters) == 1 and m_Parameters[0] == 'show':
             m_Result = []
-            for m_Session_Name, m_Connection in self.db_saved_conn.items():
+            for m_Session_Name, m_Connection in cls.db_saved_conn.items():
                 if m_Connection[0] is None:
                     m_Result.append(['None', str(m_Session_Name), str(m_Connection[1]), '******', str(m_Connection[3])])
                 else:
                     m_Result.append(['Connection', str(m_Session_Name), str(m_Connection[1]),
                                      '******', str(m_Connection[3])])
-            if self.db_conn is not None:
-                m_Result.append(['Current', str(self.SessionName), str(self.db_username), '******', str(self.db_url)])
+            if cls.db_conn is not None:
+                m_Result.append(['Current', str(cls.SessionName), str(cls.db_username), '******', str(cls.db_url)])
             if len(m_Result) == 0:
                 yield (
                     None,
@@ -898,40 +938,40 @@ class SQLCli(object):
                 "Wrong argument : " + "Session save/restore/release [session name]")
 
         if m_Parameters[0] == 'release':
-            if self.db_conn is None:
+            if cls.db_conn is None:
                 raise SQLCliException(
                     "You don't have a saved session.")
             m_Session_Name = m_Parameters[1]
-            del self.db_saved_conn[m_Session_Name]
-            self.SessionName = None
+            del cls.db_saved_conn[m_Session_Name]
+            cls.SessionName = None
         elif m_Parameters[0] == 'save':
-            if self.db_conn is None:
+            if cls.db_conn is None:
                 raise SQLCliException(
                     "Please connect session first before save.")
             m_Session_Name = m_Parameters[1]
-            self.db_saved_conn[m_Session_Name] = [self.db_conn, self.db_username, self.db_password, self.db_url]
-            self.SessionName = m_Session_Name
+            cls.db_saved_conn[m_Session_Name] = [cls.db_conn, cls.db_username, cls.db_password, cls.db_url]
+            cls.SessionName = m_Session_Name
         elif m_Parameters[0] == 'saveurl':
-            if self.db_conn is None:
+            if cls.db_conn is None:
                 raise SQLCliException(
                     "Please connect session first before save.")
             m_Session_Name = m_Parameters[1]
-            self.db_saved_conn[m_Session_Name] = [None, self.db_username, self.db_password, self.db_url]
-            self.SessionName = m_Session_Name
+            cls.db_saved_conn[m_Session_Name] = [None, cls.db_username, cls.db_password, cls.db_url]
+            cls.SessionName = m_Session_Name
         elif m_Parameters[0] == 'restore':
             m_Session_Name = m_Parameters[1]
-            if m_Session_Name in self.db_saved_conn:
-                self.db_username = self.db_saved_conn[m_Session_Name][1]
-                self.db_password = self.db_saved_conn[m_Session_Name][2]
-                self.db_url = self.db_saved_conn[m_Session_Name][3]
-                if self.db_saved_conn[m_Session_Name][0] is None:
-                    result = self.connect_db(self.db_username + "/" + self.db_password + "@" + self.db_url)
+            if m_Session_Name in cls.db_saved_conn:
+                cls.db_username = cls.db_saved_conn[m_Session_Name][1]
+                cls.db_password = cls.db_saved_conn[m_Session_Name][2]
+                cls.db_url = cls.db_saved_conn[m_Session_Name][3]
+                if cls.db_saved_conn[m_Session_Name][0] is None:
+                    result = cls.connect_db(cls.db_username + "/" + cls.db_password + "@" + cls.db_url)
                     for title, cur, headers, columntypes, status in result:
                         yield title, cur, headers, columntypes, status
                 else:
-                    self.db_conn = self.db_saved_conn[m_Session_Name][0]
-                    self.SQLExecuteHandler.conn = self.db_conn
-                    self.SessionName = m_Session_Name
+                    cls.db_conn = cls.db_saved_conn[m_Session_Name][0]
+                    cls.SQLExecuteHandler.conn = cls.db_conn
+                    cls.SessionName = m_Session_Name
             else:
                 raise SQLCliException(
                     "Session [" + m_Session_Name + "] does not exist. Please save it first.")
@@ -943,12 +983,12 @@ class SQLCli(object):
         if m_Parameters[0] == 'release':
             yield None, None, None, None, "Session release Successful."
         if m_Parameters[0] == 'restore':
-            self.SQLOptions.set("CONNURL", self.db_url)
+            cls.SQLOptions.set("CONNURL", cls.db_url)
             yield None, None, None, None, "Session restored Successful."
 
     # 休息一段时间, 如果收到SHUTDOWN信号的时候，立刻终止SLEEP
     @staticmethod
-    def sleep(arg, **_):
+    def sleep(cls, arg, **_):
         if not arg:
             message = "Missing required argument, sleep [seconds]."
             return [(None, None, None, None, message)]
@@ -964,7 +1004,8 @@ class SQLCli(object):
         return [(None, None, None, None, None)]
 
     # 从文件中执行SQL
-    def execute_from_file(self, arg, **_):
+    @staticmethod
+    def execute_from_file(cls, arg, **_):
         if not arg:
             message = "Missing required argument, filename1,filename2,filename,3 [loop <loop times>]."
             return [(None, None, None, None, message)]
@@ -978,7 +1019,7 @@ class SQLCli(object):
         for m_curLoop in range(0, m_nLoop):
             for m_SQLFile in m_SQLFileList:
                 try:
-                    with open(os.path.expanduser(m_SQLFile), encoding=self.Client_Charset) as f:
+                    with open(os.path.expanduser(m_SQLFile), encoding=cls.Client_Charset) as f:
                         query = f.read()
 
                     # 处理NLS文档头数据
@@ -990,83 +1031,86 @@ class SQLCli(object):
                         query = query[3:]
 
                     # Scenario等Hint信息不会带入到下一个SQL文件中
-                    self.SQLExecuteHandler.SQLScenario = ''
-                    self.SQLExecuteHandler.SQLTransaction = ''
+                    cls.SQLExecuteHandler.SQLScenario = ''
+                    cls.SQLExecuteHandler.SQLTransaction = ''
 
                     # 执行指定的SQL文件
                     for title, cur, headers, columntypes, status in \
-                            self.SQLExecuteHandler.run(query, os.path.expanduser(m_SQLFile)):
+                            cls.SQLExecuteHandler.run(query, os.path.expanduser(m_SQLFile)):
                         yield title, cur, headers, columntypes, status
 
                 except IOError as e:
                     yield None, None, None, None, str(e)
 
     # 将当前及随后的输出打印到指定的文件中
-    def spool(self, arg, **_):
+    @staticmethod
+    def spool(cls, arg, **_):
         if not arg:
             message = "Missing required argument, spool [filename]|spool off."
             return [(None, None, None, None, message)]
         parameters = str(arg).split()
         if parameters[0].strip().upper() == 'OFF':
             # close spool file
-            if len(self.SpoolFileHandler) == 0:
+            if len(cls.SpoolFileHandler) == 0:
                 message = "not spooling currently"
                 return [(None, None, None, None, message)]
             else:
-                self.SpoolFileHandler[-1].close()
-                self.SpoolFileHandler.pop()
-                self.SQLExecuteHandler.spoolfile = None
+                cls.SpoolFileHandler[-1].close()
+                cls.SpoolFileHandler.pop()
+                cls.SQLExecuteHandler.spoolfile = None
                 return [(None, None, None, None, None)]
 
-        if self.logfilename is not None:
+        if cls.logfilename is not None:
             # 如果当前主程序启用了日志，则spool日志的默认输出目录为logfile的目录
-            m_FileName = os.path.join(os.path.dirname(self.logfilename), parameters[0].strip())
+            m_FileName = os.path.join(os.path.dirname(cls.logfilename), parameters[0].strip())
         else:
             # 如果主程序没有启用日志，则输出为当前目录
             m_FileName = parameters[0].strip()
 
         # 如果当前有打开的Spool文件，关闭它
         try:
-            self.SpoolFileHandler.append(open(m_FileName, "w", encoding=self.Result_Charset))
+            cls.SpoolFileHandler.append(open(m_FileName, "w", encoding=cls.Result_Charset))
         except IOError as e:
             raise SQLCliException("SQLCLI-00000: IO Exception " + repr(e))
-        self.SQLExecuteHandler.spoolfile = self.SpoolFileHandler
+        cls.SQLExecuteHandler.spoolfile = cls.SpoolFileHandler
         return [(None, None, None, None, None)]
 
     # 将当前及随后的屏幕输入存放到脚本文件中
-    def echo_input(self, arg, **_):
+    @staticmethod
+    def echo_input(cls, arg, **_):
         if not arg:
             message = "Missing required argument, echo [filename]|echo off."
             return [(None, None, None, None, message)]
         parameters = str(arg).split()
         if parameters[0].strip().upper() == 'OFF':
             # close echo file
-            if self.EchoFileHandler is None:
+            if cls.EchoFileHandler is None:
                 message = "not echo currently"
                 return [(None, None, None, None, message)]
             else:
-                self.EchoFileHandler.close()
-                self.EchoFileHandler = None
-                self.SQLExecuteHandler.echofile = None
+                cls.EchoFileHandler.close()
+                cls.EchoFileHandler = None
+                cls.SQLExecuteHandler.echofile = None
                 return [(None, None, None, None, None)]
 
         # ECHO的输出默认为程序的工作目录
         m_FileName = parameters[0].strip()
 
         # 如果当前有打开的Echo文件，关闭它
-        if self.EchoFileHandler is not None:
-            self.EchoFileHandler.close()
-        self.EchoFileHandler = open(m_FileName, "w", encoding=self.Result_Charset)
-        self.SQLExecuteHandler.echofile = self.EchoFileHandler
+        if cls.EchoFileHandler is not None:
+            cls.EchoFileHandler.close()
+        cls.EchoFileHandler = open(m_FileName, "w", encoding=cls.Result_Charset)
+        cls.SQLExecuteHandler.echofile = cls.EchoFileHandler
         return [(None, None, None, None, None)]
 
     # 设置一些选项
-    def set_options(self, arg, **_):
+    @staticmethod
+    def set_options(cls, arg, **_):
         if arg is None:
             raise SQLCliException("Missing required argument. set parameter parameter_value.")
         elif arg == "":      # 显示所有的配置
             m_Result = []
-            for row in self.SQLOptions.getOptionList():
+            for row in cls.SQLOptions.getOptionList():
                 if not row["Hidden"]:
                     m_Result.append([row["Name"], row["Value"], row["Comments"]])
             yield (
@@ -1110,7 +1154,7 @@ class SQLCli(object):
                         option_value = str(eval(str(options_values[0])))
                     except (NameError, ValueError, SyntaxError):
                         option_value = str(options_values[0])
-                    self.SQLOptions.set(options_parameters[0], option_value)
+                    cls.SQLOptions.set(options_parameters[0], option_value)
                 elif len(options_values) == 2:
                     if options_values[0][0] == '^':
                         options_values[0] = options_values[0][1:]
@@ -1128,7 +1172,7 @@ class SQLCli(object):
                         option_value2 = str(eval(str(options_values[1])))
                     except (NameError, ValueError, SyntaxError):
                         option_value2 = str(options_values[1])
-                    self.SQLOptions.set(options_parameters[0], option_value1, option_value2)
+                    cls.SQLOptions.set(options_parameters[0], option_value1, option_value2)
                 else:
                     raise SQLCliException("SQLCLI-00000: "
                                           "Wrong set command. Please use [set @parameter_name parametervalue]")
@@ -1138,8 +1182,8 @@ class SQLCli(object):
                     None,
                     None,
                     '')
-            elif self.SQLOptions.get(options_parameters[0].upper()) is not None:
-                self.SQLOptions.set(options_parameters[0].upper(), options_parameters[1])
+            elif cls.SQLOptions.get(options_parameters[0].upper()) is not None:
+                cls.SQLOptions.set(options_parameters[0].upper(), options_parameters[1])
                 yield (
                     None,
                     None,
@@ -1150,39 +1194,40 @@ class SQLCli(object):
                 raise CommandNotFound
 
     # 执行特殊的命令
-    def execute_internal_command(self, arg, **_):
+    @staticmethod
+    def execute_internal_command(cls, arg, **_):
         # 处理并发JOB
         matchObj = re.match(r"(\s+)?job(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            (title, result, headers, columntypes, status) = self.JobHandler.Process_Command(arg)
+            (title, result, headers, columntypes, status) = cls.JobHandler.Process_Command(arg)
             yield title, result, headers, columntypes, status
             return
 
         # 处理Transaction
         matchObj = re.match(r"(\s+)?transaction(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            (title, result, headers, columntypes, status) = self.TransactionHandler.Process_Command(arg)
+            (title, result, headers, columntypes, status) = cls.TransactionHandler.Process_Command(arg)
             yield title, result, headers, columntypes, status
             return
 
         # 处理kafka数据
         matchObj = re.match(r"(\s+)?kafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            (title, result, headers, columntypes, status) = self.KafkaHandler.Process_SQLCommand(arg)
+            (title, result, headers, columntypes, status) = cls.KafkaHandler.Process_SQLCommand(arg)
             yield title, result, headers, columntypes, status
             return
 
         # 测试管理
         matchObj = re.match(r"(\s+)?test(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            (title, result, headers, columntypes, status) = self.TestHandler.Process_SQLCommand(arg)
+            (title, result, headers, columntypes, status) = cls.TestHandler.Process_SQLCommand(arg)
             yield title, result, headers, columntypes, status
             return
 
         # 处理HDFS数据
         matchObj = re.match(r"(\s+)?hdfs(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            (title, result, headers, columntypes, status) = self.HdfsHandler.Process_SQLCommand(arg)
+            (title, result, headers, columntypes, status) = cls.HdfsHandler.Process_SQLCommand(arg)
             yield title, result, headers, columntypes, status
             return
 
@@ -1190,7 +1235,7 @@ class SQLCli(object):
         matchObj = re.match(r"(\s+)?data(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             for (title, result, headers, columntypes, status) in \
-                    self.DataHandler.Process_SQLCommand(arg, self.Result_Charset):
+                    cls.DataHandler.Process_SQLCommand(arg, cls.Result_Charset):
                 yield title, result, headers, columntypes, status
             return
 
@@ -1251,7 +1296,24 @@ class SQLCli(object):
                     self.m_LastComment = None
 
         try:
-            result = self.SQLExecuteHandler.run(text)
+            if "SQLCLI_REMOTESERVER" in os.environ and \
+                    text.strip().upper() not in ("EXIT", "QUIT"):
+                request_data = json.dumps(
+                    {
+                        'clientid': str(self.ClientID),
+                        'op': 'execute',
+                        'command': str(text)
+                     })
+                headers = {'Content-Type': 'application/json', 'accept': 'application/json'}
+                ret = requests.post("http://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoCommand",
+                                    data=request_data,
+                                    headers=headers)
+                result = json.loads(ret.text)
+                if result["ret"] == -1:
+                    raise SQLCliException(result["message"])
+                result = result["dataset"]
+            else:
+                result = self.SQLExecuteHandler.run(text)
 
             # 输出显示结果
             self.formatter.query = text

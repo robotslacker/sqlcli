@@ -73,7 +73,7 @@ def register_special_command(
 
 
 @export
-def execute(sql):
+def execute(cls, sql):
     """Execute a special command and return the results. If the special command
     is not supported a KeyError will be raised.
     """
@@ -90,7 +90,7 @@ def execute(sql):
         if special_cmd.case_sensitive:
             raise CommandNotFound("Command not found: %s" % command)
 
-    return special_cmd.handler(arg=arg)
+    return special_cmd.handler(cls, arg=arg)
 
 
 @special_command("help", "Show this help.")
