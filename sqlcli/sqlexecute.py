@@ -546,8 +546,21 @@ class SQLExecute(object):
                 if len(columntypes) == 0:
                     for column in row:
                         if "SQLCLI_DEBUG" in os.environ:
-                            print("COLUMN TYPE : [" + str(type(column)) + "]")
-                        columntypes.append(type(column))
+                            print("COLUMN TYPE 0 : [" + str(type(column)) + "]")
+                        m_ColumnType = ""
+                        if type(column) == int:
+                            m_ColumnType = "int"
+                        elif type(column) == str:
+                            m_ColumnType = "str"
+                        elif type(column) == bool:
+                            m_ColumnType = "bool"
+                        elif type(column) == float:
+                            m_ColumnType = "float"
+                        else:
+                            m_ColumnType = str(type(column))
+                        columntypes.append(m_ColumnType)
+                        if "SQLCLI_DEBUG" in os.environ:
+                            print("COLUMN TYPE 1: [" + m_ColumnType + "]")
                 for column in row:
                     if str(type(column)).upper().find('JDBCBLOBCLIENT') != -1:
                         # 对于二进制数据，用16进制数来显示
@@ -590,7 +603,6 @@ class SQLExecute(object):
             if len(rowset) < m_arraysize:
                 # 已经没有什么可以取的了, 游标结束
                 m_FetchStatus = False
-
         else:
             status = "{0} row{1} affected"
             rowcount = 0 if cursor.rowcount == -1 else cursor.rowcount

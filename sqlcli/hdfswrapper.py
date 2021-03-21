@@ -39,7 +39,6 @@ class HDFSWrapper(object):
             os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath, m_hdfs_filename).replace('\\', '/'),
             permission=permission)
 
-
     def HDFS_Connect(self, p_szURL, p_szUser):
         """ 连接HDFS, URL使用WEBFS协议 """
         m_HDFS_Protocal = p_szURL.split("://")[0]

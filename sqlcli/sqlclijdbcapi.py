@@ -626,8 +626,14 @@ def _java_to_py(java_method):
         java_val = rs.getObject(col)
         if java_val is None:
             return
-        if isinstance(java_val, (string_type, int, float, bool)):
-            return java_val
+        if isinstance(java_val, int):
+            return int(java_val)
+        elif isinstance(java_val, string_type):
+            return str(java_val)
+        elif isinstance(java_val, bool):
+            return bool(java_val)
+        elif isinstance(java_val, float):
+            return float(java_val)
         return getattr(java_val, java_method)()
     return to_py
 
