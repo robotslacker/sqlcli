@@ -1594,6 +1594,131 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
 ---------- .vscode                            # Visual Stuio Code 工程配置目录
 --------------  launch.json                   # Visual Stuio Code 工程启动文件
 ```
+#### 线程安全性
+目前程序在设计上，是充分考虑到了线程安全性的。
+
+#### 通过Python API方式调用本应用程序
+```
+    from sqlcli.sqlcli import SQLCli
+
+    # 初始化环境句柄，标记屏幕上不打印任何输出信息    
+    m_SQLCli = SQLCli(HeadlessMode=True)
+
+    # SQLExecuteHandler.run会用yield的方式分批返回SQL执行结果    
+    for title, cur, headers, columntypes, status in \
+            m_SQLCli.SQLExecuteHandler.run("Connect ....."):
+        print(title, cur, headers, columntypes, status)
+
+    for title, cur, headers, columntypes, status in \
+            m_SQLCli.SQLExecuteHandler.run("Select * FROM XXX"):
+        print(title, cur, headers, columntypes, status)
+    
+    # 返回结果包含5个方面的内容 (title, rows, headers, columntypes, status).
+    #     title       表头信息
+    #     rows        结果数据集
+    #     headers     结果集的header定义，列名信息
+    #     columntypes 列类型，字符串格式
+    #     status       返回结果汇总消息
+ 
+    # 其中SQLCli初始化参数有：
+    logon=None,                             # 默认登录信息，None表示不需要
+    logfilename=None,                       # 程序输出文件名，None表示不需要
+    sqlscript=None,                         # 脚本文件名，None表示不需要
+    sqlmap=None,                            # SQL映射文件名，None表示不需要
+    nologo=False,                           # 是否不打印登陆时的Logo信息，True的时候不打印
+    breakwitherror=False,                   # 遇到SQL错误，是否立刻退出
+    sqlperf=None,                           # SQL审计文件输出名，None表示不需要
+    Console=sys.stdout,                     # 控制台输出，默认为sys.stdout,即标准输出
+    HeadlessMode=False,                     # 是否为无终端模式，无终端模式下，任何屏幕信息都不会被输出
+    WorkerName='MAIN',                     # 程序别名，可用来区分不同的应用程序
+    logger=None,                            # 程序输出日志句柄
+    clientcharset='UTF-8',                 # 客户端字符集，在读取SQL文件时，采纳这个字符集，默认为UTF-8
+    resultcharset='UTF-8',                 # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
+    EnableJobManager=True,                  # 是否开启后台调度程序管理模块，否则无法使用JOB类相关命令
+    profile=None                            # 程序初始化执行脚本
+```
+
+#### 通过RestAPI方式调用本应用程序
+程序支持用POST以及WebSocket方式来调用本程序，调用的方式是：  
+登录：
+```
+    request_data = json.dumps({})
+    headers = {'Content-Type': 'application/json', 'accept': 'application/json'}
+    ret = requests.post("http://SQLCLI_REMOTESERVER:PORT/DoLogin",
+                        data=request_data,
+                        headers=headers)
+
+    返回的结果为：
+    {
+        "ret":  -1,
+        "message":  错误消息
+    }
+    或者:
+    {
+        "ret":  0,
+        "clientid":  客户端ID标识
+    }
+```
+执行语句：
+```
+        def show_result(p_result):
+            for title, cur, headers, columntypes, status in p_result:
+                # 添加自己的业务逻辑到里面
+                #     title       表头信息
+                #     rows        结果数据集
+                #     headers     结果集的header定义，列名信息
+                #     columntypes 列类型，字符串格式
+                #     status       返回结果汇总消息
+
+        async def test_ws_quote():
+            async with websockets.connect("ws://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoCommand") \
+                    as websocket:
+                request_data = json.dumps(
+                    {
+                        'clientid': str(self.ClientID),
+                        'op': 'execute',
+                        'command': str(text)
+                    })
+                await websocket.send(request_data)
+                while True:
+                    try:
+                        ret = await websocket.recv()
+                        result = json.loads(ret)
+                        show_result(
+                            [(
+                                result["title"],
+                                result["cur"],
+                                result["headers"],
+                                result["columntypes"],
+                                result["status"]
+                            ), ]
+                        )
+                    except websockets.ConnectionClosedOK:
+                        return
+        asyncio.get_event_loop().run_until_complete(test_ws_quote())
+    result = run_remote()
+```
+退出：
+```
+    request_data = json.dumps(
+        {
+            "clientid": self.ClientID
+        })
+    headers = {'Content-Type': 'application/json', 'accept': 'application/json'}
+    ret = requests.post("http://SQLCLI_REMOTESERVER:PORT/DoLogout",
+                        data=request_data,
+                        headers=headers)
+    返回的结果为：
+    {
+        "ret":  -1,
+        "message":  错误消息
+    }
+    或者:
+    {
+        "ret":  0,
+    }
+
+```
 #### 程序调试
 ```
    SQL> set DEBUG ON

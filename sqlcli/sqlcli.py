@@ -17,6 +17,8 @@ import unicodedata
 import itertools
 import requests
 import json
+import asyncio
+import websockets
 from urllib.error import URLError
 from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 from prompt_toolkit.shortcuts import PromptSession
@@ -81,22 +83,22 @@ class SQLCli(object):
 
     def __init__(
             self,
-            logon=None,
-            logfilename=None,
-            sqlscript=None,
-            sqlmap=None,
-            nologo=None,
-            breakwitherror=False,
-            sqlperf=None,
-            Console=sys.stdout,
-            HeadlessMode=False,
-            WorkerName='MAIN',
-            logger=None,
-            clientcharset='UTF-8',
-            resultcharset='UTF-8',
-            EnableJobManager=True,
-            SharedProcessInfo=None,
-            profile=None
+            logon=None,                             # 默认登录信息，None表示不需要
+            logfilename=None,                       # 程序输出文件名，None表示不需要
+            sqlscript=None,                         # 脚本文件名，None表示不需要
+            sqlmap=None,                            # SQL映射文件名，None表示不需要
+            nologo=False,                           # 是否不打印登陆时的Logo信息，True的时候不打印
+            breakwitherror=False,                   # 遇到SQL错误，是否立刻退出
+            sqlperf=None,                           # SQL审计文件输出名，None表示不需要
+            Console=sys.stdout,                     # 控制台输出，默认为sys.stdout,即标准输出
+            HeadlessMode=False,                     # 是否为无终端模式，无终端模式下，任何屏幕信息都不会被输出
+            WorkerName='MAIN',                     # 程序别名，可用来区分不同的应用程序
+            logger=None,                            # 程序输出日志句柄
+            clientcharset='UTF-8',                 # 客户端字符集，在读取SQL文件时，采纳这个字符集，默认为UTF-8
+            resultcharset='UTF-8',                 # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
+            EnableJobManager=True,                  # 是否开启后台调度程序管理模块，否则无法使用JOB类相关命令
+            SharedProcessInfo=None,                 # 共享内存信息。内部变量，不对外书写
+            profile=None                            # 程序初始化执行脚本
     ):
         self.db_saved_conn = {}                          # 数据库Session备份
         self.SQLMappingHandler = SQLMapping()            # 函数句柄，处理SQLMapping信息
@@ -340,11 +342,17 @@ class SQLCli(object):
                             "clientid": self.ClientID
                         })
                     headers = {'Content-Type': 'application/json', 'accept': 'application/json'}
-                    ret = requests.post("http://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoLogout",
-                                        data=request_data,
-                                        headers=headers)
+                    try:
+                        ret = requests.post("http://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoLogout",
+                                            data=request_data,
+                                            headers=headers,
+                                            timeout=3)
+                    except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
+                        # 已经无法联系，直接退出，不再报告错误
+                        pass
                     self.ClientID = None
                 except Exception as e:
+                    print("e:" + str(type(e)))
                     raise SQLCliException("Logout from RemoteServer failed. " + repr(e))
 
         # 如果打开了多进程管理，则关闭多进程管理
@@ -1296,52 +1304,69 @@ class SQLCli(object):
                     self.m_LastComment = None
 
         try:
+            def show_result(p_result):
+                # 输出显示结果
+                self.formatter.query = text
+                for title, cur, headers, columntypes, status in p_result:
+                    # 不控制每行的长度
+                    max_width = None
+
+                    # title 包含原有语句的SQL信息，如果ECHO打开的话
+                    # headers 包含原有语句的列名
+                    # cur 是语句的执行结果
+                    # output_format 输出格式
+                    #   ascii              默认，即表格格式(第三方工具实现，暂时保留以避免不兼容现象)
+                    #   vertical           分行显示，每行、每列都分行
+                    #   csv                csv格式显示
+                    #   tab                表格形式（用format_output_tab自己编写)
+                    formatted = self.format_output(
+                        title, cur, headers, columntypes,
+                        self.SQLOptions.get("OUTPUT_FORMAT").lower(),
+                        max_width
+                    )
+
+                    # 输出显示信息
+                    try:
+                        if self.SQLOptions.get("SILENT").upper() == 'OFF':
+                            self.output(formatted, status)
+                    except KeyboardInterrupt:
+                        # 显示过程中用户按下了CTRL+C
+                        pass
+
             if "SQLCLI_REMOTESERVER" in os.environ and \
                     text.strip().upper() not in ("EXIT", "QUIT"):
-                request_data = json.dumps(
-                    {
-                        'clientid': str(self.ClientID),
-                        'op': 'execute',
-                        'command': str(text)
-                     })
-                headers = {'Content-Type': 'application/json', 'accept': 'application/json'}
-                ret = requests.post("http://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoCommand",
-                                    data=request_data,
-                                    headers=headers)
-                result = json.loads(ret.text)
-                if result["ret"] == -1:
-                    raise SQLCliException(result["message"])
-                result = result["dataset"]
+                def run_remote():
+                    async def test_ws_quote():
+                        async with websockets.connect("ws://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoCommand") \
+                                as websocket:
+                            request_data = json.dumps(
+                                {
+                                    'clientid': str(self.ClientID),
+                                    'op': 'execute',
+                                    'command': str(text)
+                                })
+                            await websocket.send(request_data)
+                            while True:
+                                try:
+                                    ret = await websocket.recv()
+                                    json_ret = json.loads(ret)
+                                    show_result(
+                                        [(
+                                            json_ret["title"],
+                                            json_ret["cur"],
+                                            json_ret["headers"],
+                                            json_ret["columntypes"],
+                                            json_ret["status"]
+                                        ), ]
+                                    )
+                                except websockets.ConnectionClosedOK:
+                                    return True
+                    asyncio.get_event_loop().run_until_complete(test_ws_quote())
+                    return True
+                result = run_remote()
             else:
                 result = self.SQLExecuteHandler.run(text)
-
-            # 输出显示结果
-            self.formatter.query = text
-            for title, cur, headers, columntypes, status in result:
-                # 不控制每行的长度
-                max_width = None
-
-                # title 包含原有语句的SQL信息，如果ECHO打开的话
-                # headers 包含原有语句的列名
-                # cur 是语句的执行结果
-                # output_format 输出格式
-                #   ascii              默认，即表格格式(第三方工具实现，暂时保留以避免不兼容现象)
-                #   vertical           分行显示，每行、每列都分行
-                #   csv                csv格式显示
-                #   tab                表格形式（用format_output_tab自己编写)
-                formatted = self.format_output(
-                    title, cur, headers, columntypes,
-                    self.SQLOptions.get("OUTPUT_FORMAT").lower(),
-                    max_width
-                )
-
-                # 输出显示信息
-                try:
-                    if self.SQLOptions.get("SILENT").upper() == 'OFF':
-                        self.output(formatted, status)
-                except KeyboardInterrupt:
-                    # 显示过程中用户按下了CTRL+C
-                    pass
+                show_result(result)
 
             # 返回正确执行的消息
             return True
