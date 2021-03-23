@@ -501,13 +501,15 @@ class Cursor(object):
         for col in range(1, self._meta.getColumnCount() + 1):
             sqltype = self._meta.getColumnType(col)
             m_ColumnClassName = self._meta.getColumnClassName(col)
-            if sqltype in self._converters.keys():
-                converter = self._converters.get(sqltype)
+            if m_ColumnClassName in ('org.postgresql.util.PGmoney'):
+                converter = _DEFAULT_CONVERTERS["VARCHAR"]
+            elif m_ColumnClassName in ('oracle.sql.TIMESTAMPTZ', 'oracle.sql.TIMESTAMPLTZ'):
+                converter = _DEFAULT_CONVERTERS["TIMESTAMP_WITH_TIMEZONE"]
+            elif m_ColumnClassName.upper().find("BFILE") != -1:
+                converter = _DEFAULT_CONVERTERS["BFILE"]
             else:
-                if m_ColumnClassName.upper().find("BFILE") != -1:
-                    converter = _DEFAULT_CONVERTERS["BFILE"]
-                elif m_ColumnClassName in ('oracle.sql.TIMESTAMPTZ', 'oracle.sql.TIMESTAMPLTZ'):
-                    converter = _DEFAULT_CONVERTERS["TIMESTAMP_WITH_TIMEZONE"]
+                if sqltype in self._converters.keys():
+                    converter = self._converters.get(sqltype)
                 else:
                     converter = _unknownSqlTypeConverter
                     if "SQLCLI_DEBUG" in os.environ:
@@ -801,7 +803,10 @@ def _java_to_py_array(conn, rs, col):
 
 
 def _java_to_py_str(conn, rs, col):
-    java_val = rs.getObject(col)
+    try:
+        java_val = rs.getObject(col)
+    except Exception:
+        java_val = rs.getString(col)
     if java_val is None:
         return
     return str(java_val)
