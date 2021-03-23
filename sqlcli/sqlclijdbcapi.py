@@ -618,6 +618,11 @@ def _to_binary(conn, rs, col):
             return ""
     elif m_TypeName.find("BFILE") != -1:
         return "bfilename(" + java_val.getDirAlias() + ":" + java_val.getName() + ")"
+    elif m_TypeName.find("Boolean") != -1:
+        if java_val == 0:
+            return "False"
+        else:
+            return "True"
     else:
         # return binascii.b2a_hex(java_val.getBytes(0, 1024))
         raise SQLCliException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_binary")
@@ -861,7 +866,7 @@ _DEFAULT_CONVERTERS = {
     'SMALLINT':                     _java_to_py('intValue'),
     'BIGINT':                       _java_to_py_bigdecimal,
     'BOOLEAN':                      _java_to_py('booleanValue'),
-    'BIT':                          _java_to_py('booleanValue'),
+    'BIT':                          _to_binary,
     'STRUCT':                       _java_to_py_stru,
     'ARRAY':                        _java_to_py_array
 }

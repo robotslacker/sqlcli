@@ -496,7 +496,7 @@ class SQLCli(object):
             cls.SQLExecuteHandler.conn = None
             # 断开之前保存的其他数据库连接
             for m_conn in cls.db_saved_conn.values():
-                m_conn.close()
+                m_conn[0].close()
             # 取消进程共享服务的注册信息
             cls.JobHandler.unregister()
             # 退出应用程序
