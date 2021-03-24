@@ -588,14 +588,22 @@ def _to_datetime(conn, rs, col):
 
 
 def _to_time(conn, rs, col):
-    java_val = rs.getTime(col)
+    try:
+        java_val = rs.getTime(col)
+    except Exception:
+        # 处理一些超过Python数据类型限制的时间类型
+        return rs.getString(col)
     if not java_val:
         return
     return str(java_val)
 
 
 def _to_date(conn, rs, col):
-    java_val = rs.getDate(col)
+    try:
+        java_val = rs.getDate(col)
+    except Exception:
+        # 处理一些超过Python数据类型限制的时间类型
+        return rs.getString(col)
     if not java_val:
         return
     # The following code requires Python 3.3+ on dates before year 1900.
@@ -604,6 +612,18 @@ def _to_date(conn, rs, col):
     # Workaround / simpler soltution (see
     # https://github.com/baztian/jaydebeapi/issues/18):
     return str(java_val)[:10]
+
+def _to_bit(conn, rs, col):
+    java_val = rs.getObject(col)
+    if java_val is None:
+        return
+    m_TypeName = str(java_val.getClass().getTypeName())
+    if m_TypeName == "byte[]":
+        m_BitAsciiStr = "0b" + str(bin(int.from_bytes(java_val, sys.byteorder))).lstrip("0b").zfill(len(java_val)*8)
+        return m_BitAsciiStr
+    else:
+        # return binascii.b2a_hex(java_val.getBytes(0, 1024))
+        raise SQLCliException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_bit")
 
 
 def _to_binary(conn, rs, col):
@@ -636,14 +656,8 @@ def _java_to_py(java_method):
         java_val = rs.getObject(col)
         if java_val is None:
             return
-        if isinstance(java_val, int):
-            return int(java_val)
-        elif isinstance(java_val, string_type):
-            return str(java_val)
-        elif isinstance(java_val, bool):
-            return bool(java_val)
-        elif isinstance(java_val, float):
-            return float(java_val)
+        if isinstance(java_val, (string_type, int, float, bool)):
+            return java_val
         return getattr(java_val, java_method)()
     return to_py
 
@@ -873,7 +887,7 @@ _DEFAULT_CONVERTERS = {
     'SMALLINT':                     _java_to_py('intValue'),
     'BIGINT':                       _java_to_py_bigdecimal,
     'BOOLEAN':                      _java_to_py('booleanValue'),
-    'BIT':                          _to_binary,
+    'BIT':                          _to_bit,
     'STRUCT':                       _java_to_py_stru,
     'ARRAY':                        _java_to_py_array
 }
