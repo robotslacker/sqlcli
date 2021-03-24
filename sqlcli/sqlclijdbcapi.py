@@ -579,8 +579,11 @@ def _to_datetime(conn, rs, col):
     java_val = rs.getTimestamp(col)
     if not java_val:
         return
-    d = datetime.datetime.strptime(str(java_val)[:19], "%Y-%m-%d %H:%M:%S")
-    d = d.replace(microsecond=int(str(java_val.getNanos())[:6]))
+    try:
+        d = datetime.datetime.strptime(str(java_val)[:19], "%Y-%m-%d %H:%M:%S")
+        d = d.replace(microsecond=int(str(java_val.getNanos())[:6]))
+    except ValueError as ve:
+        d = str(java_val)
     return str(d)
 
 
@@ -655,6 +658,10 @@ def _java_to_py_bigdecimal(conn, rs, col):
     elif m_TypeName == "java.lang.Long":
         return decimal.Decimal(java_val.toString())
     elif m_TypeName == "java.math.BigInteger":
+        return decimal.Decimal(java_val.toString())
+    elif m_TypeName == "java.lang.Double":
+        return decimal.Decimal(java_val.toString())
+    elif m_TypeName == "java.lang.Float":
         return decimal.Decimal(java_val.toString())
     else:
         raise SQLCliException(
@@ -858,9 +865,9 @@ _DEFAULT_CONVERTERS = {
     'BFILE':                        _to_binary,
     'DECIMAL':                      _java_to_py_bigdecimal,
     'NUMERIC':                      _java_to_py_bigdecimal,
-    'DOUBLE':                       _java_to_py('doubleValue'),
+    'DOUBLE':                       _java_to_py_bigdecimal,
     'FLOAT':                        _java_to_py('doubleValue'),
-    'REAL':                         _java_to_py('doubleValue'),
+    'REAL':                         _java_to_py_bigdecimal,
     'TINYINT':                      _java_to_py('intValue'),
     'INTEGER':                      _java_to_py('intValue'),
     'SMALLINT':                     _java_to_py('intValue'),

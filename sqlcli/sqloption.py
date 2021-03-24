@@ -72,10 +72,6 @@ class SQLOptions(object):
                                       "Value": "%.7g",
                                       "Comments": '',
                                       "Hidden": False})
-        self.m_SQL_OptionList.append({"Name": "DOUBLE_FORMAT",
-                                      "Value": "%.10g",
-                                      "Comments": '',
-                                      "Hidden": False})
         self.m_SQL_OptionList.append({"Name": "DECIMAL_FORMAT",
                                       "Value": "",
                                       "Comments": '',

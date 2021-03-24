@@ -679,7 +679,6 @@ Mapping file loaded.
     | SQLREWRITE        | OFF      | ON|OFF                 |
     | LOB_LENGTH        | 20       |                        |
     | FLOAT_FORMAT      | %.7g     |                        |
-    | DOUBLE_FORMAT     | %.10g    |                        |
     | DECIMAL_FORMAT    |          |                        |
     | CONN_RETRY_TIMES  | 1        | Connect retry times.   |
     +-------------------+----------+------------------------+
@@ -820,7 +819,7 @@ Mapping file loaded.
        2 rows selected.
 
 ```
-#### 控制参数解释-FLOAT_FORMAT/DOUBLE_FORMAT/DECIMAL_FORMAT
+#### 控制参数解释-FLOAT_FORMAT/DECIMAL_FORMAT
 &emsp; &emsp; 8. FLOAT_FORMAT    控制浮点数字的显示格式，默认是%.7g
 ```
     SQL>  select abs(1.234567891234) from dual;
@@ -839,7 +838,7 @@ Mapping file loaded.
     +-------------+
     1 row selected.
 
-    类似的参数还有DOUBLE_FORMAT,DECIMAL_FORMAT
+    类似的参数还有DECIMAL_FORMAT
 ```
 #### 控制参数解释-CSV_HEADER/CSV_DELIMITER/CSV_QUOTECHAR
 &emsp; &emsp; 9. CSV格式控制  

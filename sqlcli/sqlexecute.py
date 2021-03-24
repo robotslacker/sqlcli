@@ -557,7 +557,7 @@ class SQLExecute(object):
                 if len(columntypes) == 0:
                     for column in row:
                         if "SQLCLI_DEBUG" in os.environ:
-                            print("COLUMN TYPE 0 : [" + str(type(column)) + "]")
+                            print("DEBUG: COLUMN TYPE TYPE: [" + str(type(column)) + "]")
                         m_ColumnType = ""
                         if type(column) == int:
                             m_ColumnType = "int"
@@ -571,7 +571,7 @@ class SQLExecute(object):
                             m_ColumnType = str(type(column))
                         columntypes.append(m_ColumnType)
                         if "SQLCLI_DEBUG" in os.environ:
-                            print("COLUMN TYPE 1: [" + m_ColumnType + "]")
+                            print("DEBUG: COLUMN TYPE STR : [" + m_ColumnType + "]")
                 for column in row:
                     if str(type(column)).upper().find('JDBCBLOBCLIENT') != -1:
                         # 对于二进制数据，用16进制数来显示
@@ -585,8 +585,6 @@ class SQLExecute(object):
                         m_row.append(m_ColumnValue)
                     elif str(type(column)).upper().find("FLOAT") != -1:
                         m_row.append(self.SQLOptions.get("FLOAT_FORMAT") % column)
-                    elif str(type(column)).upper().find("DOUBLE") != -1:
-                        m_row.append(self.SQLOptions.get("DOUBLE_FORMAT") % column)
                     elif type(column) == decimal.Decimal:
                         if self.SQLOptions.get("DECIMAL_FORMAT") != "":
                             m_row.append(self.SQLOptions.get("DECIMAL_FORMAT") % column)
