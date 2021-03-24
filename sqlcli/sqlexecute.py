@@ -358,7 +358,7 @@ class SQLExecute(object):
                                         if m_Output is None:
                                             m_Output = str(result[i][j])
                                         else:
-                                            m_Output = m_Output + "," + str(result[i][j])
+                                            m_Output = m_Output + "|||" + str(result[i][j])
                                     for m_SQLMaskString in m_SQLHint["LogMask"]:
                                         m_SQLMask = m_SQLMaskString.split("=>")
                                         if len(m_SQLMask) == 2:
@@ -370,7 +370,7 @@ class SQLExecute(object):
                                             m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget, m_Output,
                                                                  re.IGNORECASE)
                                             if m_NewOutput != m_Output:
-                                                result[i] = tuple(m_NewOutput.split(','))
+                                                result[i] = tuple(m_NewOutput.split('|||'))
                                         else:
                                             if "SQLCLI_DEBUG" in os.environ:
                                                 print("LogMask Hint Error: " + m_SQLHint["LogMask"])
