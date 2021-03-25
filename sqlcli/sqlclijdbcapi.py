@@ -621,8 +621,16 @@ def _to_bit(conn, rs, col):
     if m_TypeName == "byte[]":
         m_BitAsciiStr = "0b" + str(bin(int.from_bytes(java_val, sys.byteorder))).lstrip("0b").zfill(len(java_val)*8)
         return m_BitAsciiStr
+    elif m_TypeName.find("Boolean") != -1:
+        str_val = rs.getString(col)
+        if str_val is None:
+            return
+        else:
+            if java_val == 0:
+                return "False"
+            else:
+                return "True"
     else:
-        # return binascii.b2a_hex(java_val.getBytes(0, 1024))
         raise SQLCliException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_bit")
 
 
@@ -642,10 +650,14 @@ def _to_binary(conn, rs, col):
     elif m_TypeName.find("BFILE") != -1:
         return "bfilename(" + java_val.getDirAlias() + ":" + java_val.getName() + ")"
     elif m_TypeName.find("Boolean") != -1:
-        if java_val == 0:
-            return "False"
+        str_val = rs.getString(col)
+        if str_val is None:
+            return
         else:
-            return "True"
+            if java_val == 0:
+                return "False"
+            else:
+                return "True"
     else:
         # return binascii.b2a_hex(java_val.getBytes(0, 1024))
         raise SQLCliException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_binary")
