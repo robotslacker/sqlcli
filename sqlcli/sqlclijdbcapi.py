@@ -614,7 +614,15 @@ def _to_date(conn, rs, col):
     return str(java_val)[:10]
 
 def _to_bit(conn, rs, col):
-    java_val = rs.getObject(col)
+    try:
+        java_val = rs.getObject(col)
+    except Exception:
+        # 不支持getObject操作, 直接返回字符类型
+        str_val = rs.getString(col)
+        if str_val is None:
+            return
+        else:
+            return "0b" + rs.getString(col)
     if java_val is None:
         return
     m_TypeName = str(java_val.getClass().getTypeName())
@@ -630,6 +638,9 @@ def _to_bit(conn, rs, col):
                 return "False"
             else:
                 return "True"
+    elif m_TypeName.find("BinaryData") != -1:
+        m_Byte = java_val.getBytes()
+        return "0b" + str(bin(int.from_bytes(m_Byte, sys.byteorder))).lstrip("0b").zfill(len(m_Byte)*8)
     else:
         raise SQLCliException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_bit")
 
