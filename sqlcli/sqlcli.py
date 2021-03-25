@@ -1044,11 +1044,13 @@ class SQLCli(object):
                     cls.SQLExecuteHandler.SQLTransaction = ''
 
                     # 执行指定的SQL文件
-                    for title, cur, headers, columntypes, status in \
+                    for m_ExecuteResult in \
                             cls.SQLExecuteHandler.run(query, os.path.expanduser(m_SQLFile)):
                         # 记录命令开始时间
                         start = time.time()
-                        yield title, cur, headers, columntypes, status
+                        yield m_ExecuteResult["title"], m_ExecuteResult["rows"],m_ExecuteResult["headers"], \
+                              m_ExecuteResult["columntypes"], m_ExecuteResult["status"]
+
                         # 记录命令结束的时间
                         end = time.time()
                         # 打印执行时间
@@ -1056,8 +1058,6 @@ class SQLCli(object):
                             cls.echo('Running time elapsed: %9.2f Seconds' % (end - start))
                         if cls.SQLOptions.get('TIME').upper() == 'ON':
                             cls.echo('Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime()))
-
-
                 except IOError as e:
                     yield None, None, None, None, str(e)
 
@@ -1318,31 +1318,36 @@ class SQLCli(object):
             def show_result(p_result):
                 # 输出显示结果
                 self.formatter.query = text
-                for title, cur, headers, columntypes, status in p_result:
-                    # 不控制每行的长度
-                    max_width = None
 
-                    # title 包含原有语句的SQL信息，如果ECHO打开的话
-                    # headers 包含原有语句的列名
-                    # cur 是语句的执行结果
-                    # output_format 输出格式
-                    #   ascii              默认，即表格格式(第三方工具实现，暂时保留以避免不兼容现象)
-                    #   vertical           分行显示，每行、每列都分行
-                    #   csv                csv格式显示
-                    #   tab                表格形式（用format_output_tab自己编写)
-                    formatted = self.format_output(
-                        title, cur, headers, columntypes,
-                        self.SQLOptions.get("OUTPUT_FORMAT").lower(),
-                        max_width
-                    )
+                title = p_result["title"]
+                cur = p_result["rows"]
+                headers = p_result["headers"]
+                columntypes = p_result["columntypes"]
+                status = p_result["status"]
+                # 不控制每行的长度
+                max_width = None
 
-                    # 输出显示信息
-                    try:
-                        if self.SQLOptions.get("SILENT").upper() == 'OFF':
-                            self.output(formatted, status)
-                    except KeyboardInterrupt:
-                        # 显示过程中用户按下了CTRL+C
-                        pass
+                # title 包含原有语句的SQL信息，如果ECHO打开的话
+                # headers 包含原有语句的列名
+                # cur 是语句的执行结果
+                # output_format 输出格式
+                #   ascii              默认，即表格格式(第三方工具实现，暂时保留以避免不兼容现象)
+                #   vertical           分行显示，每行、每列都分行
+                #   csv                csv格式显示
+                #   tab                表格形式（用format_output_tab自己编写)
+                formatted = self.format_output(
+                    title, cur, headers, columntypes,
+                    self.SQLOptions.get("OUTPUT_FORMAT").lower(),
+                    max_width
+                )
+
+                # 输出显示信息
+                try:
+                    if self.SQLOptions.get("SILENT").upper() == 'OFF':
+                        self.output(formatted, status)
+                except KeyboardInterrupt:
+                    # 显示过程中用户按下了CTRL+C
+                    pass
 
             if "SQLCLI_REMOTESERVER" in os.environ and \
                     text.strip().upper() not in ("EXIT", "QUIT"):
@@ -1376,14 +1381,17 @@ class SQLCli(object):
                     return True
                 result = run_remote()
             else:
-                # 记录命令开始时间
-                start = time.time()
                 # 执行指定的SQL
-                result = self.SQLExecuteHandler.run(text)
-                # 记录命令结束的时间
-                end = time.time()
-                # 打印结果
-                show_result(result)
+                for result in self.SQLExecuteHandler.run(text):
+                    # 记录命令开始时间
+                    start = time.time()
+
+                    # 打印结果
+                    show_result(result)
+
+                    # 记录命令结束的时间
+                    end = time.time()
+
                 # 打印执行时间
                 if self.SQLOptions.get('TIMING').upper() == 'ON':
                     self.echo('Running time elapsed: %9.2f Seconds' % (end - start))

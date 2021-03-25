@@ -127,7 +127,13 @@ class SQLExecute(object):
         # Remove spaces and EOL
         statement = statement.strip()
         if not statement:  # Empty string
-            yield None, None, None, None, None
+            yield {
+                "title": None,
+                "rows": None,
+                "headers": None,
+                "columntypes": None,
+                "status": None
+            }
 
         # 分析SQL语句
         (ret_bSQLCompleted, ret_SQLSplitResults,
@@ -147,7 +153,13 @@ class SQLExecute(object):
                     if m_raw_sql is not None:
                         self.logger.info(m_raw_sql)
                 click.echo(m_raw_sql, file=self.echofile)
-                yield None, None, None, None, m_raw_sql
+                yield {
+                    "title": None,
+                    "rows": None,
+                    "headers": None,
+                    "columntypes": None,
+                    "status": m_raw_sql
+                }
                 continue
 
             sql = m_raw_sql                                          # 当前要被执行的SQL，这个SQL可能被随后的注释或者替换规则改写
@@ -287,7 +299,13 @@ class SQLExecute(object):
             try:
                 # 首先尝试这是一个特殊命令，如果返回CommandNotFound，则认为其是一个标准SQL
                 for (title, result, headers, columntypes, status) in execute(self.SQLCliHandler,  sql):
-                    yield title, result, headers, columntypes, status
+                    yield {
+                        "title": title,
+                        "rows": result,
+                        "headers": headers,
+                        "columntypes": columntypes,
+                        "status": status
+                    }
             except CommandNotFound:
                 # 进入到SQL执行阶段, 开始执行SQL语句
                 if self.conn:
@@ -299,7 +317,13 @@ class SQLExecute(object):
                         raise SQLCliException("Not Connected. ")
                     else:
                         self.LastJsonSQLResult = None
-                        yield None, None, None, None, "Not connected. "
+                        yield {
+                            "title": None,
+                            "rows": None,
+                            "headers": None,
+                            "columntypes": None,
+                            "status": "Not connected. "
+                        }
 
                 # 执行正常的SQL语句
                 if self.cur is not None:
@@ -422,9 +446,21 @@ class SQLExecute(object):
 
                             # 返回SQL结果
                             if self.SQLOptions.get('TERMOUT').upper() != 'OFF':
-                                yield title, result, headers, columntypes, status
+                                yield {
+                                    "title": title,
+                                    "rows": result,
+                                    "headers": headers,
+                                    "columntypes": columntypes,
+                                    "status": status
+                                }
                             else:
-                                yield title, [], headers, columntypes, status
+                                yield {
+                                    "title": title,
+                                    "rows": [],
+                                    "headers": headers,
+                                    "columntypes": columntypes,
+                                    "status": status
+                                }
 
                             if not m_FetchStatus:
                                 break
@@ -440,7 +476,13 @@ class SQLExecute(object):
                             raise SQLCliException(m_SQL_ErrorMessage)
                         else:
                             self.LastJsonSQLResult = None
-                            yield None, None, None, None, m_SQL_ErrorMessage
+                            yield {
+                                "title": None,
+                                "rows": None,
+                                "headers": None,
+                                "columntypes": None,
+                                "status": m_SQL_ErrorMessage
+                            }
                     except Exception as e:
                         m_SQL_Status = 1
                         m_SQL_ErrorMessage = str(e).strip()
@@ -495,7 +537,13 @@ class SQLExecute(object):
                             raise SQLCliException(m_SQL_ErrorMessage)
                         else:
                             self.LastJsonSQLResult = None
-                            yield None, None, None, None, m_SQL_ErrorMessage
+                            yield {
+                                "title": None,
+                                "rows": None,
+                                "headers": None,
+                                "columntypes": None,
+                                "status": m_SQL_ErrorMessage
+                            }
             except (SQLCliException, SQLCliODBCException) as e:
                 m_SQL_Status = 1
                 m_SQL_ErrorMessage = str(e).strip()
@@ -507,7 +555,13 @@ class SQLExecute(object):
                         print('traceback.print_exc():\n%s' % traceback.print_exc())
                         print('traceback.format_exc():\n%s' % traceback.format_exc())
                     self.LastJsonSQLResult = None
-                    yield None, None, None, None, m_SQL_ErrorMessage
+                    yield {
+                        "title": None,
+                        "rows": None,
+                        "headers": None,
+                        "columntypes": None,
+                        "status": m_SQL_ErrorMessage
+                    }
 
             # 如果需要，打印语句执行时间
             end = time.time()
