@@ -19,6 +19,7 @@ import requests
 import json
 import asyncio
 import websockets
+from time import strftime, localtime
 from urllib.error import URLError
 from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 from prompt_toolkit.shortcuts import PromptSession
@@ -1045,7 +1046,17 @@ class SQLCli(object):
                     # 执行指定的SQL文件
                     for title, cur, headers, columntypes, status in \
                             cls.SQLExecuteHandler.run(query, os.path.expanduser(m_SQLFile)):
+                        # 记录命令开始时间
+                        start = time.time()
                         yield title, cur, headers, columntypes, status
+                        # 记录命令结束的时间
+                        end = time.time()
+                        # 打印执行时间
+                        if cls.SQLOptions.get('TIMING').upper() == 'ON':
+                            cls.echo('Running time elapsed: %9.2f Seconds' % (end - start))
+                        if cls.SQLOptions.get('TIME').upper() == 'ON':
+                            cls.echo('Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime()))
+
 
                 except IOError as e:
                     yield None, None, None, None, str(e)
@@ -1365,8 +1376,19 @@ class SQLCli(object):
                     return True
                 result = run_remote()
             else:
+                # 记录命令开始时间
+                start = time.time()
+                # 执行指定的SQL
                 result = self.SQLExecuteHandler.run(text)
+                # 记录命令结束的时间
+                end = time.time()
+                # 打印结果
                 show_result(result)
+                # 打印执行时间
+                if self.SQLOptions.get('TIMING').upper() == 'ON':
+                    self.echo('Running time elapsed: %9.2f Seconds' % (end - start))
+                if self.SQLOptions.get('TIME').upper() == 'ON':
+                    self.echo('Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime()))
 
             # 返回正确执行的消息
             return True

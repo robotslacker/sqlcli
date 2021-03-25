@@ -5,7 +5,6 @@ import click
 import time
 import os
 import re
-from time import strftime, localtime
 from multiprocessing import Lock
 import traceback
 import json
@@ -529,13 +528,6 @@ class SQLExecute(object):
                         "Transaction": self.SQLTransaction
                     }
                 )
-
-            if self.SQLOptions.get('TIMING').upper() == 'ON':
-                if sql.strip().upper() not in ('EXIT', 'QUIT'):
-                    yield None, None, None, None, 'Running time elapsed: %9.2f Seconds' % self.LastElapsedTime
-            if self.SQLOptions.get('TIME').upper() == 'ON':
-                if sql.strip().upper() not in ('EXIT', 'QUIT'):
-                    yield None, None, None, None, 'Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime())
 
     def get_result(self, cursor, rowcount):
         """Get the current result's data from the cursor."""
