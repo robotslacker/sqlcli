@@ -108,7 +108,34 @@ class SQLExecute(object):
 
     def run(self, statement, p_sqlscript=None):
         """
+        返回分为3段：
+        Header：
+            返回结果的头信息
+        Result*N
+            分批分次返回结果集
+        Summary：
+            返回统计信息
+
         返回结果包含5个方面的内容
+        parse
+            sql
+            rawsql
+            script
+            StartedTime
+            Scenario
+            Transaction
+            thread_name
+        result
+            title
+            rows
+            headers
+            columntypes
+            status
+        summary
+            elapsed
+            SQLStatus
+            ErrorMessage
+
         (title, rows, headers, columntypes, status).
         title       表头信息
         rows        结果数据集
@@ -455,7 +482,6 @@ class SQLExecute(object):
                                     "columntypes": columntypes,
                                     "status": status
                                 }
-
                             if not m_FetchStatus:
                                 break
                     except SQLCliODBCException as oe:
