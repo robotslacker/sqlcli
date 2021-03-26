@@ -977,7 +977,13 @@ class SQLCli(object):
                 if cls.db_saved_conn[m_Session_Name][0] is None:
                     result = cls.connect_db(cls.db_username + "/" + cls.db_password + "@" + cls.db_url)
                     for title, cur, headers, columntypes, status in result:
-                        yield title, cur, headers, columntypes, status
+                        yield {
+                            "title": title,
+                            "rows": cur,
+                            "headers": headers,
+                            "columntypes": columntypes,
+                            "status": status
+                        }
                 else:
                     cls.db_conn = cls.db_saved_conn[m_Session_Name][0]
                     cls.SQLExecuteHandler.conn = cls.db_conn
