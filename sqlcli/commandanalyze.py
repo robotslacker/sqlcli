@@ -102,7 +102,13 @@ def show_help(cls, arg):
         if not value.hidden:
             for m_desc in value.description.split('\n'):
                 result.append((value.command, m_desc))
-    return [(None, result, headers, None, None)]
+        return [{
+            "title": None,
+            "rows": result,
+            "headers": headers,
+            "columntypes": None,
+            "status": None
+        }, ]
 
 
 @special_command("quit", "Quit.")

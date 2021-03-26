@@ -298,14 +298,8 @@ class SQLExecute(object):
             # 执行SQL
             try:
                 # 首先尝试这是一个特殊命令，如果返回CommandNotFound，则认为其是一个标准SQL
-                for (title, result, headers, columntypes, status) in execute(self.SQLCliHandler,  sql):
-                    yield {
-                        "title": title,
-                        "rows": result,
-                        "headers": headers,
-                        "columntypes": columntypes,
-                        "status": status
-                    }
+                for m_Result in execute(self.SQLCliHandler,  sql):
+                    yield m_Result
             except CommandNotFound:
                 # 进入到SQL执行阶段, 开始执行SQL语句
                 if self.conn:

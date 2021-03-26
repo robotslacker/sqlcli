@@ -505,12 +505,13 @@ class SQLCli(object):
         else:
             # 运行在控制台模式下
             if not cls.JobHandler.isAllJobClosed():
-                yield (
-                    None,
-                    None,
-                    None,
-                    None,
-                    "Please wait all background process complete.")
+                yield {
+                    "title": None,
+                    "rows": None,
+                    "headers": None,
+                    "columntypes": None,
+                    "status": "Please wait all background process complete."
+                }
             else:
                 # 退出应用程序
                 raise EOFError
@@ -524,13 +525,13 @@ class SQLCli(object):
             for row in cls.connection_configs:
                 m_Result.append([row["Database"], row["ClassName"], row["FullName"],
                                  row["JDBCURL"], row["ODBCURL"], row["JDBCProp"]])
-            yield (
-                "Current Drivers: ",
-                m_Result,
-                ["Database", "ClassName", "FileName", "JDBCURL", "ODBCURL", "JDBCProp"],
-                None,
-                "Driver loaded."
-            )
+            yield {
+                "title": "Current Drivers: ",
+                "rows": m_Result,
+                "headers": ["Database", "ClassName", "FileName", "JDBCURL", "ODBCURL", "JDBCProp"],
+                "columntypes": None,
+                "status": "Driver loaded."
+            }
             return
 
         # 解析命令参数
@@ -545,13 +546,13 @@ class SQLCli(object):
                     m_Result.append([row["Database"], row["ClassName"], row["FullName"],
                                      row["JDBCURL"], row["ODBCURL"], row["JDBCProp"]])
                     break
-            yield (
-                "Current Drivers: ",
-                m_Result,
-                ["Database", "ClassName", "FileName", "JDBCURL", "ODBCURL", "JDBCProp"],
-                None,
-                "Driver loaded."
-            )
+            yield {
+                "title": "Current Drivers: ",
+                "rows": m_Result,
+                "headers": ["Database", "ClassName", "FileName", "JDBCURL", "ODBCURL", "JDBCProp"],
+                "columntypes": None,
+                "status": "Driver loaded."
+            }
             return
 
         # 两个参数，替换当前Database的Driver
@@ -573,13 +574,13 @@ class SQLCli(object):
                     cls.connection_configs[nPos] = m_Config
             if not bFound:
                 raise SQLCliException("Driver not loaded. Please config it in configfile first.")
-            yield (
-                None,
-                None,
-                None,
-                None,
-                "Driver [" + m_DriverName.strip() + "] loaded."
-            )
+            yield {
+                "title": None,
+                "rows": None,
+                "headers": None,
+                "columntypes": None,
+                "status": "Driver [" + m_DriverName.strip() + "] loaded."
+            }
             return
 
         raise SQLCliException("Bad command.  loaddriver [database] [new jar name]")
@@ -590,13 +591,13 @@ class SQLCli(object):
         cls.SQLOptions.set("SQLREWRITE", "ON")
         cls.SQLMappingHandler.Load_SQL_Mappings(cls.sqlscript, arg)
         cls.sqlmap = arg
-        yield (
-            None,
-            None,
-            None,
-            None,
-            'Mapping file loaded.'
-        )
+        yield {
+            "title": None,
+            "rows": None,
+            "headers": None,
+            "columntypes": None,
+            "status": 'Mapping file loaded.'
+        }
 
     # 连接数据库
     @staticmethod
@@ -830,13 +831,13 @@ class SQLCli(object):
                 raise SQLCliException(str(jpype.java.sql.SQLInvalidAuthorizationSpecException(e).getCause()))
             else:
                 raise SQLCliException(repr(e))
-        yield (
-            None,
-            None,
-            None,
-            None,
-            'Database connected.'
-        )
+        yield {
+            "title": None,
+            "rows": None,
+            "headers": None,
+            "columntypes": None,
+            "status": 'Database connected.'
+        }
 
     # 断开数据库连接
     @staticmethod
@@ -847,13 +848,13 @@ class SQLCli(object):
             cls.db_conn.close()
         cls.db_conn = None
         cls.SQLExecuteHandler.conn = None
-        yield (
-            None,
-            None,
-            None,
-            None,
-            'Database disconnected.'
-        )
+        yield {
+            "title": None,
+            "rows": None,
+            "headers": None,
+            "columntypes": None,
+            "status": 'Database disconnected.'
+        }
 
     # 执行主机的操作命令
     @staticmethod
@@ -881,20 +882,20 @@ class SQLCli(object):
                                  stderr=subprocess.PIPE)
         try:
             (stdoutdata, stderrdata) = p.communicate()
-            yield (
-                None,
-                None,
-                None,
-                None,
-                str(stdoutdata.decode(encoding=cls.Result_Charset))
-            )
-            yield (
-                None,
-                None,
-                None,
-                None,
-                str(stderrdata.decode(encoding=cls.Result_Charset))
-            )
+            yield {
+                "title": None,
+                "rows": None,
+                "headers": None,
+                "columntypes": None,
+                "status": str(stdoutdata.decode(encoding=cls.Result_Charset))
+            }
+            yield {
+                "title": None,
+                "rows": None,
+                "headers": None,
+                "columntypes": None,
+                "status": str(stderrdata.decode(encoding=cls.Result_Charset))
+            }
         except UnicodeDecodeError:
             raise SQLCliException("The character set [" + cls.Result_Charset + "]" +
                                   " does not match the terminal character set, " +
@@ -924,21 +925,21 @@ class SQLCli(object):
             if cls.db_conn is not None:
                 m_Result.append(['Current', str(cls.SessionName), str(cls.db_username), '******', str(cls.db_url)])
             if len(m_Result) == 0:
-                yield (
-                    None,
-                    None,
-                    None,
-                    None,
-                    "No saved sesssions."
-                )
+                yield {
+                    "title": None,
+                    "rows": None,
+                    "headers": None,
+                    "columntypes": None,
+                    "status": "No saved sesssions."
+                }
             else:
-                yield (
-                    "Saved Sessions:",
-                    m_Result,
-                    ["Session", "Sesssion Name", "User Name", "Password", "URL"],
-                    None,
-                    "Total " + str(len(m_Result)) + " saved sesssions."
-                )
+                yield {
+                    "title": "Saved Sessions:",
+                    "rows": m_Result,
+                    "headers": ["Session", "Sesssion Name", "User Name", "Password", "URL"],
+                    "columntypes": None,
+                    "status": "Total " + str(len(m_Result)) + " saved sesssions."
+                }
             return
 
         # 要求两个参数 save/restore [session_name]
@@ -988,12 +989,30 @@ class SQLCli(object):
             raise SQLCliException(
                 "Wrong argument : " + "Session save/restore [session name]")
         if m_Parameters[0] == 'save':
-            yield None, None, None, None, "Session saved Successful."
+            yield {
+                "title": None,
+                "rows": None,
+                "headers": None,
+                "columntypes": None,
+                "status": "Session saved Successful."
+            }
         if m_Parameters[0] == 'release':
-            yield None, None, None, None, "Session release Successful."
+            yield {
+                "title": None,
+                "rows": None,
+                "headers": None,
+                "columntypes": None,
+                "status": "Session release Successful."
+            }
         if m_Parameters[0] == 'restore':
             cls.SQLOptions.set("CONNURL", cls.db_url)
-            yield None, None, None, None, "Session restored Successful."
+            yield {
+                "title": None,
+                "rows": None,
+                "headers": None,
+                "columntypes": None,
+                "status": "Session restored Successful."
+            }
 
     # 休息一段时间, 如果收到SHUTDOWN信号的时候，立刻终止SLEEP
     @staticmethod
@@ -1017,7 +1036,14 @@ class SQLCli(object):
     def execute_from_file(cls, arg, **_):
         if not arg:
             message = "Missing required argument, filename1,filename2,filename,3 [loop <loop times>]."
-            return [(None, None, None, None, message)]
+            yield {
+                "title": None,
+                "rows": None,
+                "headers": None,
+                "columntypes": None,
+                "status": "Session restored Successful."
+            }
+            return
         m_SQLFileList = str(arg).split()
         m_nLoop = 1
         if len(m_SQLFileList) >= 3 and \
@@ -1044,14 +1070,20 @@ class SQLCli(object):
                     cls.SQLExecuteHandler.SQLTransaction = ''
 
                     # 执行指定的SQL文件
+                    # 记录命令开始时间
+                    start = time.time()
                     for m_ExecuteResult in \
                             cls.SQLExecuteHandler.run(query, os.path.expanduser(m_SQLFile)):
-                        # 记录命令开始时间
-                        start = time.time()
-                        yield m_ExecuteResult["title"], m_ExecuteResult["rows"],m_ExecuteResult["headers"], \
-                              m_ExecuteResult["columntypes"], m_ExecuteResult["status"]
-
                         # 记录命令结束的时间
+                        end = time.time()
+                        yield {
+                            "title": m_ExecuteResult["title"],
+                            "rows": m_ExecuteResult["rows"],
+                            "headers": m_ExecuteResult["headers"],
+                            "columntypes": m_ExecuteResult["columntypes"],
+                            "status": m_ExecuteResult["status"]
+                        }
+                        # 记录下一个命令开始的时间
                         end = time.time()
                         # 打印执行时间
                         if cls.SQLOptions.get('TIMING').upper() == 'ON':
@@ -1059,7 +1091,13 @@ class SQLCli(object):
                         if cls.SQLOptions.get('TIME').upper() == 'ON':
                             cls.echo('Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime()))
                 except IOError as e:
-                    yield None, None, None, None, str(e)
+                    yield {
+                        "title": None,
+                        "rows": None,
+                        "headers": None,
+                        "columntypes": None,
+                        "status": str(e)
+                    }
 
     # 将当前及随后的输出打印到指定的文件中
     @staticmethod
@@ -1071,13 +1109,26 @@ class SQLCli(object):
         if parameters[0].strip().upper() == 'OFF':
             # close spool file
             if len(cls.SpoolFileHandler) == 0:
-                message = "not spooling currently"
-                return [(None, None, None, None, message)]
+                yield {
+                    "title": None,
+                    "rows": None,
+                    "headers": None,
+                    "columntypes": None,
+                    "status": "not spooling currently"
+                }
+                return
             else:
                 cls.SpoolFileHandler[-1].close()
                 cls.SpoolFileHandler.pop()
                 cls.SQLExecuteHandler.spoolfile = None
-                return [(None, None, None, None, None)]
+                yield {
+                    "title": None,
+                    "rows": None,
+                    "headers": None,
+                    "columntypes": None,
+                    "status": None
+                }
+                return
 
         if cls.logfilename is not None:
             # 如果当前主程序启用了日志，则spool日志的默认输出目录为logfile的目录
@@ -1092,25 +1143,51 @@ class SQLCli(object):
         except IOError as e:
             raise SQLCliException("SQLCLI-00000: IO Exception " + repr(e))
         cls.SQLExecuteHandler.spoolfile = cls.SpoolFileHandler
-        return [(None, None, None, None, None)]
+        yield {
+            "title": None,
+            "rows": None,
+            "headers": None,
+            "columntypes": None,
+            "status": None
+        }
+        return
 
     # 将当前及随后的屏幕输入存放到脚本文件中
     @staticmethod
     def echo_input(cls, arg, **_):
         if not arg:
             message = "Missing required argument, echo [filename]|echo off."
-            return [(None, None, None, None, message)]
+            yield {
+                "title": None,
+                "rows": None,
+                "headers": None,
+                "columntypes": None,
+                "status": message
+            }
+            return
         parameters = str(arg).split()
         if parameters[0].strip().upper() == 'OFF':
             # close echo file
             if cls.EchoFileHandler is None:
                 message = "not echo currently"
-                return [(None, None, None, None, message)]
+                return [{
+                    "title": None,
+                    "rows": None,
+                    "headers": None,
+                    "columntypes": None,
+                    "status": message
+                }]
             else:
                 cls.EchoFileHandler.close()
                 cls.EchoFileHandler = None
                 cls.SQLExecuteHandler.echofile = None
-                return [(None, None, None, None, None)]
+                return [{
+                    "title": None,
+                    "rows": None,
+                    "headers": None,
+                    "columntypes": None,
+                    "status": None
+                }]
 
         # ECHO的输出默认为程序的工作目录
         m_FileName = parameters[0].strip()
@@ -1120,7 +1197,13 @@ class SQLCli(object):
             cls.EchoFileHandler.close()
         cls.EchoFileHandler = open(m_FileName, "w", encoding=cls.Result_Charset)
         cls.SQLExecuteHandler.echofile = cls.EchoFileHandler
-        return [(None, None, None, None, None)]
+        return [{
+            "title": None,
+            "rows": None,
+            "headers": None,
+            "columntypes": None,
+            "status": None
+        }]
 
     # 设置一些选项
     @staticmethod
@@ -1132,13 +1215,13 @@ class SQLCli(object):
             for row in cls.SQLOptions.getOptionList():
                 if not row["Hidden"]:
                     m_Result.append([row["Name"], row["Value"], row["Comments"]])
-            yield (
-                "Current Options: ",
-                m_Result,
-                ["Name", "Value", "Comments"],
-                None,
-                ""
-            )
+            yield {
+                "title": "Current Options: ",
+                "rows": m_Result,
+                "headers": ["Name", "Value", "Comments"],
+                "columntypes": None,
+                "status": None
+            }
         else:
             options_parameters = str(arg).split()
             if len(options_parameters) == 1:
@@ -1195,20 +1278,22 @@ class SQLCli(object):
                 else:
                     raise SQLCliException("SQLCLI-00000: "
                                           "Wrong set command. Please use [set @parameter_name parametervalue]")
-                yield (
-                    None,
-                    None,
-                    None,
-                    None,
-                    '')
+                yield {
+                    "title": None,
+                    "rows": None,
+                    "headers": None,
+                    "columntypes": None,
+                    "status": None
+                }
             elif cls.SQLOptions.get(options_parameters[0].upper()) is not None:
                 cls.SQLOptions.set(options_parameters[0].upper(), options_parameters[1])
-                yield (
-                    None,
-                    None,
-                    None,
-                    None,
-                    '')
+                yield {
+                    "title": None,
+                    "rows": None,
+                    "headers": None,
+                    "columntypes": None,
+                    "status": None
+                }
             else:
                 raise CommandNotFound
 
@@ -1219,35 +1304,65 @@ class SQLCli(object):
         matchObj = re.match(r"(\s+)?job(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             (title, result, headers, columntypes, status) = cls.JobHandler.Process_Command(arg)
-            yield title, result, headers, columntypes, status
+            yield {
+                "title": title,
+                "rows": result,
+                "headers": headers,
+                "columntypes": columntypes,
+                "status": status
+            }
             return
 
         # 处理Transaction
         matchObj = re.match(r"(\s+)?transaction(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             (title, result, headers, columntypes, status) = cls.TransactionHandler.Process_Command(arg)
-            yield title, result, headers, columntypes, status
+            yield {
+                "title": title,
+                "rows": result,
+                "headers": headers,
+                "columntypes": columntypes,
+                "status": status
+            }
             return
 
         # 处理kafka数据
         matchObj = re.match(r"(\s+)?kafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             (title, result, headers, columntypes, status) = cls.KafkaHandler.Process_SQLCommand(arg)
-            yield title, result, headers, columntypes, status
+            yield {
+                "title": title,
+                "rows": result,
+                "headers": headers,
+                "columntypes": columntypes,
+                "status": status
+            }
             return
 
         # 测试管理
         matchObj = re.match(r"(\s+)?test(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             (title, result, headers, columntypes, status) = cls.TestHandler.Process_SQLCommand(arg)
-            yield title, result, headers, columntypes, status
+            yield {
+                "title": title,
+                "rows": result,
+                "headers": headers,
+                "columntypes": columntypes,
+                "status": status
+            }
             return
 
         # 处理HDFS数据
         matchObj = re.match(r"(\s+)?hdfs(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             (title, result, headers, columntypes, status) = cls.HdfsHandler.Process_SQLCommand(arg)
-            yield title, result, headers, columntypes, status
+            yield {
+                "title": title,
+                "rows": result,
+                "headers": headers,
+                "columntypes": columntypes,
+                "status": status
+            }
             return
 
         # 处理随机数据文件
@@ -1255,7 +1370,13 @@ class SQLCli(object):
         if matchObj:
             for (title, result, headers, columntypes, status) in \
                     cls.DataHandler.Process_SQLCommand(arg, cls.Result_Charset):
-                yield title, result, headers, columntypes, status
+                yield {
+                    "title": title,
+                    "rows": result,
+                    "headers": headers,
+                    "columntypes": columntypes,
+                    "status": status
+                }
             return
 
         # 不认识的internal命令
@@ -1382,19 +1503,20 @@ class SQLCli(object):
                 result = run_remote()
             else:
                 # 执行指定的SQL
+                # 记录命令开始时间
+                start = time.time()
+                m_elapsed_time = 0
                 for result in self.SQLExecuteHandler.run(text):
-                    # 记录命令开始时间
-                    start = time.time()
-
+                    # 记录命令结束的时间
+                    m_elapsed_time = time.time() - start
                     # 打印结果
                     show_result(result)
-
-                    # 记录命令结束的时间
-                    end = time.time()
+                    # 记录下一个命令开始时间
+                    start = time.time()
 
                 # 打印执行时间
                 if self.SQLOptions.get('TIMING').upper() == 'ON':
-                    self.echo('Running time elapsed: %9.2f Seconds' % (end - start))
+                    self.echo('Running time elapsed: %9.2f Seconds' % m_elapsed_time)
                 if self.SQLOptions.get('TIME').upper() == 'ON':
                     self.echo('Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime()))
 
