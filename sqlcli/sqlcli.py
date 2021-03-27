@@ -602,6 +602,20 @@ class SQLCli(object):
     # 连接数据库
     @staticmethod
     def connect_db(cls, arg, **_):
+        # 如果当前的连接存在，且当前连接没有被保存，则断开当前的连接
+        if cls.db_conn is not None:
+            if cls.SessionName is None:
+                # 如果之前数据库连接没有被保存，则强制断开连接
+                cls.db_conn.close()
+                cls.db_conn = None
+                cls.SQLExecuteHandler.conn = None
+            else:
+                if cls.db_saved_conn[cls.SessionName][0] is None:
+                    # 之前并没有保留数据库连接
+                    cls.db_conn.close()
+                    cls.db_conn = None
+                    cls.SQLExecuteHandler.conn = None
+
         # 一旦开始数据库连接，则当前连接会被置空，以保证连接错误的影响能够对后续的语句产生作用
         cls.db_conn = None
         cls.SQLExecuteHandler.conn = None
@@ -770,19 +784,6 @@ class SQLCli(object):
                 # 将当前DB的连接字符串备份到变量中
                 cls.SQLOptions.set("CONNURL", str(cls.db_url))
                 cls.SQLOptions.set("CONNPROP", str(m_JDBCProp))
-                # 数据库连接
-                if cls.db_conn is not None:
-                    if cls.SessionName is None:
-                        # 如果之前数据库连接没有被保存，则强制断开连接
-                        cls.db_conn.close()
-                        cls.db_conn = None
-                        cls.SQLExecuteHandler.conn = None
-                    else:
-                        if cls.db_saved_conn[cls.SessionName][0] is None:
-                            # 之前并没有保留数据库连接
-                            cls.db_conn.close()
-                            cls.db_conn = None
-                            cls.SQLExecuteHandler.conn = None
                 if "SQLCLI_DEBUG" in os.environ:
                     print("Connect to [" + m_JDBCURL + "]...")
                 cls.db_conn = jdbcconnect(
@@ -1493,16 +1494,8 @@ class SQLCli(object):
                                 try:
                                     ret = await websocket.recv()
                                     json_ret = json.loads(ret)
-                                    show_result(
-                                        [(
-                                            json_ret["title"],
-                                            json_ret["cur"],
-                                            json_ret["headers"],
-                                            json_ret["columntypes"],
-                                            json_ret["status"]
-                                        ), ]
-                                    )
-                                except websockets.ConnectionClosedOK:
+                                    show_result(json_ret)
+                                except websockets.ConnectionClosedOK as wc:
                                     return True
                     asyncio.get_event_loop().run_until_complete(test_ws_quote())
                     return True
