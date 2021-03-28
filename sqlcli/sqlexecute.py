@@ -197,8 +197,16 @@ class SQLExecute(object):
                     # 记录被SQLMapping改写的SQL
                     m_RewrotedSQL.append(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
 
-            # 如果是空语句，不在执行
+            # 如果是空语句，不需要执行，但可能是完全注释行
             if len(sql.strip()) == 0:
+                # 返回SQL的解析信息
+                yield {
+                    "type": "parse",
+                    "rawsql": m_raw_sql,
+                    "formattedsql": m_FormattedSQL,
+                    "rewrotedsql": m_RewrotedSQL,
+                    "script": p_sqlscript
+                }
                 continue
 
             # 检查SQL中是否包含特殊内容，如果有，改写SQL
