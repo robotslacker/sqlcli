@@ -67,23 +67,14 @@ class SQLCliRemoteServer:
                     m_SQLCli = sga[p_RequestData["clientid"]]
                     for m_Result in m_SQLCli.SQLExecuteHandler.run(p_RequestData["command"]):
                         await manager.send_personal_message(
-                            json.dumps({
-                                "title": m_Result["title"],
-                                "rows": m_Result["rows"],
-                                "headers": m_Result["headers"],
-                                "columntypes": m_Result["columntypes"],
-                                "status": m_Result["status"]
-                            }),
+                            json.dumps(m_Result),
                             websocket
                         )
             else:
                 await manager.send_personal_message(
                     json.dumps({
-                        "title": None,
-                        "rows": None,
-                        "headers": None,
-                        "columntypes": None,
-                        "status": "SQLCLI-00000: ClientID missed. Please logout & relogin."
+                        "type": "error",
+                        "message": "SQLCLI-00000: ClientID missed. Please logout & relogin."
                     }),
                     websocket)
                 manager.disconnect(websocket)

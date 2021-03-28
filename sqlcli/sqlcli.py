@@ -47,6 +47,12 @@ from .sqloption import SQLOptions
 from .__init__ import __version__
 from .sqlparse import SQLAnalyze
 
+OFLAG_LOGFILE = 1
+OFLAG_LOGGER = 2
+OFLAG_CONSOLE = 4
+OFLAG_SPOOL = 8
+OFLAG_ECHO = 16
+
 
 class SQLCli(object):
     # 连接配置信息
@@ -76,66 +82,66 @@ class SQLCli(object):
     nologo = None
 
     # 屏幕输出
-    Console = None                      # 程序的控制台显示
-    logfile = None                      # 程序输出日志文件
-    HeadlessMode = False                # 没有显示输出，即不需要回显，用于子进程的显示
-    logger = None                       # 程序的输出日志
-    m_SQLPerf = None                    # SQL日志输出
+    Console = None  # 程序的控制台显示
+    logfile = None  # 程序输出日志文件
+    HeadlessMode = False  # 没有显示输出，即不需要回显，用于子进程的显示
+    logger = None  # 程序的输出日志
+    m_SQLPerf = None  # SQL日志输出
 
     def __init__(
             self,
-            logon=None,                             # 默认登录信息，None表示不需要
-            logfilename=None,                       # 程序输出文件名，None表示不需要
-            sqlscript=None,                         # 脚本文件名，None表示不需要
-            sqlmap=None,                            # SQL映射文件名，None表示不需要
-            nologo=False,                           # 是否不打印登陆时的Logo信息，True的时候不打印
-            breakwitherror=False,                   # 遇到SQL错误，是否立刻退出
-            sqlperf=None,                           # SQL审计文件输出名，None表示不需要
-            Console=sys.stdout,                     # 控制台输出，默认为sys.stdout,即标准输出
-            HeadlessMode=False,                     # 是否为无终端模式，无终端模式下，任何屏幕信息都不会被输出
-            WorkerName='MAIN',                     # 程序别名，可用来区分不同的应用程序
-            logger=None,                            # 程序输出日志句柄
-            clientcharset='UTF-8',                 # 客户端字符集，在读取SQL文件时，采纳这个字符集，默认为UTF-8
-            resultcharset='UTF-8',                 # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
-            EnableJobManager=True,                  # 是否开启后台调度程序管理模块，否则无法使用JOB类相关命令
-            SharedProcessInfo=None,                 # 共享内存信息。内部变量，不对外书写
-            profile=None                            # 程序初始化执行脚本
+            logon=None,  # 默认登录信息，None表示不需要
+            logfilename=None,  # 程序输出文件名，None表示不需要
+            sqlscript=None,  # 脚本文件名，None表示不需要
+            sqlmap=None,  # SQL映射文件名，None表示不需要
+            nologo=False,  # 是否不打印登陆时的Logo信息，True的时候不打印
+            breakwitherror=False,  # 遇到SQL错误，是否立刻退出
+            sqlperf=None,  # SQL审计文件输出名，None表示不需要
+            Console=sys.stdout,  # 控制台输出，默认为sys.stdout,即标准输出
+            HeadlessMode=False,  # 是否为无终端模式，无终端模式下，任何屏幕信息都不会被输出
+            WorkerName='MAIN',  # 程序别名，可用来区分不同的应用程序
+            logger=None,  # 程序输出日志句柄
+            clientcharset='UTF-8',  # 客户端字符集，在读取SQL文件时，采纳这个字符集，默认为UTF-8
+            resultcharset='UTF-8',  # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
+            EnableJobManager=True,  # 是否开启后台调度程序管理模块，否则无法使用JOB类相关命令
+            SharedProcessInfo=None,  # 共享内存信息。内部变量，不对外书写
+            profile=None  # 程序初始化执行脚本
     ):
-        self.db_saved_conn = {}                          # 数据库Session备份
-        self.SQLMappingHandler = SQLMapping()            # 函数句柄，处理SQLMapping信息
-        self.SQLExecuteHandler = SQLExecute()            # 函数句柄，具体来执行SQL
-        self.SQLOptions = SQLOptions()                   # 程序运行中各种参数
-        self.KafkaHandler = KafkaWrapper()               # Kafka消息管理器
-        self.TestHandler = TestWrapper()                 # 测试管理
-        self.HdfsHandler = HDFSWrapper()                 # HDFS文件操作
-        self.JobHandler = JOBManager()                   # 并发任务管理器
-        self.TransactionHandler = TransactionManager()   # 事务管理器
-        self.DataHandler = DataWrapper()                 # 随机临时数处理
-        self.SpoolFileHandler = []                       # Spool文件句柄, 是一个数组，可能发生嵌套
-        self.EchoFileHandler = None                      # 当前回显文件句柄
-        self.AppOptions = None                           # 应用程序的配置参数
-        self.Encoding = None                             # 应用程序的Encoding信息
-        self.prompt_app = None                           # PromptKit控制台
-        self.db_conn = None                              # 当前应用的数据库连接句柄
-        self.SessionName = None                          # 当前会话的Session的名字
-        self.db_conntype = None                          # 数据库连接方式，  JDBC或者是ODBC
-        self.echofilename = None                         # 当前回显文件的文件名称
-        self.Version = __version__                       # 当前程序版本
-        self.ClientID = None                             # 远程连接时的客户端ID
+        self.db_saved_conn = {}  # 数据库Session备份
+        self.SQLMappingHandler = SQLMapping()  # 函数句柄，处理SQLMapping信息
+        self.SQLExecuteHandler = SQLExecute()  # 函数句柄，具体来执行SQL
+        self.SQLOptions = SQLOptions()  # 程序运行中各种参数
+        self.KafkaHandler = KafkaWrapper()  # Kafka消息管理器
+        self.TestHandler = TestWrapper()  # 测试管理
+        self.HdfsHandler = HDFSWrapper()  # HDFS文件操作
+        self.JobHandler = JOBManager()  # 并发任务管理器
+        self.TransactionHandler = TransactionManager()  # 事务管理器
+        self.DataHandler = DataWrapper()  # 随机临时数处理
+        self.SpoolFileHandler = []  # Spool文件句柄, 是一个数组，可能发生嵌套
+        self.EchoFileHandler = None  # 当前回显文件句柄
+        self.AppOptions = None  # 应用程序的配置参数
+        self.Encoding = None  # 应用程序的Encoding信息
+        self.prompt_app = None  # PromptKit控制台
+        self.db_conn = None  # 当前应用的数据库连接句柄
+        self.SessionName = None  # 当前会话的Session的名字
+        self.db_conntype = None  # 数据库连接方式，  JDBC或者是ODBC
+        self.echofilename = None  # 当前回显文件的文件名称
+        self.Version = __version__  # 当前程序版本
+        self.ClientID = None  # 远程连接时的客户端ID
 
-        if clientcharset is None:                        # 客户端字符集
+        if clientcharset is None:  # 客户端字符集
             self.Client_Charset = 'UTF-8'
         else:
             self.Client_Charset = clientcharset
         if resultcharset is None:
-            self.Result_Charset = self.Client_Charset    # 结果输出字符集
+            self.Result_Charset = self.Client_Charset  # 结果输出字符集
         else:
             self.Result_Charset = resultcharset
-        self.WorkerName = WorkerName                     # 当前进程名称. 如果有参数传递，以参数为准
-        self.MultiProcessManager = None                  # 进程间共享消息管理器， 如果为子进程，该参数为空
-        self.profile = []                                # 程序的初始化日志文件
+        self.WorkerName = WorkerName  # 当前进程名称. 如果有参数传递，以参数为准
+        self.MultiProcessManager = None  # 进程间共享消息管理器， 如果为子进程，该参数为空
+        self.profile = []  # 程序的初始化日志文件
 
-        self.m_LastComment = None                        # 如果当前SQL之前的内容完全是注释，则注释带到这里
+        self.m_LastComment = None  # 如果当前SQL之前的内容完全是注释，则注释带到这里
 
         # 传递各种参数
         self.sqlscript = sqlscript
@@ -296,10 +302,10 @@ class SQLCli(object):
 
         # 处理传递的映射文件, 首先加载参数的部分，如果环境变量里头有设置，则环境变量部分会叠加参数部分
         self.SQLOptions.set("SQLREWRITE", "OFF")
-        if self.sqlmap is not None:   # 如果传递的参数，有Mapping，以参数为准，先加载参数中的Mapping文件
+        if self.sqlmap is not None:  # 如果传递的参数，有Mapping，以参数为准，先加载参数中的Mapping文件
             self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, self.sqlmap)
             self.SQLOptions.set("SQLREWRITE", "ON")
-        if "SQLCLI_SQLMAPPING" in os.environ:     # 如果没有参数，则以环境变量中的信息为准
+        if "SQLCLI_SQLMAPPING" in os.environ:  # 如果没有参数，则以环境变量中的信息为准
             if len(os.environ["SQLCLI_SQLMAPPING"].strip()) > 0:
                 self.SQLMappingHandler.Load_SQL_Mappings(self.sqlscript, os.environ["SQLCLI_SQLMAPPING"])
                 self.SQLOptions.set("SQLREWRITE", "ON")
@@ -520,7 +526,7 @@ class SQLCli(object):
     # 标准的默认驱动程序并不需要使用这个函数，这个函数是用来覆盖标准默认驱动程序的加载信息
     @staticmethod
     def load_driver(cls, arg, **_):
-        if arg == "":      # 显示当前的Driver配置
+        if arg == "":  # 显示当前的Driver配置
             m_Result = []
             for row in cls.connection_configs:
                 m_Result.append([row["Database"], row["ClassName"], row["FullName"],
@@ -744,7 +750,7 @@ class SQLCli(object):
 
         # 连接数据库
         try:
-            if cls.db_conntype == 'JDBC':   # JDBC 连接数据库
+            if cls.db_conntype == 'JDBC':  # JDBC 连接数据库
                 # 加载所有的Jar包， 根据class的名字加载指定的文件
                 m_JarList = []
                 m_driverclass = ""
@@ -792,7 +798,7 @@ class SQLCli(object):
                     jars=m_JarList, sqloptions=cls.SQLOptions)
                 cls.db_url = m_JDBCURL
                 cls.SQLExecuteHandler.conn = cls.db_conn
-            if cls.db_conntype == 'ODBC':   # ODBC 连接数据库
+            if cls.db_conntype == 'ODBC':  # ODBC 连接数据库
                 m_ODBCURL = ""
                 for m_Connection_Config in cls.connection_configs:
                     if m_Connection_Config["Database"].upper() == cls.db_type.upper():
@@ -1083,13 +1089,7 @@ class SQLCli(object):
                             cls.SQLExecuteHandler.run(query, os.path.expanduser(m_SQLFile)):
                         # 记录命令结束的时间
                         end = time.time()
-                        yield {
-                            "title": m_ExecuteResult["title"],
-                            "rows": m_ExecuteResult["rows"],
-                            "headers": m_ExecuteResult["headers"],
-                            "columntypes": m_ExecuteResult["columntypes"],
-                            "status": m_ExecuteResult["status"]
-                        }
+                        yield m_ExecuteResult
                         # 记录下一个命令开始的时间
                         end = time.time()
                         # 打印执行时间
@@ -1217,7 +1217,7 @@ class SQLCli(object):
     def set_options(cls, arg, **_):
         if arg is None:
             raise SQLCliException("Missing required argument. set parameter parameter_value.")
-        elif arg == "":      # 显示所有的配置
+        elif arg == "":  # 显示所有的配置
             m_Result = []
             for row in cls.SQLOptions.getOptionList():
                 if not row["Hidden"]:
@@ -1446,36 +1446,70 @@ class SQLCli(object):
             def show_result(p_result):
                 # 输出显示结果
                 self.formatter.query = text
+                if "type" in p_result.keys():
+                    if p_result["type"] == "echo":
+                        message = p_result["message"]
+                        m_EchoFlag = OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_ECHO | OFLAG_SPOOL
+                        if re.match(r'echo\s+off', p_result["message"], re.IGNORECASE):
+                            # Echo Off这个语句，不打印到Echo文件中
+                            m_EchoFlag = m_EchoFlag & ~OFLAG_ECHO
+                        if p_result["script"] is None:
+                            # 控制台应用，不再打印SQL语句到控制台（因为用户已经输入了)
+                            m_EchoFlag = m_EchoFlag & ~OFLAG_CONSOLE
+                        self.echo(message, m_EchoFlag)
+                    elif p_result["type"] == "parse":
+                        # 首先打印原始SQL
+                        m_EchoFlag = OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL
+                        if re.match(r'spool\s+.*', p_result["rawsql"], re.IGNORECASE):
+                            # Spool off这个语句，不打印到Spool中
+                            m_EchoFlag = m_EchoFlag & ~OFLAG_SPOOL
+                        if p_result["script"] is None:
+                            # 控制台应用，不再打印SQL语句到控制台（因为用户已经输入了)
+                            m_EchoFlag = m_EchoFlag & ~OFLAG_CONSOLE
+                        self.echo(p_result["formattedsql"], m_EchoFlag)
+                        # 打印改写后的SQL
+                        if len(p_result["rewrotedsql"]) != 0:
+                            m_EchoFlag = OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL
+                            message = "\n".join(p_result["rewrotedsql"])
+                            self.echo(message, m_EchoFlag)
+                    elif p_result["type"] == "result":
+                        title = p_result["title"]
+                        cur = p_result["rows"]
+                        headers = p_result["headers"]
+                        columntypes = p_result["columntypes"]
+                        status = p_result["status"]
 
-                title = p_result["title"]
-                cur = p_result["rows"]
-                headers = p_result["headers"]
-                columntypes = p_result["columntypes"]
-                status = p_result["status"]
-                # 不控制每行的长度
-                max_width = None
+                        # 不控制每行的长度
+                        max_width = None
 
-                # title 包含原有语句的SQL信息，如果ECHO打开的话
-                # headers 包含原有语句的列名
-                # cur 是语句的执行结果
-                # output_format 输出格式
-                #   ascii              默认，即表格格式(第三方工具实现，暂时保留以避免不兼容现象)
-                #   vertical           分行显示，每行、每列都分行
-                #   csv                csv格式显示
-                #   tab                表格形式（用format_output_tab自己编写)
-                formatted = self.format_output(
-                    title, cur, headers, columntypes,
-                    self.SQLOptions.get("OUTPUT_FORMAT").lower(),
-                    max_width
-                )
+                        # title 包含原有语句的SQL信息，如果ECHO打开的话
+                        # headers 包含原有语句的列名
+                        # cur 是语句的执行结果
+                        # output_format 输出格式
+                        #   ascii              默认，即表格格式(第三方工具实现，暂时保留以避免不兼容现象)
+                        #   vertical           分行显示，每行、每列都分行
+                        #   csv                csv格式显示
+                        #   tab                表格形式（用format_output_tab自己编写)
+                        formatted = self.format_output(
+                            title, cur, headers, columntypes,
+                            self.SQLOptions.get("OUTPUT_FORMAT").lower(),
+                            max_width
+                        )
 
-                # 输出显示信息
-                try:
-                    if self.SQLOptions.get("SILENT").upper() == 'OFF':
-                        self.output(formatted, status)
-                except KeyboardInterrupt:
-                    # 显示过程中用户按下了CTRL+C
-                    pass
+                        # 输出显示信息
+                        try:
+                            self.output(formatted, status)
+                        except KeyboardInterrupt:
+                            # 显示过程中用户按下了CTRL+C
+                            pass
+                    elif p_result["type"] == "error":
+                        self.echo(p_result["message"])
+                    else:
+                        raise SQLCliException("internal error. unknown sql type error. " + str(p_result["type"]))
+                else:
+                    raise SQLCliException("internal error. incomplete return. missed type" + str(p_result))
+
+            # End Of show_result
 
             if "SQLCLI_REMOTESERVER" in os.environ and \
                     text.strip().upper() not in ("EXIT", "QUIT"):
@@ -1497,8 +1531,10 @@ class SQLCli(object):
                                     show_result(json_ret)
                                 except websockets.ConnectionClosedOK as wc:
                                     return True
+
                     asyncio.get_event_loop().run_until_complete(test_ws_quote())
                     return True
+
                 result = run_remote()
             else:
                 # 执行指定的SQL
@@ -1651,25 +1687,36 @@ class SQLCli(object):
         if self.logfile:
             click.echo(output, file=self.logfile)
 
-    def echo(self, s, **kwargs):
+    def echo(self, s,
+             Flags=OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL | OFLAG_ECHO,
+             **kwargs):
         # 输出目的地
         # 1：  程序日志文件 logfile
         # 2：  程序的logger，用于在第三方调用时候的Console显示
         # 3：  当前屏幕控制台
         # 4：  程序的Spool文件
-        if self.logfile:
-            click.echo(s, file=self.logfile)
-        if self.logger is not None:
-            self.logger.info(s)
-        try:
-            click.secho(s, **kwargs, file=self.Console)
-        except UnicodeEncodeError as ue:
-            # Unicode Error, This is console issue, Skip
-            if "SQLCLI_DEBUG" in os.environ:
-                print("Console output error:: " + repr(ue))
-        if len(self.SpoolFileHandler) != 0:
-            for m_SpoolFileHandler in self.SpoolFileHandler:
-                click.echo(s, file=m_SpoolFileHandler)
+        # 5:   程序的ECHO回显文件
+        if self.SQLOptions.get("SILENT").upper() != 'ON':
+            if Flags & OFLAG_LOGFILE:
+                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
+                    click.echo(s, file=self.logfile)
+            if Flags & OFLAG_SPOOL:
+                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.SpoolFileHandler is not None:
+                    for m_SpoolFileHandler in self.SpoolFileHandler:
+                        click.echo(s, file=m_SpoolFileHandler)
+            if Flags & OFLAG_LOGGER:
+                if self.logger is not None:
+                    self.logger.info(s)
+            if Flags & OFLAG_ECHO:
+                if self.EchoFileHandler is not None:
+                    click.echo(s, file=self.EchoFileHandler)
+            if Flags & OFLAG_CONSOLE:
+                try:
+                    click.secho(s, **kwargs, file=self.Console)
+                except UnicodeEncodeError as ue:
+                    # Unicode Error, This is console issue, Skip
+                    if "SQLCLI_DEBUG" in os.environ:
+                        print("Console output error:: " + repr(ue))
 
     def output(self, output, status=None):
         if output:
