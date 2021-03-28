@@ -109,40 +109,35 @@ class SQLExecute(object):
 
     def run(self, statement, p_sqlscript=None):
         """
-        返回分为3段：
-        Header：
-            返回结果的头信息
-        Result*N
-            分批分次返回结果集
-        Summary：
-            返回统计信息
-
-        返回结果包含5个方面的内容
-        parse
-            sql
-            rawsql
-            script
-            StartedTime
-            Scenario
-            Transaction
-            thread_name
-        result
-            title
-            rows
-            headers
-            columntypes
-            status
-        summary
-            elapsed
-            SQLStatus
-            ErrorMessage
-
-        (title, rows, headers, columntypes, status).
-        title       表头信息
-        rows        结果数据集
-        headers     结果集的header定义，列名信息
-        columntypes 列类型，字符串格式
-        status       返回结果汇总消息
+        返回的结果可能是多种类型，处理的时候需要根据type的结果来判断具体的数据格式：
+        SQL解析结果：
+        {
+            "type": "parse",
+            "rawsql": "原始SQL语句",
+            "formattedsql": "被排版后的SQL语句（包含注释信息）",
+            "rewrotedsql": "被改写后的SQL语句（已经被排版过），如果不存在改写，则不存在",
+            "script"："SQL当前执行的脚本名称"
+        }
+        SQL执行结果：
+        {
+            "type": "result",
+            "title": "表头信息",
+            "rows": "结果数据集",
+            "headers": "结果集的header定义，列名信息",
+            "columntypes": "列类型，字符串格式",
+            "status": "返回结果汇总消息"
+        }
+        SQL错误信息：
+        {
+            "type": "error",
+            "message": "错误描述"
+        }
+        SQL回显信息：
+        {
+            "type": "error",
+            "message": "错误描述",
+            "script"："SQL当前执行的脚本名称"
+        }
 
         支持的SQLHint包括:
         -- [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略

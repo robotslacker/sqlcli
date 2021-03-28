@@ -1661,14 +1661,37 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
 执行语句：
 ```
         def show_result(p_result):
-            for title, cur, headers, columntypes, status in p_result:
-                # 添加自己的业务逻辑到里面
-                #     title       表头信息
-                #     rows        结果数据集
-                #     headers     结果集的header定义，列名信息
-                #     columntypes 列类型，字符串格式
-                #     status       返回结果汇总消息
-
+            '''
+            返回的结果可能是多种类型，处理的时候需要根据type的结果来判断具体的数据格式：
+            SQL解析结果：
+            {
+                "type": "parse",
+                "rawsql": "原始SQL语句",
+                "formattedsql": "被排版后的SQL语句（包含注释信息）",
+                "rewrotedsql": "被改写后的SQL语句（已经被排版过），如果不存在改写，则不存在",
+                "script"："SQL当前执行的脚本名称"
+            }
+            SQL执行结果：
+            {
+                "type": "result",
+                "title": "表头信息",
+                "rows": "结果数据集",
+                "headers": "结果集的header定义，列名信息",
+                "columntypes": "列类型，字符串格式",
+                "status": "返回结果汇总消息"
+            }
+            SQL错误信息：
+            {
+                "type": "error",
+                "message": "错误描述"
+            }
+            SQL回显信息：
+            {
+                "type": "error",
+                "message": "错误描述",
+                "script"："SQL当前执行的脚本名称"
+            }
+            '''
         async def test_ws_quote():
             async with websockets.connect("ws://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoCommand") \
                     as websocket:
@@ -1683,14 +1706,7 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
                     try:
                         ret = await websocket.recv()
                         result = json.loads(ret)
-                        show_result(
-                            [(
-                                result["title"],
-                                result["cur"],
-                                result["headers"],
-                                result["columntypes"],
-                                result["status"]
-                            ), ]
+                        show_result(result)
                         )
                     except websockets.ConnectionClosedOK:
                         return
