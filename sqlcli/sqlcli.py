@@ -203,10 +203,7 @@ class SQLCli(object):
         self.SQLExecuteHandler.sqlscript = sqlscript
         self.SQLExecuteHandler.SQLMappingHandler = self.SQLMappingHandler
         self.SQLExecuteHandler.SQLOptions = self.SQLOptions
-        self.SQLExecuteHandler.logfile = self.logfile
-        self.SQLExecuteHandler.Console = self.Console
         self.SQLExecuteHandler.SQLPerfFile = self.m_SQLPerf
-        self.SQLExecuteHandler.logger = self.logger
         self.SQLMappingHandler.Console = self.Console
         self.SQLExecuteHandler.WorkerName = self.WorkerName
 
@@ -1127,7 +1124,6 @@ class SQLCli(object):
             else:
                 cls.SpoolFileHandler[-1].close()
                 cls.SpoolFileHandler.pop()
-                cls.SQLExecuteHandler.spoolfile = None
                 yield {
                     "title": None,
                     "rows": None,
@@ -1149,7 +1145,6 @@ class SQLCli(object):
             cls.SpoolFileHandler.append(open(m_FileName, "w", encoding=cls.Result_Charset))
         except IOError as e:
             raise SQLCliException("SQLCLI-00000: IO Exception " + repr(e))
-        cls.SQLExecuteHandler.spoolfile = cls.SpoolFileHandler
         yield {
             "title": None,
             "rows": None,

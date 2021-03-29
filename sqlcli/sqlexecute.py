@@ -21,12 +21,9 @@ from .sqlclijdbcapi import SQLCliJDBCException
 class SQLExecute(object):
     def __init__(self):
         self.conn = None                    # 数据库连接
-        self.logfile = None                 # 打印的日志文件
         self.sqlscript = None               # 需要执行的SQL脚本
         self.SQLMappingHandler = None       # SQL重写处理
         self.SQLOptions = None              # 程序处理参数
-        self.Console = False                # 屏幕输出Console
-        self.logger = None                  # 日志输出
         self.m_PerfFileLocker = None        # 进程锁, 用来在输出perf文件的时候控制并发写文件
         self.SQLPerfFile = None             # SQLPerf文件
         self.SQLPerfFileHandle = None       # SQLPerf文件句柄
@@ -38,9 +35,6 @@ class SQLExecute(object):
 
         # 当前Executeor的WorkerName
         self.WorkerName = None
-
-        # 程序Spool输出句柄
-        self.spoolfile = None
 
         # 程序Echo输出句柄
         self.echofile = None
@@ -293,7 +287,7 @@ class SQLExecute(object):
                 if self.cur is not None:
                     try:
                         if "SQLCLI_DEBUG" in os.environ:
-                            click.secho("DEBUG-SQL=[" + str(sql) + "]", file=self.logfile)
+                            print("DEBUG-SQL=[" + str(sql) + "]")
                         # 执行SQL脚本
                         if "SQL_DIRECT" in m_SQLHint.keys():
                             self.cur.execute_direct(sql)
