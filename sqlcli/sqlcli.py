@@ -1943,15 +1943,21 @@ class SQLCli(object):
                 else:
                     m_TableContentLine = m_TableContentLine + '        |'
                 for m_nPos in range(0, len(m_iter)):
-                    if columntypes[m_nPos] == "str":
-                        # 字符串左对齐
+                    if columntypes is not None:
+                        if columntypes[m_nPos] == "str":
+                            # 字符串左对齐
+                            m_TableContentLine = \
+                                m_TableContentLine + ' ' + \
+                                str(m_iter[m_nPos]).ljust(m_ColumnLength[m_nPos] - wide_chars(m_iter[m_nPos])) + ' |'
+                        else:
+                            # 数值类型右对齐
+                            m_TableContentLine = m_TableContentLine + ' ' + \
+                                                 str(m_iter[m_nPos]).rjust(m_ColumnLength[m_nPos]) + ' |'
+                    else:
+                        # 没有返回columntype, 按照字符串处理
                         m_TableContentLine = \
                             m_TableContentLine + ' ' + \
                             str(m_iter[m_nPos]).ljust(m_ColumnLength[m_nPos] - wide_chars(m_iter[m_nPos])) + ' |'
-                    else:
-                        # 数值类型右对齐
-                        m_TableContentLine = m_TableContentLine + ' ' + \
-                                             str(m_iter[m_nPos]).rjust(m_ColumnLength[m_nPos]) + ' |'
                 yield m_TableContentLine
         # 打印表格下边框
         yield m_TableBoxLine
