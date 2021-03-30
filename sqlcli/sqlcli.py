@@ -21,7 +21,6 @@ import asyncio
 import websockets
 from time import strftime, localtime
 from urllib.error import URLError
-from cli_helpers.tabular_output import TabularOutputFormatter, preprocessors
 from prompt_toolkit.shortcuts import PromptSession
 from multiprocessing.managers import BaseManager
 
@@ -204,14 +203,7 @@ class SQLCli(object):
         self.SQLExecuteHandler.SQLMappingHandler = self.SQLMappingHandler
         self.SQLExecuteHandler.SQLOptions = self.SQLOptions
         self.SQLExecuteHandler.SQLPerfFile = self.m_SQLPerf
-        self.SQLMappingHandler.Console = self.Console
         self.SQLExecuteHandler.WorkerName = self.WorkerName
-
-        # 默认的输出格式
-        self.formatter = TabularOutputFormatter(format_name='ascii')
-        self.formatter.sqlcli = self
-        self.syntax_style = 'default'
-        self.output_style = None
 
         # 加载一些特殊的命令
         self.register_special_commands()
@@ -1440,7 +1432,6 @@ class SQLCli(object):
         try:
             def show_result(p_result):
                 # 输出显示结果
-                self.formatter.query = text
                 if "type" in p_result.keys():
                     if p_result["type"] == "echo":
                         message = p_result["message"]
@@ -1482,7 +1473,6 @@ class SQLCli(object):
                         # cur 是语句的执行结果
                         # output_format 输出格式
                         #   ascii              默认，即表格格式(第三方工具实现，暂时保留以避免不兼容现象)
-                        #   vertical           分行显示，每行、每列都分行
                         #   csv                csv格式显示
                         #   tab                表格形式（用format_output_tab自己编写)
                         formatted = self.format_output(
@@ -1788,6 +1778,90 @@ class SQLCli(object):
                     m_row = m_row + m_csv_delimiter
             yield str(m_row)
 
+    def format_output_leagcy(self, headers, columntypes, cur):
+        # 这个函数完全是为了兼容旧的tab格式
+        def wide_chars(s):
+            # 判断字符串中包含的中文字符数量
+            if isinstance(s, str):
+                return sum(unicodedata.east_asian_width(x) == 'W' for x in s)
+            else:
+                return 0
+
+        if self:
+            pass
+        # 将屏幕输出按照表格进行输出
+        # 记录每一列的最大显示长度
+        m_ColumnLength = []
+        # 首先将表头的字段长度记录其中
+        for m_Header in headers:
+            m_ColumnLength.append(len(m_Header) + wide_chars(m_Header))
+        # 查找列的最大字段长度
+        for m_Row in cur:
+            for m_nPos in range(0, len(m_Row)):
+                if isinstance(m_Row[m_nPos], str):
+                    for m_iter in m_Row[m_nPos].split('\n'):
+                        if len(m_iter) + wide_chars(m_iter) > m_ColumnLength[m_nPos]:
+                            # 为了保持长度一致，长度计算的时候扣掉中文的显示长度
+                            m_ColumnLength[m_nPos] = len(m_iter) + wide_chars(m_iter)
+                else:
+                    if len(str(m_Row[m_nPos])) + wide_chars(m_Row[m_nPos]) > m_ColumnLength[m_nPos]:
+                        m_ColumnLength[m_nPos] = len(str(m_Row[m_nPos])) + wide_chars(m_Row[m_nPos])
+        # 打印表格上边框
+        # 计算表格输出的长度, 开头有一个竖线，随后每个字段内容前有一个空格，后有一个空格加上竖线
+        # 1 + [（字段长度+3） *]
+        m_TableBoxLine = '|'
+        for m_Length in m_ColumnLength:
+            m_TableBoxLine = m_TableBoxLine + (m_Length + 2) * '-' + '+'
+        yield m_TableBoxLine
+        # 打印表头以及表头下面的分割线
+        m_TableContentLine = '|'
+        for m_nPos in range(0, len(headers)):
+            m_TableContentLine = m_TableContentLine + ' ' + \
+                                 str(headers[m_nPos]).center(m_ColumnLength[m_nPos]) + ' |'
+        yield m_TableContentLine
+        yield m_TableBoxLine
+        # 打印字段内容
+        m_RowNo = 0
+        for m_Row in cur:
+            m_RowNo = m_RowNo + 1
+            # 首先计算改行应该打印的高度（行中的内容可能右换行符号）
+            m_RowHeight = 1
+            for m_nPos in range(0, len(m_Row)):
+                if isinstance(m_Row[m_nPos], str):
+                    if len(m_Row[m_nPos].split('\n')) > m_RowHeight:
+                        m_RowHeight = len(m_Row[m_nPos].split('\n'))
+            # 首先构造一个空的结果集，行数为计划打印的行高
+            m_output = []
+            if m_RowHeight == 1:
+                m_output.append(m_Row)
+            else:
+                for m_iter in range(0, m_RowHeight):
+                    m_output.append(())
+                # 依次填入数据
+                for m_nPos in range(0, len(m_Row)):
+                    m_SplitRow = ()
+                    if isinstance(m_Row[m_nPos], str):
+                        m_SplitColumnValue = m_Row[m_nPos].split('\n')
+                    else:
+                        m_SplitColumnValue = [m_Row[m_nPos], ]
+                    for m_iter in range(0, m_RowHeight):
+                        if len(m_SplitColumnValue) > m_iter:
+                            if str(m_SplitColumnValue[m_iter]).endswith('\r'):
+                                m_SplitColumnValue[m_iter] = m_SplitColumnValue[m_iter][:-1]
+                            m_output[m_iter] = m_output[m_iter] + (m_SplitColumnValue[m_iter],)
+                        else:
+                            m_output[m_iter] = m_output[m_iter] + ("",)
+            for m_iter in m_output:
+                m_TableContentLine = '|'
+                for m_nPos in range(0, len(m_iter)):
+                    # 所有内容字符串左对齐
+                    m_TableContentLine = \
+                        m_TableContentLine + ' ' + \
+                        str(m_iter[m_nPos]).ljust(m_ColumnLength[m_nPos] - wide_chars(m_iter[m_nPos])) + ' |'
+                yield m_TableContentLine
+        # 打印表格下边框
+        yield m_TableBoxLine
+
     def format_output_tab(self, headers, columntypes, cur):
         def wide_chars(s):
             # 判断字符串中包含的中文字符数量
@@ -1885,14 +1959,6 @@ class SQLCli(object):
     def format_output(self, title, cur, headers, columntypes, p_format_name, max_width=None):
         output = []
 
-        output_kwargs = {
-            "dialect": "unix",
-            "disable_numparse": True,
-            "preserve_whitespace": True,
-            "preprocessors": (preprocessors.align_decimals,),
-            "style": self.output_style,
-        }
-
         if title:  # Only print the title if it's not None.
             output = itertools.chain(output, [title])
 
@@ -1906,14 +1972,11 @@ class SQLCli(object):
             elif p_format_name.upper() == 'TAB':
                 # 按照TAB格式输出查询结果
                 formatted = self.format_output_tab(headers, columntypes, cur)
+            elif p_format_name.upper() == 'LEAGCY':
+                # 按照TAB格式输出查询结果
+                formatted = self.format_output_leagcy(headers, columntypes, cur)
             else:
-                formatted = self.formatter.format_output(
-                    cur,
-                    headers,
-                    format_name=p_format_name,
-                    column_types=None,
-                    **output_kwargs
-                )
+                raise SQLCliException("SQLCLI-0000: Unknown output_format. CSV|TAB|ASCII only")
             if isinstance(formatted, str):
                 formatted = formatted.splitlines()
             formatted = iter(formatted)
