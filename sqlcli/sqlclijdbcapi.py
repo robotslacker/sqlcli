@@ -530,9 +530,6 @@ class Cursor(object):
                 print("JDBC SQLType=[" + str(converter.__name__) + "] for col [" + str(col) + "]. " +
                       "sqltype=[" + str(sqltype) + ":" + str(m_ColumnClassName) + "]")
             v = converter(self._connection.jconn, self._rs, col)
-            if v is None:
-                # 对于Null值，返回<null>符号
-                v = '<null>'
             row.append(v)
         return tuple(row)
 

@@ -29,8 +29,8 @@ class SQLOptions(object):
                                       "Comments": '',
                                       "Hidden": False})
         self.m_SQL_OptionList.append({"Name": "OUTPUT_FORMAT",
-                                      "Value": "LEAGCY",
-                                      "Comments": 'TAB|CSV|LEAGCY',
+                                      "Value": "LEGACY",
+                                      "Comments": 'TAB|CSV|LEGACY',
                                       "Hidden": False
                                       })
         self.m_SQL_OptionList.append({"Name": "CSV_HEADER",

@@ -1804,7 +1804,10 @@ class SQLCli(object):
         # 查找列的最大字段长度
         for m_Row in cur:
             for m_nPos in range(0, len(m_Row)):
-                if isinstance(m_Row[m_nPos], str):
+                if m_Row[m_nPos] is None:
+                    # 空值打印为<null>
+                    m_ColumnLength[m_nPos] = len('<null>')
+                elif isinstance(m_Row[m_nPos], str):
                     for m_iter in m_Row[m_nPos].split('\n'):
                         if len(m_iter) + wide_chars(m_iter) > m_ColumnLength[m_nPos]:
                             # 为了保持长度一致，长度计算的时候扣掉中文的显示长度
@@ -1860,10 +1863,14 @@ class SQLCli(object):
             for m_iter in m_output:
                 m_TableContentLine = '|'
                 for m_nPos in range(0, len(m_iter)):
+                    if m_iter[m_nPos] is None:
+                        m_PrintValue = '<null>'
+                    else:
+                        m_PrintValue = str(m_iter[m_nPos])
                     # 所有内容字符串左对齐
                     m_TableContentLine = \
                         m_TableContentLine + ' ' + \
-                        str(m_iter[m_nPos]).ljust(m_ColumnLength[m_nPos] - wide_chars(m_iter[m_nPos])) + ' |'
+                        m_PrintValue.ljust(m_ColumnLength[m_nPos] - wide_chars(m_PrintValue)) + ' |'
                 yield m_TableContentLine
         # 打印表格下边框
         yield m_TableBoxLine
@@ -1893,7 +1900,10 @@ class SQLCli(object):
         # 查找列的最大字段长度
         for m_Row in cur:
             for m_nPos in range(0, len(m_Row)):
-                if isinstance(m_Row[m_nPos], str):
+                if m_Row[m_nPos] is None:
+                    # 空值打印为<null>
+                    m_ColumnLength[m_nPos] = len('<null>')
+                elif isinstance(m_Row[m_nPos], str):
                     for m_iter in m_Row[m_nPos].split('\n'):
                         if len(m_iter) + wide_chars(m_iter) > m_ColumnLength[m_nPos]:
                             # 为了保持长度一致，长度计算的时候扣掉中文的显示长度
@@ -1956,21 +1966,25 @@ class SQLCli(object):
                 else:
                     m_TableContentLine = m_TableContentLine + '        |'
                 for m_nPos in range(0, len(m_iter)):
+                    if m_iter[m_nPos] is None:
+                        m_PrintValue = '<null>'
+                    else:
+                        m_PrintValue = str(m_iter[m_nPos])
                     if columntypes is not None:
                         if columntypes[m_nPos] == "str":
                             # 字符串左对齐
                             m_TableContentLine = \
                                 m_TableContentLine + ' ' + \
-                                str(m_iter[m_nPos]).ljust(m_ColumnLength[m_nPos] - wide_chars(m_iter[m_nPos])) + ' |'
+                                m_PrintValue.ljust(m_ColumnLength[m_nPos] - wide_chars(m_PrintValue)) + ' |'
                         else:
                             # 数值类型右对齐
                             m_TableContentLine = m_TableContentLine + ' ' + \
-                                                 str(m_iter[m_nPos]).rjust(m_ColumnLength[m_nPos]) + ' |'
+                                                 m_PrintValue.rjust(m_ColumnLength[m_nPos]) + ' |'
                     else:
                         # 没有返回columntype, 按照字符串处理
                         m_TableContentLine = \
                             m_TableContentLine + ' ' + \
-                            str(m_iter[m_nPos]).ljust(m_ColumnLength[m_nPos] - wide_chars(m_iter[m_nPos])) + ' |'
+                            m_PrintValue.ljust(m_ColumnLength[m_nPos] - wide_chars(m_PrintValue)) + ' |'
                 yield m_TableContentLine
         # 打印表格下边框
         yield m_TableBoxLine
@@ -1991,11 +2005,11 @@ class SQLCli(object):
             elif p_format_name.upper() == 'TAB':
                 # 按照TAB格式输出查询结果
                 formatted = self.format_output_tab(headers, columntypes, cur)
-            elif p_format_name.upper() == 'LEAGCY':
+            elif p_format_name.upper() == 'LEGACY':
                 # 按照TAB格式输出查询结果
                 formatted = self.format_output_leagcy(headers, columntypes, cur)
             else:
-                raise SQLCliException("SQLCLI-0000: Unknown output_format. CSV|TAB|ASCII only")
+                raise SQLCliException("SQLCLI-0000: Unknown output_format. CSV|TAB|LEGACY only")
             if isinstance(formatted, str):
                 formatted = formatted.splitlines()
             formatted = iter(formatted)
