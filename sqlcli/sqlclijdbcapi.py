@@ -509,7 +509,10 @@ class Cursor(object):
         for col in range(1, self._meta.getColumnCount() + 1):
             sqltype = self._meta.getColumnType(col)
             m_ColumnClassName = self._meta.getColumnClassName(col)
-            if m_ColumnClassName in ('org.postgresql.util.PGmoney'):
+            if m_ColumnClassName is None:
+                # NULL值
+                converter = _DEFAULT_CONVERTERS["VARCHAR"]
+            elif m_ColumnClassName in ('org.postgresql.util.PGmoney'):
                 converter = _DEFAULT_CONVERTERS["VARCHAR"]
             elif m_ColumnClassName in ('oracle.sql.TIMESTAMPTZ', 'oracle.sql.TIMESTAMPLTZ'):
                 converter = _DEFAULT_CONVERTERS["TIMESTAMP_WITH_TIMEZONE"]
@@ -525,8 +528,11 @@ class Cursor(object):
                                       ":" + self._meta.getColumnClassName(col))
             if "SQLCLI_DEBUG" in os.environ:
                 print("JDBC SQLType=[" + str(converter.__name__) + "] for col [" + str(col) + "]. " +
-                      "sqltype=[" + str(sqltype) + ":" + m_ColumnClassName + "]")
+                      "sqltype=[" + str(sqltype) + ":" + str(m_ColumnClassName) + "]")
             v = converter(self._connection.jconn, self._rs, col)
+            if v is None:
+                # 对于Null值，返回<null>符号
+                v = '<null>'
             row.append(v)
         return tuple(row)
 
@@ -862,10 +868,12 @@ def _java_to_py_array(conn, rs, col):
 def _java_to_py_str(conn, rs, col):
     try:
         java_val = rs.getObject(col)
+        if java_val is None:
+            return
     except Exception:
         java_val = rs.getString(col)
-    if java_val is None:
-        return
+        if java_val is None:
+            return
     return str(java_val)
 
 
