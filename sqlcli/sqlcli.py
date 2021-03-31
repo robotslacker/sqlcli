@@ -1815,7 +1815,7 @@ class SQLCli(object):
         # 打印表格上边框
         # 计算表格输出的长度, 开头有一个竖线，随后每个字段内容前有一个空格，后有一个空格加上竖线
         # 1 + [（字段长度+3） *]
-        m_TableBoxLine = '|'
+        m_TableBoxLine = '+'
         for m_Length in m_ColumnLength:
             m_TableBoxLine = m_TableBoxLine + (m_Length + 2) * '-' + '+'
         yield m_TableBoxLine
