@@ -1823,7 +1823,7 @@ class SQLCli(object):
         m_TableContentLine = '|'
         for m_nPos in range(0, len(headers)):
             m_TableContentLine = m_TableContentLine + ' ' + \
-                                 str(headers[m_nPos]).ljust(m_ColumnLength[m_nPos]) + ' |'
+                                 str(headers[m_nPos]).ljust(m_ColumnLength[m_nPos] - wide_chars(headers[m_nPos])) + ' |'
         yield m_TableContentLine
         yield m_TableBoxLine
         # 打印字段内容
@@ -1911,8 +1911,9 @@ class SQLCli(object):
         # 打印表头以及表头下面的分割线
         m_TableContentLine = '|   ##   |'
         for m_nPos in range(0, len(headers)):
-            m_TableContentLine = m_TableContentLine + ' ' + \
-                                 str(headers[m_nPos]).center(m_ColumnLength[m_nPos]) + ' |'
+            m_TableContentLine = \
+                m_TableContentLine + \
+                ' ' + str(headers[m_nPos]).center(m_ColumnLength[m_nPos] - wide_chars(headers[m_nPos])) + ' |'
         yield m_TableContentLine
         yield m_TableBoxLine
         # 打印字段内容
