@@ -1783,7 +1783,13 @@ class SQLCli(object):
         def wide_chars(s):
             # 判断字符串中包含的中文字符数量
             if isinstance(s, str):
-                return sum(unicodedata.east_asian_width(x) == 'W' for x in s)
+                # W  宽字符
+                # F  全角字符
+                # H  半角字符
+                # Na  窄字符
+                # A   不明确的
+                # N   正常字符
+                return sum(unicodedata.east_asian_width(x) in ['W', 'F'] for x in s)
             else:
                 return 0
 
@@ -1866,7 +1872,13 @@ class SQLCli(object):
         def wide_chars(s):
             # 判断字符串中包含的中文字符数量
             if isinstance(s, str):
-                return sum(unicodedata.east_asian_width(x) == 'W' for x in s)
+                # W  宽字符
+                # F  全角字符
+                # H  半角字符
+                # Na  窄字符
+                # A   不明确的
+                # N   正常字符
+                return sum(unicodedata.east_asian_width(x) in ['W', 'F'] for x in s)
             else:
                 return 0
 
