@@ -14,8 +14,16 @@ import warnings
 import decimal
 import binascii
 import jpype
-from .sqlcliexception import SQLCliException
 from .sqloption import SQLOptions
+
+
+class SQLCliJDBCException(Exception):
+    def __init__(self, message):
+        Exception.__init__(self)
+        self.message = message
+
+    def __str__(self):
+        return self.message
 
 
 def reraise(tp, value, tb=None):
@@ -88,7 +96,7 @@ def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
     try:
         jpype.JClass(jclassname)
     except TypeError as te:
-        raise SQLCliException("SQLCLI-00000: Load java class failed. [" + str(jclassname) + "]")
+        raise SQLCliJDBCException("SQLCLI-00000: Load java class failed. [" + str(jclassname) + "]")
     if isinstance(driver_args, dict):
         Properties = jpype.java.util.Properties
         info = Properties()
@@ -101,7 +109,7 @@ def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
     try:
         return jpype.java.sql.DriverManager.getConnection(url, *dargs)
     except jpype.java.sql.SQLException as je:
-        raise SQLCliException(je.toString().
+        raise SQLCliJDBCException(je.toString().
                               replace("java.sql.SQLException: ", "").
                               replace("java.sql.SQLTransientConnectionException: ", "").
                               replace("java.sql.SQLInvalidAuthorizationSpecException: ", ""))
@@ -300,7 +308,7 @@ def connect(jclassname, url, driver_args=None, jars=None, libs=None, sqloptions=
         try:
             jconn = _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs)
             break
-        except SQLCliException as je:
+        except SQLCliJDBCException as je:
             if jconn is None:
                 # jconn 为空，可能是网络错误，这里重复尝试
                 if "SQLCLI_DEBUG" in os.environ:
@@ -501,7 +509,10 @@ class Cursor(object):
         for col in range(1, self._meta.getColumnCount() + 1):
             sqltype = self._meta.getColumnType(col)
             m_ColumnClassName = self._meta.getColumnClassName(col)
-            if m_ColumnClassName in ('org.postgresql.util.PGmoney'):
+            if m_ColumnClassName is None:
+                # NULL值
+                converter = _DEFAULT_CONVERTERS["VARCHAR"]
+            elif m_ColumnClassName in ('org.postgresql.util.PGmoney'):
                 converter = _DEFAULT_CONVERTERS["VARCHAR"]
             elif m_ColumnClassName in ('oracle.sql.TIMESTAMPTZ', 'oracle.sql.TIMESTAMPLTZ'):
                 converter = _DEFAULT_CONVERTERS["TIMESTAMP_WITH_TIMEZONE"]
@@ -517,7 +528,7 @@ class Cursor(object):
                                       ":" + self._meta.getColumnClassName(col))
             if "SQLCLI_DEBUG" in os.environ:
                 print("JDBC SQLType=[" + str(converter.__name__) + "] for col [" + str(col) + "]. " +
-                      "sqltype=[" + str(sqltype) + ":" + m_ColumnClassName + "]")
+                      "sqltype=[" + str(sqltype) + ":" + str(m_ColumnClassName) + "]")
             v = converter(self._connection.jconn, self._rs, col)
             row.append(v)
         return tuple(row)
@@ -642,7 +653,7 @@ def _to_bit(conn, rs, col):
         m_Byte = java_val.getBytes()
         return "0b" + str(bin(int.from_bytes(m_Byte, sys.byteorder))).lstrip("0b").zfill(len(m_Byte)*8)
     else:
-        raise SQLCliException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_bit")
+        raise SQLCliJDBCException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_bit")
 
 
 def _to_binary(conn, rs, col):
@@ -671,7 +682,7 @@ def _to_binary(conn, rs, col):
                 return "True"
     else:
         # return binascii.b2a_hex(java_val.getBytes(0, 1024))
-        raise SQLCliException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_binary")
+        raise SQLCliJDBCException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_binary")
 
 
 def _java_to_py(java_method):
@@ -701,7 +712,7 @@ def _java_to_py_bigdecimal(conn, rs, col):
     elif m_TypeName == "java.lang.Float":
         return decimal.Decimal(java_val.toString())
     else:
-        raise SQLCliException(
+        raise SQLCliJDBCException(
             "SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _java_to_py_bigdecimal")
 
 
@@ -717,7 +728,7 @@ def _java_to_py_timestampwithtimezone(conn, rs, col):
         return java_val.offsetDateTimeValue(conn).format(
             jpype.java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS Z"))
     else:
-        raise SQLCliException(
+        raise SQLCliJDBCException(
             "SQLCLI-00000: Unknown java class type [" + m_TypeName +
             "] in _java_to_py_timestampwithtimezone")
 
@@ -735,7 +746,7 @@ def _java_to_py_clob(conn, rs, col):
             m_ColumnValue = m_ColumnValue + "..."
         return m_ColumnValue
     else:
-        raise SQLCliException(
+        raise SQLCliJDBCException(
             "SQLCLI-00000: Unknown java class type [" + m_TypeName +
             "] in _java_to_py_clob")
 
@@ -790,7 +801,7 @@ def _java_to_py_stru(conn, rs, col):
         m_ColumnValue = m_ColumnValue + ")"
         return m_ColumnValue
     else:
-        raise SQLCliException(
+        raise SQLCliJDBCException(
             "SQLCLI-00000: Unknown java class type [" + m_TypeName +
             "] in _java_to_py_stru")
 
@@ -846,7 +857,7 @@ def _java_to_py_array(conn, rs, col):
         m_ColumnValue = m_ColumnValue + "]"
         return m_ColumnValue
     else:
-        raise SQLCliException(
+        raise SQLCliJDBCException(
             "SQLCLI-00000: Unknown java class type [" + m_TypeName +
             "] in _java_to_py_array")
 
@@ -854,10 +865,12 @@ def _java_to_py_array(conn, rs, col):
 def _java_to_py_str(conn, rs, col):
     try:
         java_val = rs.getObject(col)
+        if java_val is None:
+            return
     except Exception:
         java_val = rs.getString(col)
-    if java_val is None:
-        return
+        if java_val is None:
+            return
     return str(java_val)
 
 

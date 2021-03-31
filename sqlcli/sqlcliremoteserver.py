@@ -62,35 +62,21 @@ class SQLCliRemoteServer:
         await manager.connect(websocket)
         try:
             p_RequestData = await websocket.receive_json()
-            if "clientid" not in p_RequestData.keys():
-                await manager.send_personal_message(
-                    json.dumps({
-                        "title": "",
-                        "cur": "",
-                        "headers": "",
-                        "columntypes": "",
-                        "status": "Parse Command failed. Missed clientid."
-                    }),
-                    websocket
-                )
-                manager.disconnect(websocket)
-                return
-
             if p_RequestData["clientid"] in sga.keys():
                 if p_RequestData["op"] == "execute":
                     m_SQLCli = sga[p_RequestData["clientid"]]
-                    for title, cur, headers, columntypes, status in \
-                            m_SQLCli.SQLExecuteHandler.run(p_RequestData["command"]):
+                    for m_Result in m_SQLCli.SQLExecuteHandler.run(p_RequestData["command"]):
                         await manager.send_personal_message(
-                            json.dumps({
-                                "title": title,
-                                "cur": cur,
-                                "headers": headers,
-                                "columntypes": columntypes,
-                                "status": status
-                            }),
+                            json.dumps(m_Result),
                             websocket
                         )
+            else:
+                await manager.send_personal_message(
+                    json.dumps({
+                        "type": "error",
+                        "message": "SQLCLI-00000: ClientID missed. Please logout & relogin."
+                    }),
+                    websocket)
                 manager.disconnect(websocket)
         except WebSocketDisconnect as we:
             if we.code == 1000:

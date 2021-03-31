@@ -60,8 +60,10 @@ SQLCli 目前支持的数据类型有：
    * 安装JDK8
    * 对于Windows平台，需要提前安装微软的C++编译器（jpype1使用了JNI技术，需要动态编译）  
    * 对于Linux平台，  需要提前安装gcc编译器，unixODBC开发环境，以及Python3的开发包（原因同上）  
-     yum install -y gcc-c++ gcc python3-devel  
-     yum install -y unixODBC  unixODBC-devel  
+     yum install -y gcc-c++ gcc  
+     yum install -y unixODBC  unixODBC-devel
+     yum install python3<?>-devel(在Anaconda环境下，这一步不是必须的. ?是具体的Python版本，根据自己的环境决定)
+        
    * 对于MAC平台，  需要提前安装gcc编译器，以及unixODBC开发环境  
      brew install gcc  
      brew install unixODBC
@@ -71,9 +73,13 @@ SQLCli 目前支持的数据类型有：
    * setproctitle             : Python通过setproctitle来设置进程名称，从而在多进程并发时候给调试人员以帮助
    * click                    : Python的命令行参数处理
    * prompt_toolkit           : 用于提供包括提示符功能的控制台终端的显示样式
-   * cli_helpers              : 用于提供将数据库返回结果进行表单格式化显示
    * hdfs                     : HDFS类库，支持对HDFS文件操作
-   * wget                     : JDBC驱动更新和下载  
+   * wget                     : JDBC驱动更新和下载
+   * requests                 ：HTTP客户端请求协议
+   * websockets               : HTTP客户端请求协议
+   * pydantic                 : FastAPI服务端支持
+   * uvicorn[standard]       : FastAPI服务端支持
+   * fastapi                  : FastAPI服务端支持
 
 其他：
    对于Linux和MAC，在安装后需要手工加载confluent_kafka来保证kafka操作的正常
@@ -669,7 +675,7 @@ Mapping file loaded.
     | ECHO              | ON       |                        |
     | TIMING            | OFF      |                        |
     | TIME              | OFF      |                        |
-    | OUTPUT_FORMAT     | ASCII    | TAB|CSV|VERTICAL|ASCII |
+    | OUTPUT_FORMAT     | ASCII    | TAB|CSV|LEGACY         |
     | CSV_HEADER        | OFF      | ON|OFF                 |
     | CSV_DELIMITER     | ,        |                        |
     | CSV_QUOTECHAR     |          |                        |
@@ -724,14 +730,13 @@ Mapping file loaded.
 &emsp; &emsp; 4. OUTPUT_FORMAT   显示格式， 默认是ASCII(会择机变化成TAB)
 &emsp; 目前支持的选项有：
 ```
-      ASCII    |     显示格式为表格的格式(第三方工具提供，暂时保留，来作为兼容性) 
+      LEGACY    |     显示格式为表格的格式(第三方工具提供，暂时保留，来作为兼容性) 
       CSV      |     显示格式为CSV文件的格式
-      VERTICAL |     分列显示
       TAB      |     显示格式为表格的格式
 ```
 &emsp; 以下是一个例子：
 ```
-       SQL> set output_format ascii
+       SQL> set output_format legacy
        SQL> select * from test_tab;
        +----+----------+
        | ID | COL2     |
@@ -748,16 +753,6 @@ Mapping file loaded.
        "1","XYXYXYXY"
        2 rows selected.
        SQL>           
-
-       SQL> set output_format VERTICAL
-       SQL> select * from test_tab;
-        ***************************[ 1. row ]***************************
-        ID     | 1
-        COL2   | XYXYXYXY
-        ***************************[ 2. row ]***************************
-        ID     | 2
-        COL2   | XYXYXYXY
-        2 rows selected.
 ```
 #### 控制参数解释-LOB_LENGTH
 &emsp; &emsp; 5. LOB_LENGTH      控制LOB字段的输出长度，默认是20  
@@ -1534,6 +1529,20 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
 1： 控制台应用：EXIT将不会退出，而是会提示你需要等待后台进程完成工作  
 2： 脚本应用：  EXIT不会直接退出，而是会等待后台进程完成工作后再退出  
 
+#### 将SQLCli启动为服务器C/S模式中的服务器
+```
+   OS> sqlcli --server [Port]
+   此处的Port为一个合法有效的端口号，启动后，SQLCli会绑定这个端口号，并接受客户端请求 
+```
+
+#### 将SQLCli启动为服务器C/S模式中的客户端
+```
+   OS> SET SQLCLI_REMOTESERVER XXX.XXXX.XXXX.XXXX:PORT
+   OS> sqlcli
+   这里的IP和Port为服务器的地址， 指定后，随后执行的语句和本地的Standalone模式完全相同
+ 
+```
+
 ### 程序员必读部分
 #### 程序代码结构
 ```
@@ -1636,9 +1645,31 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
     EnableJobManager=True,                  # 是否开启后台调度程序管理模块，否则无法使用JOB类相关命令
     profile=None                            # 程序初始化执行脚本
 ```
+#### 通过本地API方式远程调用本应用程序
+```
+    from sqlcli.sqlcli import SQLCli
+    sqlcli = SQLCli(
+        logfilename=[log FileName],                          -- 日志文件名
+        logon=[Login User/Login Password|None],              -- 登录用户名/密码， 可以为None，为None的时候后续的脚本中必须包含连接信息，默认为None
+        sqlscript=[SQL Script FileName],                     -- SQL脚本名称，必须填写
+        sqlmap=[SQL Mapping FileName | None],                -- 默认为None
+        nologo=True|False,                                   -- 默认为False
+        sqlperf=[SQL Performence Log FileName | None],       -- 默认为None
+        clientcharset=[client charset | UTF-8],              -- 客户端字符集，默认为UTF-8
+        resultcharset=[result charset | UTF-8],              -- 结果集字符集，默认为UTF-8
+        profile=[init FileName|None]                         -- 初始化文件名称，默认为None
+    )
+    # 运行主程序
+    sqlcli.run_cli()
 
-#### 通过RestAPI方式调用本应用程序
-程序支持用POST以及WebSocket方式来调用本程序，调用的方式是：  
+```
+
+#### 通过RestAPI方式远程调用本应用程序
+程序支持用POST以及WebSocket方式来远程调用本程序，调用的前提是：
+```
+ 
+```
+程序支持用POST以及WebSocket方式来远程调用本程序，调用的方式是：  
 登录：
 ```
     request_data = json.dumps({})
@@ -1661,14 +1692,37 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
 执行语句：
 ```
         def show_result(p_result):
-            for title, cur, headers, columntypes, status in p_result:
-                # 添加自己的业务逻辑到里面
-                #     title       表头信息
-                #     rows        结果数据集
-                #     headers     结果集的header定义，列名信息
-                #     columntypes 列类型，字符串格式
-                #     status       返回结果汇总消息
-
+            '''
+            返回的结果可能是多种类型，处理的时候需要根据type的结果来判断具体的数据格式：
+            SQL解析结果：
+            {
+                "type": "parse",
+                "rawsql": "原始SQL语句",
+                "formattedsql": "被排版后的SQL语句（包含注释信息）",
+                "rewrotedsql": "被改写后的SQL语句（已经被排版过），如果不存在改写，则不存在",
+                "script"："SQL当前执行的脚本名称"
+            }
+            SQL执行结果：
+            {
+                "type": "result",
+                "title": "表头信息",
+                "rows": "结果数据集",
+                "headers": "结果集的header定义，列名信息",
+                "columntypes": "列类型，字符串格式",
+                "status": "返回结果汇总消息"
+            }
+            SQL错误信息：
+            {
+                "type": "error",
+                "message": "错误描述"
+            }
+            SQL回显信息：
+            {
+                "type": "error",
+                "message": "错误描述",
+                "script"："SQL当前执行的脚本名称"
+            }
+            '''
         async def test_ws_quote():
             async with websockets.connect("ws://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoCommand") \
                     as websocket:
@@ -1683,14 +1737,7 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
                     try:
                         ret = await websocket.recv()
                         result = json.loads(ret)
-                        show_result(
-                            [(
-                                result["title"],
-                                result["cur"],
-                                result["headers"],
-                                result["columntypes"],
-                                result["status"]
-                            ), ]
+                        show_result(result)
                         )
                     except websockets.ConnectionClosedOK:
                         return

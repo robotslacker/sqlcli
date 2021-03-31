@@ -4,6 +4,7 @@ import copy
 import os
 import shlex
 from .datawrapper import random_ascii_letters_and_digits
+from .sqlcliexception import SQLCliException
 
 
 class SQLMapping(object):
@@ -11,8 +12,6 @@ class SQLMapping(object):
     # Mapping_Contents = [ filename_pattern, match_roles[] ]
     # match_roles = [ Key, Value]
     m_SQL_MappingList = {}
-
-    Console = None       # 控制台信息，用来打印日志内容
 
     def Load_SQL_Mappings(self, p_szTestScriptFileName, p_szSQLMappings):
         # 如果不带任何参数，或者参数为空，则清空SQLMapping信息
@@ -27,7 +26,7 @@ class SQLMapping(object):
 
         # 如果没有传递脚本名称，则认为是在Console中执行
         if p_szTestScriptFileName is None:
-            m_szTestScriptFileName = os.path.join(os.getcwd(), "dummy.txt")
+            m_szTestScriptFileName = "Console"
         else:
             m_szTestScriptFileName = p_szTestScriptFileName
 
@@ -136,8 +135,7 @@ class SQLMapping(object):
         try:
             m_SearchResult = re.search(p_Key, p_szSQL, re.DOTALL)
         except re.error as ex:
-            print("[WARNING] Invalid regex pattern. [" + str(p_Key) + "]  " + repr(ex), file=self.Console)
-            return p_szSQL
+            raise SQLCliException("[WARNING] Invalid regex pattern. [" + str(p_Key) + "]  " + repr(ex))
 
         if m_SearchResult is None:
             return p_szSQL
@@ -163,9 +161,8 @@ class SQLMapping(object):
 
                     # 执行替换函数
                     if len(m_function_struct) <= 1:
-                        print("[WARNING] Invalid env macro, use env(). [" + str(p_Key) + "=>" + str(p_Value) + "]",
-                              file=self.Console)
-                        m_row_struct[m_nRowPos] = ""
+                        raise SQLCliException("[WARNING] Invalid env macro, use env(). "
+                                              "[" + str(p_Key) + "=>" + str(p_Value) + "]")
                     else:
                         m_row_struct[m_nRowPos] = self.ReplaceMacro_Env(m_function_struct[1:])
 
@@ -178,10 +175,8 @@ class SQLMapping(object):
                             m_function_struct[m_nPos] = m_SearchedKey
                     # 执行替换函数
                     if len(m_function_struct) <= 1:
-                        print("[WARNING] Invalid random macro, use random(). "
-                              "[" + str(p_Key) + "=>" + str(p_Value) + "]",
-                              file=self.Console)
-                        m_row_struct[m_nRowPos] = ""
+                        raise SQLCliException("[WARNING] Invalid random macro, use random(). "
+                                              "[" + str(p_Key) + "=>" + str(p_Value) + "]")
                     else:
                         m_row_struct[m_nRowPos] = self.ReplaceMacro_Random(m_function_struct[1:])
 
@@ -196,10 +191,8 @@ class SQLMapping(object):
         try:
             m_ResultSQL = re.sub(p_Key, m_Value, p_szSQL, flags=re.DOTALL)
         except re.error as ex:
-            print("[WARNING] Invalid regex pattern in ReplaceSQL. " +
-                  "[" + str(p_Key) + "]:[" + m_Value + "]:[" +
-                  p_szSQL + "]  " +
-                  repr(ex), file=self.Console)
+            raise SQLCliException("[WARNING] Invalid regex pattern in ReplaceSQL. "
+                                  "[" + str(p_Key) + "]:[" + m_Value + "]:[" + p_szSQL + "]  " + repr(ex))
             raise ex
         return m_ResultSQL
 
@@ -227,15 +220,11 @@ class SQLMapping(object):
                             try:
                                 m_New_SQL = self.ReplaceSQL(m_New_SQL, m_Key, m_Value)
                             except re.error:
-                                print("[WARNING] Invalid regex pattern in ReplaceSQL. ",
-                                      file=self.Console)
+                                raise SQLCliException("[WARNING] Invalid regex pattern in ReplaceSQL. ")
                 except re.error as ex:
-                    print("[WARNING] Invalid regex pattern in filename match. " +
-                          "[" + str(m_Mapping_Contents[0]) + "]:[" + m_TestScriptFileName + "]:[" +
-                          m_MappingFiles + "]  " +
-                          repr(ex), file=self.Console)
-                    print("[WARNING] Your mapping config has been ignored.")
-                    self.m_SQL_MappingList = {}
+                    raise SQLCliException("[WARNING] Invalid regex pattern in filename match. "
+                                          "[" + str(m_Mapping_Contents[0]) + "]:[" + m_TestScriptFileName +
+                                          "]:[" + m_MappingFiles + "]  " + repr(ex))
         return m_New_SQL
 
 
