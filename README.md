@@ -1647,7 +1647,21 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
 ```
 #### 通过本地API方式远程调用本应用程序
 ```
-   TBD
+    from sqlcli.sqlcli import SQLCli
+    sqlcli = SQLCli(
+        logfilename=[log FileName],                          -- 日志文件名
+        logon=[Login User/Login Password|None],              -- 登录用户名/密码， 可以为None，为None的时候后续的脚本中必须包含连接信息，默认为None
+        sqlscript=[SQL Script FileName],                     -- SQL脚本名称，必须填写
+        sqlmap=[SQL Mapping FileName | None],                -- 默认为None
+        nologo=True|False,                                   -- 默认为False
+        sqlperf=[SQL Performence Log FileName | None],       -- 默认为None
+        clientcharset=[client charset | UTF-8],              -- 客户端字符集，默认为UTF-8
+        resultcharset=[result charset | UTF-8],              -- 结果集字符集，默认为UTF-8
+        profile=[init FileName|None]                         -- 初始化文件名称，默认为None
+    )
+    # 运行主程序
+    sqlcli.run_cli()
+
 ```
 
 #### 通过RestAPI方式远程调用本应用程序

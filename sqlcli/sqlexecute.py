@@ -5,7 +5,6 @@ import click
 import time
 import os
 import re
-from multiprocessing import Lock
 import traceback
 import json
 
@@ -24,9 +23,6 @@ class SQLExecute(object):
         self.sqlscript = None               # 需要执行的SQL脚本
         self.SQLMappingHandler = None       # SQL重写处理
         self.SQLOptions = None              # 程序处理参数
-        self.m_PerfFileLocker = None        # 进程锁, 用来在输出perf文件的时候控制并发写文件
-        self.SQLPerfFile = None             # SQLPerf文件
-        self.SQLPerfFileHandle = None       # SQLPerf文件句柄
         self.SQLCliHandler = None
 
         # 记录最后SQL返回的结果
@@ -197,6 +193,66 @@ class SQLExecute(object):
                     "script": p_sqlscript
                 }
                 continue
+
+            matchObj = re.match(r"^show\s+table\s+storage\s+(.*)$", sql, re.IGNORECASE)
+            if matchObj:
+                m_TableName = matchObj.group(1)
+                m_Location = ""
+                for m_Result in self.run("show table properties " + m_TableName):
+                    if m_Result["type"] == "result":
+                        if len(m_Result["rows"]) != 0:
+                            m_Location = m_Result["rows"][len(m_Result["rows"]) - 1][1]
+                            break
+                if m_Location != "":
+                    m_HostCommand = "hdfs fsck " + m_Location + " -files -blocks -locations"
+                    m_Result = []
+                    m_Status = ""
+                    for m_OSResult in self.run("host " + m_HostCommand):
+                        m_HostBlockInfo = {}
+                        if m_OSResult["type"] == "result":
+                            m_StoargeInfo = m_OSResult["status"].splitlines()
+                            m_BlockCount = 0
+                            for m_line in m_StoargeInfo:
+                                matchObj = re.search(r"bytes, (\d+) block\(s\):\s+OK", m_line)
+                                if matchObj:
+                                    m_BlockCount = int(matchObj.group(1))
+                                matchObj = re.search(r"DatanodeInfoWithStorage\[(.*?):", m_line)
+                                if matchObj:
+                                    m_Host = str(matchObj.group(1)).strip()
+                                    if m_Host in m_HostBlockInfo.keys():
+                                        m_HostBlockInfo[m_Host] = m_HostBlockInfo[m_Host] + m_BlockCount
+                                    else:
+                                        m_HostBlockInfo[m_Host] = m_BlockCount
+                                matchObj = re.search(r"Status:", m_line)
+                                if matchObj:
+                                    m_Status = m_Status + m_line + "\n"
+                                matchObj = re.search(r"Total size:", m_line)
+                                if matchObj:
+                                    m_Status = m_Status + m_line + "\n"
+                                matchObj = re.search(r"Total dirs:", m_line)
+                                if matchObj:
+                                    m_Status = m_Status + m_line + "\n"
+                                matchObj = re.search(r"Total files:", m_line)
+                                if matchObj:
+                                    m_Status = m_Status + m_line + "\n"
+                        for HostIP, HostBlockCount in m_HostBlockInfo.items():
+                            m_Result.append((HostIP, HostBlockCount))
+                    yield {
+                        "type": "parse",
+                        "rawsql": m_raw_sql,
+                        "formattedsql": m_FormattedSQL,
+                        "rewrotedsql": m_RewrotedSQL,
+                        "script": p_sqlscript
+                    }
+                    yield {
+                        "type": "result",
+                        "title": "HDFS Storage Information for " + m_TableName,
+                        "rows": m_Result,
+                        "headers": ["Node", "Block(s)"],
+                        "columntypes": ["str", "int"],
+                        "status": m_Status
+                    }
+                return
 
             # 检查SQL中是否包含特殊内容，如果有，改写SQL
             # 特殊内容都有：
@@ -520,19 +576,18 @@ class SQLExecute(object):
 
             # 记录SQL日志信息
             if self.SQLOptions.get("SILENT").upper() == 'OFF':
-                self.Log_Perf(
-                    {
-                        "StartedTime": start,
-                        "elapsed": self.LastElapsedTime,
-                        "RAWSQL": m_raw_sql,
-                        "SQL": sql,
-                        "SQLStatus": m_SQL_Status,
-                        "ErrorMessage": m_SQL_ErrorMessage,
-                        "thread_name": self.WorkerName,
-                        "Scenario": self.SQLScenario,
-                        "Transaction": self.SQLTransaction
-                    }
-                )
+                yield {
+                    "type": "statistics",
+                    "StartedTime": start,
+                    "elapsed": self.LastElapsedTime,
+                    "RAWSQL": m_raw_sql,
+                    "SQL": sql,
+                    "SQLStatus": m_SQL_Status,
+                    "ErrorMessage": m_SQL_ErrorMessage,
+                    "thread_name": self.WorkerName,
+                    "Scenario": self.SQLScenario,
+                    "Transaction": self.SQLTransaction
+                }
 
     def get_result(self, cursor, rowcount):
         """Get the current result's data from the cursor."""
@@ -624,62 +679,3 @@ class SQLExecute(object):
         else:
             status = None
         return title, result, headers, columntypes, status, m_FetchStatus, rowcount
-
-    # 记录PERF信息，
-    def Log_Perf(self, p_SQLResult):
-        # 开始时间         StartedTime
-        # 消耗时间         elapsed
-        # SQL的前20个字母  SQLPrefix
-        # 运行状态         SQLStatus
-        # 错误日志         ErrorMessage
-        # 线程名称         thread_name
-
-        # 如果没有打开性能日志记录文件，直接跳过
-        if self.SQLPerfFile is None:
-            return
-
-        # 初始化文件加锁机制
-        if self.m_PerfFileLocker is None:
-            self.m_PerfFileLocker = Lock()
-
-        # 多进程，多线程写入，考虑锁冲突
-        try:
-            self.m_PerfFileLocker.acquire()
-            if not os.path.exists(self.SQLPerfFile):
-                # 如果文件不存在，创建文件，并写入文件头信息
-                self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
-                self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tRAWSQL\tSQL\t"
-                                             "SQLStatus\tErrorMessage\tworker_name\t"
-                                             "Scenario\tTransaction\n")
-                self.SQLPerfFileHandle.close()
-
-            # 对于多线程运行，这里的thread_name格式为JOB_NAME#副本数-完成次数
-            # 对于单线程运行，这里的thread_name格式为固定的MAIN
-            m_ThreadName = str(p_SQLResult["thread_name"])
-
-            # 打开Perf文件
-            self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
-            # 写入内容信息
-            if self.sqlscript is None:
-                m_SQL_Script = "Console"
-            else:
-                m_SQL_Script = str(os.path.basename(self.sqlscript))
-            self.SQLPerfFileHandle.write(
-                m_SQL_Script + "\t" +
-                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p_SQLResult["StartedTime"])) + "\t" +
-                "%8.2f" % p_SQLResult["elapsed"] + "\t" +
-                str(p_SQLResult["RAWSQL"]).replace("\n", " ").replace("\t", "    ") + "\t" +
-                str(p_SQLResult["SQL"]).replace("\n", " ").replace("\t", "    ") + "\t" +
-                str(p_SQLResult["SQLStatus"]) + "\t" +
-                str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "\t" +
-                str(m_ThreadName) + "\t" +
-                str(p_SQLResult["Scenario"]) + "\t" +
-                str(p_SQLResult["Transaction"]) +
-                "\n"
-            )
-            self.SQLPerfFileHandle.flush()
-            self.SQLPerfFileHandle.close()
-        except Exception as ex:
-            print("Internal error:: perf file write not complete. " + repr(ex))
-        finally:
-            self.m_PerfFileLocker.release()

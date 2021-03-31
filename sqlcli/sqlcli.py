@@ -19,6 +19,7 @@ import requests
 import json
 import asyncio
 import websockets
+from multiprocessing import Lock
 from time import strftime, localtime
 from urllib.error import URLError
 from prompt_toolkit.shortcuts import PromptSession
@@ -85,50 +86,52 @@ class SQLCli(object):
     logfile = None  # 程序输出日志文件
     HeadlessMode = False  # 没有显示输出，即不需要回显，用于子进程的显示
     logger = None  # 程序的输出日志
-    m_SQLPerf = None  # SQL日志输出
 
     def __init__(
             self,
-            logon=None,  # 默认登录信息，None表示不需要
-            logfilename=None,  # 程序输出文件名，None表示不需要
-            sqlscript=None,  # 脚本文件名，None表示不需要
-            sqlmap=None,  # SQL映射文件名，None表示不需要
-            nologo=False,  # 是否不打印登陆时的Logo信息，True的时候不打印
-            breakwitherror=False,  # 遇到SQL错误，是否立刻退出
-            sqlperf=None,  # SQL审计文件输出名，None表示不需要
-            Console=sys.stdout,  # 控制台输出，默认为sys.stdout,即标准输出
-            HeadlessMode=False,  # 是否为无终端模式，无终端模式下，任何屏幕信息都不会被输出
-            WorkerName='MAIN',  # 程序别名，可用来区分不同的应用程序
-            logger=None,  # 程序输出日志句柄
-            clientcharset='UTF-8',  # 客户端字符集，在读取SQL文件时，采纳这个字符集，默认为UTF-8
-            resultcharset='UTF-8',  # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
-            EnableJobManager=True,  # 是否开启后台调度程序管理模块，否则无法使用JOB类相关命令
-            SharedProcessInfo=None,  # 共享内存信息。内部变量，不对外书写
-            profile=None  # 程序初始化执行脚本
+            logon=None,                             # 默认登录信息，None表示不需要
+            logfilename=None,                       # 程序输出文件名，None表示不需要
+            sqlscript=None,                         # 脚本文件名，None表示命令行模式
+            sqlmap=None,                            # SQL映射文件名，None表示不存在
+            nologo=False,                           # 是否不打印登陆时的Logo信息，True的时候不打印
+            breakwitherror=False,                   # 遇到SQL错误，是否中断脚本后续执行，立刻退出
+            sqlperf=None,                           # SQL审计文件输出名，None表示不需要
+            Console=sys.stdout,                     # 控制台输出，默认为sys.stdout,即标准输出
+            HeadlessMode=False,                     # 是否为无终端模式，无终端模式下，任何屏幕信息都不会被输出
+            WorkerName='MAIN',                      # 程序别名，可用来区分不同的应用程序
+            logger=None,                            # 程序输出日志句柄
+            clientcharset='UTF-8',                  # 客户端字符集，在读取SQL文件时，采纳这个字符集，默认为UTF-8
+            resultcharset='UTF-8',                  # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
+            EnableJobManager=True,                  # 是否开启后台调度程序管理模块，否则无法使用JOB类相关命令
+            SharedProcessInfo=None,                 # 共享内存信息。内部变量，不对外书写
+            profile=None                            # 程序初始化执行脚本
     ):
-        self.db_saved_conn = {}  # 数据库Session备份
-        self.SQLMappingHandler = SQLMapping()  # 函数句柄，处理SQLMapping信息
-        self.SQLExecuteHandler = SQLExecute()  # 函数句柄，具体来执行SQL
-        self.SQLOptions = SQLOptions()  # 程序运行中各种参数
-        self.KafkaHandler = KafkaWrapper()  # Kafka消息管理器
-        self.TestHandler = TestWrapper()  # 测试管理
-        self.HdfsHandler = HDFSWrapper()  # HDFS文件操作
-        self.JobHandler = JOBManager()  # 并发任务管理器
+        self.db_saved_conn = {}                         # 数据库Session备份
+        self.SQLMappingHandler = SQLMapping()           # 函数句柄，处理SQLMapping信息
+        self.SQLExecuteHandler = SQLExecute()           # 函数句柄，具体来执行SQL
+        self.SQLOptions = SQLOptions()                  # 程序运行中各种参数
+        self.KafkaHandler = KafkaWrapper()              # Kafka消息管理器
+        self.TestHandler = TestWrapper()                # 测试管理
+        self.HdfsHandler = HDFSWrapper()                # HDFS文件操作
+        self.JobHandler = JOBManager()                  # 并发任务管理器
         self.TransactionHandler = TransactionManager()  # 事务管理器
-        self.DataHandler = DataWrapper()  # 随机临时数处理
-        self.SpoolFileHandler = []  # Spool文件句柄, 是一个数组，可能发生嵌套
-        self.EchoFileHandler = None  # 当前回显文件句柄
-        self.AppOptions = None  # 应用程序的配置参数
-        self.Encoding = None  # 应用程序的Encoding信息
-        self.prompt_app = None  # PromptKit控制台
-        self.db_conn = None  # 当前应用的数据库连接句柄
-        self.SessionName = None  # 当前会话的Session的名字
-        self.db_conntype = None  # 数据库连接方式，  JDBC或者是ODBC
-        self.echofilename = None  # 当前回显文件的文件名称
-        self.Version = __version__  # 当前程序版本
-        self.ClientID = None  # 远程连接时的客户端ID
+        self.DataHandler = DataWrapper()                # 随机临时数处理
+        self.SpoolFileHandler = []                      # Spool文件句柄, 是一个数组，可能发生嵌套
+        self.EchoFileHandler = None                     # 当前回显文件句柄
+        self.AppOptions = None                          # 应用程序的配置参数
+        self.Encoding = None                            # 应用程序的Encoding信息
+        self.prompt_app = None                          # PromptKit控制台
+        self.db_conn = None                             # 当前应用的数据库连接句柄
+        self.SessionName = None                         # 当前会话的Session的名字
+        self.db_conntype = None                         # 数据库连接方式，  JDBC或者是ODBC
+        self.echofilename = None                        # 当前回显文件的文件名称
+        self.Version = __version__                      # 当前程序版本
+        self.ClientID = None                            # 远程连接时的客户端ID
+        self.SQLPerfFile = None                         # SQLPerf文件名
+        self.SQLPerfFileHandle = None                   # SQLPerf文件句柄
+        self.PerfFileLocker = None                      # 进程锁, 用来在输出perf文件的时候控制并发写文件
 
-        if clientcharset is None:  # 客户端字符集
+        if clientcharset is None:                       # 客户端字符集
             self.Client_Charset = 'UTF-8'
         else:
             self.Client_Charset = clientcharset
@@ -136,11 +139,11 @@ class SQLCli(object):
             self.Result_Charset = self.Client_Charset  # 结果输出字符集
         else:
             self.Result_Charset = resultcharset
-        self.WorkerName = WorkerName  # 当前进程名称. 如果有参数传递，以参数为准
-        self.MultiProcessManager = None  # 进程间共享消息管理器， 如果为子进程，该参数为空
-        self.profile = []  # 程序的初始化日志文件
+        self.WorkerName = WorkerName                    # 当前进程名称. 如果有参数传递，以参数为准
+        self.MultiProcessManager = None                 # 进程间共享消息管理器， 如果为子进程，该参数为空
+        self.profile = []                               # 程序的初始化脚本文件
 
-        self.m_LastComment = None  # 如果当前SQL之前的内容完全是注释，则注释带到这里
+        self.m_LastComment = None                       # 如果当前SQL之前的内容完全是注释，则注释带到这里
 
         # 传递各种参数
         self.sqlscript = sqlscript
@@ -150,7 +153,7 @@ class SQLCli(object):
         self.logfilename = logfilename
         self.Console = Console
         self.HeadlessMode = HeadlessMode
-        self.m_SQLPerf = sqlperf
+        self.SQLPerfFile = sqlperf
         if HeadlessMode:
             HeadLessConsole = open(os.devnull, "w")
             self.Console = HeadLessConsole
@@ -202,7 +205,6 @@ class SQLCli(object):
         self.SQLExecuteHandler.sqlscript = sqlscript
         self.SQLExecuteHandler.SQLMappingHandler = self.SQLMappingHandler
         self.SQLExecuteHandler.SQLOptions = self.SQLOptions
-        self.SQLExecuteHandler.SQLPerfFile = self.m_SQLPerf
         self.SQLExecuteHandler.WorkerName = self.WorkerName
 
         # 加载一些特殊的命令
@@ -1489,6 +1491,8 @@ class SQLCli(object):
                             pass
                     elif p_result["type"] == "error":
                         self.echo(p_result["message"])
+                    elif p_result["type"] == "statistics":
+                        self.Log_Statistics(p_result)
                     else:
                         raise SQLCliException("internal error. unknown sql type error. " + str(p_result["type"]))
                 else:
@@ -1667,10 +1671,6 @@ class SQLCli(object):
 
         # 还原进程标题
         setproctitle.setproctitle(m_Cli_ProcessTitleBak)
-
-    def log_output(self, output):
-        if self.logfile:
-            click.echo(output, file=self.logfile)
 
     def echo(self, s,
              Flags=OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL | OFLAG_ECHO,
@@ -2021,3 +2021,61 @@ class SQLCli(object):
             # 返回输出信息
             output = itertools.chain(output, formatted)
         return output
+
+    def Log_Statistics(self, p_SQLResult):
+        # 开始时间         StartedTime
+        # 消耗时间         elapsed
+        # SQL的前20个字母  SQLPrefix
+        # 运行状态         SQLStatus
+        # 错误日志         ErrorMessage
+        # 线程名称         thread_name
+
+        # 如果没有打开性能日志记录文件，直接跳过
+        if self.SQLPerfFile is None:
+            return
+
+        # 初始化文件加锁机制
+        if self.PerfFileLocker is None:
+            self.PerfFileLocker = Lock()
+
+        # 多进程，多线程写入，考虑锁冲突
+        try:
+            self.PerfFileLocker.acquire()
+            if not os.path.exists(self.SQLPerfFile):
+                # 如果文件不存在，创建文件，并写入文件头信息
+                self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
+                self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tRAWSQL\tSQL\t"
+                                             "SQLStatus\tErrorMessage\tworker_name\t"
+                                             "Scenario\tTransaction\n")
+                self.SQLPerfFileHandle.close()
+
+            # 对于多线程运行，这里的thread_name格式为JOB_NAME#副本数-完成次数
+            # 对于单线程运行，这里的thread_name格式为固定的MAIN
+            m_ThreadName = str(p_SQLResult["thread_name"])
+
+            # 打开Perf文件
+            self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
+            # 写入内容信息
+            if self.sqlscript is None:
+                m_SQL_Script = "Console"
+            else:
+                m_SQL_Script = str(os.path.basename(self.sqlscript))
+            self.SQLPerfFileHandle.write(
+                m_SQL_Script + "\t" +
+                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p_SQLResult["StartedTime"])) + "\t" +
+                "%8.2f" % p_SQLResult["elapsed"] + "\t" +
+                str(p_SQLResult["RAWSQL"]).replace("\n", " ").replace("\t", "    ") + "\t" +
+                str(p_SQLResult["SQL"]).replace("\n", " ").replace("\t", "    ") + "\t" +
+                str(p_SQLResult["SQLStatus"]) + "\t" +
+                str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "\t" +
+                str(m_ThreadName) + "\t" +
+                str(p_SQLResult["Scenario"]) + "\t" +
+                str(p_SQLResult["Transaction"]) +
+                "\n"
+            )
+            self.SQLPerfFileHandle.flush()
+            self.SQLPerfFileHandle.close()
+        except Exception as ex:
+            print("Internal error:: perf file write not complete. " + repr(ex))
+        finally:
+            self.PerfFileLocker.release()
