@@ -420,40 +420,47 @@ class SQLExecute(object):
                                 m_LoopTimes = int(m_SQLHint["SQL_LOOP"]["LoopTimes"])
                                 m_LoopInterval = int(m_SQLHint["SQL_LOOP"]["LoopInterval"])
                                 m_LoopUntil = m_SQLHint["SQL_LOOP"]["LoopUntil"]
-                                if m_LoopInterval <= 0:
-                                    m_LoopTimes = 0
-                                    if "SQLCLI_DEBUG" in os.environ:
-                                        raise SQLCliException(
-                                            "SQLLoop Hint Error, Unexpected LoopTime: " + str(m_LoopInterval))
-                                if m_LoopInterval <= 0:
+                                if m_LoopInterval < 0:
                                     m_LoopTimes = 0
                                     if "SQLCLI_DEBUG" in os.environ:
                                         raise SQLCliException(
                                             "SQLLoop Hint Error, Unexpected LoopInterval: " + str(m_LoopInterval))
+                                if m_LoopTimes < 0:
+                                    if "SQLCLI_DEBUG" in os.environ:
+                                        raise SQLCliException(
+                                            "SQLLoop Hint Error, Unexpected LoopTime: " + str(m_LoopTimes))
 
                                 # 保存Silent设置
                                 m_OldSilentMode = self.SQLOptions.get("SILENT")
                                 m_OldTimingMode = self.SQLOptions.get("TIMING")
                                 m_OldTimeMode = self.SQLOptions.get("TIME")
-                                self.SQLOptions.set("SILENT", "ON")
-                                self.SQLOptions.set("TIMING", "OFF")
-                                self.SQLOptions.set("TIME", "OFF")
+                                # self.SQLOptions.set("SILENT", "ON")
+                                # self.SQLOptions.set("TIMING", "OFF")
+                                # self.SQLOptions.set("TIME", "OFF")
                                 m_LoopFinished = False
                                 for m_nLoopPos in range(0, m_LoopTimes):
                                     # 检查Until条件，如果达到Until条件，退出
-                                    for _, _, _, _, assert_status in \
+                                    m_AssertSuccessful =False
+                                    for m_Result in \
                                             self.run("__internal__ test assert " + m_LoopUntil):
-                                        if assert_status.startswith("Assert Successful"):
-                                            m_LoopFinished = True
+                                        if m_Result["type"] == "result":
+                                            if m_Result["status"].startswith("Assert Successful"):
+                                                m_AssertSuccessful = True
                                             break
-                                        else:
-                                            # 测试失败, 等待一段时间后，开始下一次检查
-                                            time.sleep(m_LoopInterval)
-                                            for title, result, headers, columntypes, status in self.run(sql):
-                                                # 最后一次执行的结果将被传递到外层，作为SQL返回结果
-                                                pass
-                                    if m_LoopFinished:
+                                    if m_AssertSuccessful:
                                         break
+                                    else:
+                                        # 测试失败, 等待一段时间后，开始下一次检查
+                                        time.sleep(m_LoopInterval)
+                                        for m_Result in self.run(sql):
+                                            # 最后一次执行的结果将被传递到外层，作为SQL返回结果
+                                            if m_Result["type"] == "result":
+                                                title = m_Result["title"]
+                                                result = m_Result["rows"]
+                                                headers = m_Result["headers"]
+                                                columntypes = m_Result["columntypes"]
+                                                status = m_Result["status"]
+                                            pass
                                 self.SQLOptions.set("TIME", m_OldTimeMode)
                                 self.SQLOptions.set("TIMING", m_OldTimingMode)
                                 self.SQLOptions.set("SILENT", m_OldSilentMode)

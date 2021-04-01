@@ -1074,20 +1074,10 @@ class SQLCli(object):
                     cls.SQLExecuteHandler.SQLTransaction = ''
 
                     # 执行指定的SQL文件
-                    # 记录命令开始时间
-                    start = time.time()
                     for m_ExecuteResult in \
                             cls.SQLExecuteHandler.run(query, os.path.expanduser(m_SQLFile)):
                         # 记录命令结束的时间
-                        end = time.time()
                         yield m_ExecuteResult
-                        # 记录下一个命令开始的时间
-                        end = time.time()
-                        # 打印执行时间
-                        if cls.SQLOptions.get('TIMING').upper() == 'ON':
-                            cls.echo('Running time elapsed: %9.2f Seconds' % (end - start))
-                        if cls.SQLOptions.get('TIME').upper() == 'ON':
-                            cls.echo('Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime()))
                 except IOError as e:
                     yield {
                         "title": None,
@@ -1525,24 +1515,16 @@ class SQLCli(object):
                     return True
 
                 result = run_remote()
-            else:
+            else:   # 本地执行脚本
                 # 执行指定的SQL
-                # 记录命令开始时间
-                start = time.time()
-                m_elapsed_time = 0
                 for result in self.SQLExecuteHandler.run(text):
-                    # 记录命令结束的时间
-                    m_elapsed_time = time.time() - start
                     # 打印结果
                     show_result(result)
-                    # 记录下一个命令开始时间
-                    start = time.time()
-
-                # 打印执行时间
-                if self.SQLOptions.get('TIMING').upper() == 'ON':
-                    self.echo('Running time elapsed: %9.2f Seconds' % m_elapsed_time)
-                if self.SQLOptions.get('TIME').upper() == 'ON':
-                    self.echo('Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime()))
+                    if result["type"] == "statistics":
+                        if self.SQLOptions.get('TIMING').upper() == 'ON':
+                            self.echo('Running time elapsed: %9.2f Seconds' % result["elapsed"])
+                        if self.SQLOptions.get('TIME').upper() == 'ON':
+                            self.echo('Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime()))
 
             # 返回正确执行的消息
             return True
