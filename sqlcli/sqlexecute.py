@@ -355,6 +355,7 @@ class SQLExecute(object):
                             else:
                                 self.cur.execute(sql)
                         rowcount = 0
+                        m_SQL_Status = 0
                         while True:
                             (title, result, headers, columntypes, status, m_FetchStatus, m_FetchedRows) = \
                                 self.get_result(self.cur, rowcount)
@@ -368,7 +369,8 @@ class SQLExecute(object):
                             self.LastJsonSQLResult = {"desc": headers,
                                                       "rows": rowcount,
                                                       "elapsed": time.time() - start,
-                                                      "result": result}
+                                                      "result": result,
+                                                      "status": 0}
 
                             # 如果Hints中有order字样，对结果进行排序后再输出
                             if "Order" in m_SQLHint.keys() and result is not None:
@@ -434,9 +436,9 @@ class SQLExecute(object):
                                 m_OldSilentMode = self.SQLOptions.get("SILENT")
                                 m_OldTimingMode = self.SQLOptions.get("TIMING")
                                 m_OldTimeMode = self.SQLOptions.get("TIME")
-                                # self.SQLOptions.set("SILENT", "ON")
-                                # self.SQLOptions.set("TIMING", "OFF")
-                                # self.SQLOptions.set("TIME", "OFF")
+                                self.SQLOptions.set("SILENT", "ON")
+                                self.SQLOptions.set("TIMING", "OFF")
+                                self.SQLOptions.set("TIME", "OFF")
                                 m_LoopFinished = False
                                 for m_nLoopPos in range(0, m_LoopTimes):
                                     # 检查Until条件，如果达到Until条件，退出
@@ -455,35 +457,41 @@ class SQLExecute(object):
                                         for m_Result in self.run(sql):
                                             # 最后一次执行的结果将被传递到外层，作为SQL返回结果
                                             if m_Result["type"] == "result":
+                                                m_SQL_Status = 0
                                                 title = m_Result["title"]
                                                 result = m_Result["rows"]
                                                 headers = m_Result["headers"]
                                                 columntypes = m_Result["columntypes"]
                                                 status = m_Result["status"]
-                                            pass
+                                            if m_Result["type"] == "error":
+                                                m_SQL_Status = 1
+                                                m_SQL_ErrorMessage = m_Result["message"]
                                 self.SQLOptions.set("TIME", m_OldTimeMode)
                                 self.SQLOptions.set("TIMING", m_OldTimingMode)
                                 self.SQLOptions.set("SILENT", m_OldSilentMode)
 
                             # 返回SQL结果
-                            if self.SQLOptions.get('TERMOUT').upper() != 'OFF':
-                                yield {
-                                    "type": "result",
-                                    "title": title,
-                                    "rows": result,
-                                    "headers": headers,
-                                    "columntypes": columntypes,
-                                    "status": status
-                                }
+                            if m_SQL_Status == 1:
+                                yield {"type": "error", "message": m_SQL_ErrorMessage}
                             else:
-                                yield {
-                                    "type": "result",
-                                    "title": title,
-                                    "rows": [],
-                                    "headers": headers,
-                                    "columntypes": columntypes,
-                                    "status": status
-                                }
+                                if self.SQLOptions.get('TERMOUT').upper() != 'OFF':
+                                    yield {
+                                        "type": "result",
+                                        "title": title,
+                                        "rows": result,
+                                        "headers": headers,
+                                        "columntypes": columntypes,
+                                        "status": status
+                                    }
+                                else:
+                                    yield {
+                                        "type": "result",
+                                        "title": title,
+                                        "rows": [],
+                                        "headers": headers,
+                                        "columntypes": columntypes,
+                                        "status": status
+                                    }
                             if not m_FetchStatus:
                                 break
                     except SQLCliODBCException as oe:
@@ -492,12 +500,17 @@ class SQLExecute(object):
                         for m_ErrorPrefix in ('ERROR:',):
                             if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
                                 m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
+
+                        self.LastJsonSQLResult = {"elapsed": time.time() - start,
+                                                  "message": m_SQL_ErrorMessage,
+                                                  "status": -1}
+
                         # 发生了ODBC的SQL语法错误
                         if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                             raise SQLCliException(m_SQL_ErrorMessage)
                         else:
                             yield {"type": "error", "message": m_SQL_ErrorMessage}
-                    except SQLCliJDBCException as je:
+                    except (SQLCliJDBCException, Exception) as je:
                         m_SQL_Status = 1
                         m_SQL_ErrorMessage = str(je).strip()
                         for m_ErrorPrefix in ('java.sql.SQLSyntaxErrorException:',
@@ -546,16 +559,11 @@ class SQLExecute(object):
                             if m_ErrorMessageHasChanged:
                                 m_SQL_ErrorMessage = "\n".join(m_SQL_MultiLineErrorMessage)
 
-                        # 发生了JDBC的SQL语法错误
-                        if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
-                            raise SQLCliException(m_SQL_ErrorMessage)
-                        else:
-                            yield {"type": "error", "message": m_SQL_ErrorMessage}
-                    except Exception as e:
-                        m_SQL_Status = 1
-                        m_SQL_ErrorMessage = str(e).strip()
+                        self.LastJsonSQLResult = {"elapsed": time.time() - start,
+                                                  "message": m_SQL_ErrorMessage,
+                                                  "status": -1}
 
-                        # 发生了其他SQL语法错误
+                        # 发生了JDBC的SQL语法错误
                         if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
                             raise SQLCliException(m_SQL_ErrorMessage)
                         else:

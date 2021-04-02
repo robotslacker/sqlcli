@@ -828,7 +828,7 @@ class SQLCli(object):
             if str(e).find("SQLInvalidAuthorizationSpecException") != -1:
                 raise SQLCliException(str(jpype.java.sql.SQLInvalidAuthorizationSpecException(e).getCause()))
             else:
-                raise SQLCliException(repr(e))
+                raise SQLCliException(str(e))
         yield {
             "title": None,
             "rows": None,
