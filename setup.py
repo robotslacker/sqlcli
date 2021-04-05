@@ -59,7 +59,7 @@ setup(
     keywords='sql command test tool',
     long_description_content_type='text/markdown',
     platforms='any',
-    install_requires=['JPype1>=0.7.1', 'setproctitle', 'pathlib',
+    install_requires=['JPype1>=0.7.1', 'setproctitle', 'pathlib', 'urllib3',
                       'pyparsing', 'click', 'prompt_toolkit',
                       'fs', 'hdfs', 'wget',
                       'requests', 'websockets', 'pydantic', 'uvicorn[standard]', 'fastapi'],

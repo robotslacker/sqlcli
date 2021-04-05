@@ -8,7 +8,6 @@ import setproctitle
 import shlex
 import click
 import configparser
-import wget
 import hashlib
 import codecs
 import subprocess
@@ -19,6 +18,8 @@ import requests
 import json
 import asyncio
 import websockets
+import urllib3
+import shutil
 from multiprocessing import Lock
 from time import strftime, localtime
 from urllib.error import URLError
@@ -1580,8 +1581,10 @@ class SQLCli(object):
                         print("Driver [" + m_driversection + "], need upgrade ...")
                         # 重新下载新的文件到本地
                         try:
-                            wget.download(m_driver_downloadurl, out=m_LocalJarFile)
-                            print("")
+                            http = urllib3.PoolManager()
+                            with http.request('GET', m_driver_downloadurl, preload_content=False) as r, \
+                                    open(m_LocalJarFile, 'wb') as out_file:
+                                shutil.copyfileobj(r, out_file)
                         except URLError:
                             print('traceback.print_exc():\n%s' % traceback.print_exc())
                             print('traceback.format_exc():\n%s' % traceback.format_exc())

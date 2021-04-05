@@ -74,7 +74,6 @@ SQLCli 目前支持的数据类型有：
    * click                    : Python的命令行参数处理
    * prompt_toolkit           : 用于提供包括提示符功能的控制台终端的显示样式
    * hdfs                     : HDFS类库，支持对HDFS文件操作
-   * wget                     : JDBC驱动更新和下载
    * requests                 ：HTTP客户端请求协议
    * websockets               : HTTP客户端请求协议
    * pydantic                 : FastAPI服务端支持
