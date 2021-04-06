@@ -358,6 +358,12 @@ class SQLCli(object):
         if self.MultiProcessManager is not None:
             self.MultiProcessManager.shutdown()
 
+        # 关闭LogFile
+        if self.logfile is not None:
+            self.logfile.flush()
+            self.logfile.close()
+            self.logfile = None
+
     # 加载CLI的各种特殊命令集
     def register_special_commands(self):
 
@@ -1658,6 +1664,12 @@ class SQLCli(object):
         # 退出进程
         self.echo("Disconnected.")
 
+        # 关闭LogFile
+        if self.logfile is not None:
+            self.logfile.flush()
+            self.logfile.close()
+            self.logfile = None
+
         # 还原进程标题
         setproctitle.setproctitle(m_Cli_ProcessTitleBak)
 
@@ -1674,16 +1686,19 @@ class SQLCli(object):
             if Flags & OFLAG_LOGFILE:
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
                     print(s, file=self.logfile)
+                    self.logfile.flush()
             if Flags & OFLAG_SPOOL:
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.SpoolFileHandler is not None:
                     for m_SpoolFileHandler in self.SpoolFileHandler:
                         print(s, file=m_SpoolFileHandler)
+                        m_SpoolFileHandler.flush()
             if Flags & OFLAG_LOGGER:
                 if self.logger is not None:
                     self.logger.info(s)
             if Flags & OFLAG_ECHO:
                 if self.EchoFileHandler is not None:
                     print(s, file=self.EchoFileHandler)
+                    self.EchoFileHandler.flush()
             if Flags & OFLAG_CONSOLE:
                 try:
                     click.secho(s, **kwargs, file=self.Console)
