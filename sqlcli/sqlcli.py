@@ -1445,7 +1445,8 @@ class SQLCli(object):
                         if p_result["script"] is None:
                             # 控制台应用，不再打印SQL语句到控制台（因为用户已经输入了)
                             m_EchoFlag = m_EchoFlag & ~OFLAG_CONSOLE
-                        self.echo(p_result["formattedsql"], m_EchoFlag)
+                        if p_result["formattedsql"] is not None:
+                            self.echo(p_result["formattedsql"], m_EchoFlag)
                         # 打印改写后的SQL
                         if len(p_result["rewrotedsql"]) != 0:
                             m_EchoFlag = OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL
@@ -1533,6 +1534,9 @@ class SQLCli(object):
             # 当调用了exit或者quit的时候，会收到EOFError，这里直接抛出
             raise e
         except SQLCliException as e:
+            if "SQLCLI_DEBUG" in os.environ:
+                print('traceback.print_exc():\n%s' % traceback.print_exc())
+                print('traceback.format_exc():\n%s' % traceback.format_exc())
             # 用户执行的SQL出了错误, 由于SQLExecute已经打印了错误消息，这里直接退出
             self.output(None, e.message)
             if self.SQLOptions.get("WHENEVER_SQLERROR").upper() == "EXIT":
@@ -1669,17 +1673,17 @@ class SQLCli(object):
         if self.SQLOptions.get("SILENT").upper() != 'ON':
             if Flags & OFLAG_LOGFILE:
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
-                    click.echo(s, file=self.logfile)
+                    print(s, file=self.logfile)
             if Flags & OFLAG_SPOOL:
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.SpoolFileHandler is not None:
                     for m_SpoolFileHandler in self.SpoolFileHandler:
-                        click.echo(s, file=m_SpoolFileHandler)
+                        print(s, file=m_SpoolFileHandler)
             if Flags & OFLAG_LOGGER:
                 if self.logger is not None:
                     self.logger.info(s)
             if Flags & OFLAG_ECHO:
                 if self.EchoFileHandler is not None:
-                    click.echo(s, file=self.EchoFileHandler)
+                    print(s, file=self.EchoFileHandler)
             if Flags & OFLAG_CONSOLE:
                 try:
                     click.secho(s, **kwargs, file=self.Console)
