@@ -194,66 +194,6 @@ class SQLExecute(object):
                 }
                 continue
 
-            matchObj = re.match(r"^show\s+table\s+storage\s+(.*)$", sql, re.IGNORECASE)
-            if matchObj:
-                m_TableName = matchObj.group(1)
-                m_Location = ""
-                for m_Result in self.run("show table properties " + m_TableName):
-                    if m_Result["type"] == "result":
-                        if len(m_Result["rows"]) != 0:
-                            m_Location = m_Result["rows"][len(m_Result["rows"]) - 1][1]
-                            break
-                if m_Location != "":
-                    m_HostCommand = "hdfs fsck " + m_Location + " -files -blocks -locations"
-                    m_Result = []
-                    m_Status = ""
-                    for m_OSResult in self.run("host " + m_HostCommand):
-                        m_HostBlockInfo = {}
-                        if m_OSResult["type"] == "result":
-                            m_StoargeInfo = m_OSResult["status"].splitlines()
-                            m_BlockCount = 0
-                            for m_line in m_StoargeInfo:
-                                matchObj = re.search(r"bytes, (\d+) block\(s\):\s+OK", m_line)
-                                if matchObj:
-                                    m_BlockCount = int(matchObj.group(1))
-                                matchObj = re.search(r"DatanodeInfoWithStorage\[(.*?):", m_line)
-                                if matchObj:
-                                    m_Host = str(matchObj.group(1)).strip()
-                                    if m_Host in m_HostBlockInfo.keys():
-                                        m_HostBlockInfo[m_Host] = m_HostBlockInfo[m_Host] + m_BlockCount
-                                    else:
-                                        m_HostBlockInfo[m_Host] = m_BlockCount
-                                matchObj = re.search(r"Status:", m_line)
-                                if matchObj:
-                                    m_Status = m_Status + m_line + "\n"
-                                matchObj = re.search(r"Total size:", m_line)
-                                if matchObj:
-                                    m_Status = m_Status + m_line + "\n"
-                                matchObj = re.search(r"Total dirs:", m_line)
-                                if matchObj:
-                                    m_Status = m_Status + m_line + "\n"
-                                matchObj = re.search(r"Total files:", m_line)
-                                if matchObj:
-                                    m_Status = m_Status + m_line + "\n"
-                        for HostIP, HostBlockCount in m_HostBlockInfo.items():
-                            m_Result.append((HostIP, HostBlockCount))
-                    yield {
-                        "type": "parse",
-                        "rawsql": m_raw_sql,
-                        "formattedsql": m_FormattedSQL,
-                        "rewrotedsql": m_RewrotedSQL,
-                        "script": p_sqlscript
-                    }
-                    yield {
-                        "type": "result",
-                        "title": "HDFS Storage Information for " + m_TableName,
-                        "rows": m_Result,
-                        "headers": ["Node", "Block(s)"],
-                        "columntypes": ["str", "int"],
-                        "status": m_Status
-                    }
-                return
-
             # 检查SQL中是否包含特殊内容，如果有，改写SQL
             # 特殊内容都有：
             # 1. ${LastSQLResult(.*)}       # .* JQ Parse Pattern
