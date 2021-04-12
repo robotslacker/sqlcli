@@ -1030,17 +1030,41 @@ class SQLCli(object):
     def sleep(cls, arg, **_):
         if not arg:
             message = "Missing required argument, sleep [seconds]."
-            return [(None, None, None, None, message)]
+            return [{
+                "title": None,
+                "rows": None,
+                "headers": None,
+                "columntypes": None,
+                "status": message
+            }]
         try:
             m_Sleep_Time = int(arg)
             if m_Sleep_Time <= 0:
                 message = "Parameter must be a valid number, sleep [seconds]."
-                return [(None, None, None, None, message)]
+                return [{
+                    "title": None,
+                    "rows": None,
+                    "headers": None,
+                    "columntypes": None,
+                    "status": message
+                }]
             time.sleep(m_Sleep_Time)
         except ValueError:
             message = "Parameter must be a number, sleep [seconds]."
-            return [(None, None, None, None, message)]
-        return [(None, None, None, None, None)]
+            return [{
+                "title": None,
+                "rows": None,
+                "headers": None,
+                "columntypes": None,
+                "status": message
+            }]
+        return [{
+            "title": None,
+            "rows": None,
+            "headers": None,
+            "columntypes": None,
+            "status": None
+        }]
 
     # 从文件中执行SQL
     @staticmethod
