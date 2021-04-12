@@ -1079,7 +1079,14 @@ class SQLCli(object):
                 "status": "Session restored Successful."
             }
             return
-        m_SQLFileList = str(arg).split()
+
+        # 分割字符串，考虑SQL文件名中包含空格的问题
+        temp1 = str(arg).strip()
+        temp1 = shlex.shlex(temp1)
+        temp1.whitespace = ','
+        temp1.whitespace_split = True
+        m_SQLFileList = list(temp1)
+
         m_nLoop = 1
         if len(m_SQLFileList) >= 3 and \
                 m_SQLFileList[len(m_SQLFileList) - 2].lower() == 'loop' and \
@@ -1089,6 +1096,10 @@ class SQLCli(object):
         for m_curLoop in range(0, m_nLoop):
             for m_SQLFile in m_SQLFileList:
                 try:
+                    if str(m_SQLFile).startswith("'"):
+                        m_SQLFile = m_SQLFile[1:]
+                    if str(m_SQLFile).endswith("'"):
+                        m_SQLFile = m_SQLFile[:-1]
                     with open(os.path.expanduser(m_SQLFile), encoding=cls.Client_Charset) as f:
                         query = f.read()
 
