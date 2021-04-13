@@ -1848,11 +1848,13 @@ class SQLCli(object):
                     if m_ColumnLength[m_nPos] < len('<null>'):
                         m_ColumnLength[m_nPos] = len('<null>')
                 elif isinstance(m_Row[m_nPos], str):
-                    m_PrintValue = repr(m_Row[m_nPos])
-                    if m_PrintValue.startswith("'") and m_PrintValue.endswith("'"):
-                        m_PrintValue = m_PrintValue[1:-1]
-                    elif m_PrintValue.startswith('"') and m_PrintValue.endswith('"'):
-                        m_PrintValue = m_PrintValue[1:-1]
+                    m_PrintValue = m_Row[m_nPos]
+                    m_PrintValue = m_PrintValue.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+                    # m_PrintValue = repr(m_Row[m_nPos]
+                    # if m_PrintValue.startswith("'") and m_PrintValue.endswith("'"):
+                    #     m_PrintValue = m_PrintValue[1:-1]
+                    # elif m_PrintValue.startswith('"') and m_PrintValue.endswith('"'):
+                    #     m_PrintValue = m_PrintValue[1:-1]
                     if len(m_PrintValue) + wide_chars(m_PrintValue) > m_ColumnLength[m_nPos]:
                         # 为了保持长度一致，长度计算的时候扣掉中文的显示长度
                         m_ColumnLength[m_nPos] = len(m_PrintValue) + wide_chars(m_PrintValue)
@@ -1884,11 +1886,14 @@ class SQLCli(object):
                     if m_iter[m_nPos] is None:
                         m_PrintValue = '<null>'
                     elif isinstance(m_iter[m_nPos], str):
-                        m_PrintValue = repr(m_iter[m_nPos])
-                        if m_PrintValue.startswith("'") and m_PrintValue.endswith("'"):
-                            m_PrintValue = m_PrintValue[1:-1]
-                        elif m_PrintValue.startswith('"') and m_PrintValue.endswith('"'):
-                            m_PrintValue = m_PrintValue[1:-1]
+                        m_PrintValue = m_Row[m_nPos]
+                        m_PrintValue = m_PrintValue.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+                        #
+                        # m_PrintValue = repr(m_iter[m_nPos])
+                        # if m_PrintValue.startswith("'") and m_PrintValue.endswith("'"):
+                        #     m_PrintValue = m_PrintValue[1:-1]
+                        # elif m_PrintValue.startswith('"') and m_PrintValue.endswith('"'):
+                        #     m_PrintValue = m_PrintValue[1:-1]
                     else:
                         m_PrintValue = str(m_iter[m_nPos])
                     # 所有内容字符串左对齐
