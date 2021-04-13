@@ -277,7 +277,6 @@ class SQLExecute(object):
                             "type": "error",
                             "message": "Not connected. "
                         }
-                        return
 
                 # 执行正常的SQL语句
                 if self.cur is not None:
