@@ -1845,12 +1845,17 @@ class SQLCli(object):
             for m_nPos in range(0, len(m_Row)):
                 if m_Row[m_nPos] is None:
                     # 空值打印为<null>
-                    m_ColumnLength[m_nPos] = len('<null>')
+                    if m_ColumnLength[m_nPos] < len('<null>'):
+                        m_ColumnLength[m_nPos] = len('<null>')
                 elif isinstance(m_Row[m_nPos], str):
-                    for m_iter in m_Row[m_nPos].split('\n'):
-                        if len(m_iter) + wide_chars(m_iter) > m_ColumnLength[m_nPos]:
-                            # 为了保持长度一致，长度计算的时候扣掉中文的显示长度
-                            m_ColumnLength[m_nPos] = len(m_iter) + wide_chars(m_iter)
+                    m_PrintValue = repr(m_Row[m_nPos])
+                    if m_PrintValue.startswith("'"):
+                        m_PrintValue = m_PrintValue[1:]
+                    if m_PrintValue.endswith("'"):
+                        m_PrintValue = m_PrintValue[:-1]
+                    if len(m_PrintValue) + wide_chars(m_PrintValue) > m_ColumnLength[m_nPos]:
+                        # 为了保持长度一致，长度计算的时候扣掉中文的显示长度
+                        m_ColumnLength[m_nPos] = len(m_PrintValue) + wide_chars(m_PrintValue)
                 else:
                     if len(str(m_Row[m_nPos])) + wide_chars(m_Row[m_nPos]) > m_ColumnLength[m_nPos]:
                         m_ColumnLength[m_nPos] = len(str(m_Row[m_nPos])) + wide_chars(m_Row[m_nPos])
@@ -1871,39 +1876,19 @@ class SQLCli(object):
         # 打印字段内容
         m_RowNo = 0
         for m_Row in cur:
-            m_RowNo = m_RowNo + 1
-            # 首先计算改行应该打印的高度（行中的内容可能右换行符号）
-            m_RowHeight = 1
-            for m_nPos in range(0, len(m_Row)):
-                if isinstance(m_Row[m_nPos], str):
-                    if len(m_Row[m_nPos].split('\n')) > m_RowHeight:
-                        m_RowHeight = len(m_Row[m_nPos].split('\n'))
-            # 首先构造一个空的结果集，行数为计划打印的行高
             m_output = []
-            if m_RowHeight == 1:
-                m_output.append(m_Row)
-            else:
-                for m_iter in range(0, m_RowHeight):
-                    m_output.append(())
-                # 依次填入数据
-                for m_nPos in range(0, len(m_Row)):
-                    m_SplitRow = ()
-                    if isinstance(m_Row[m_nPos], str):
-                        m_SplitColumnValue = m_Row[m_nPos].split('\n')
-                    else:
-                        m_SplitColumnValue = [m_Row[m_nPos], ]
-                    for m_iter in range(0, m_RowHeight):
-                        if len(m_SplitColumnValue) > m_iter:
-                            if str(m_SplitColumnValue[m_iter]).endswith('\r'):
-                                m_SplitColumnValue[m_iter] = m_SplitColumnValue[m_iter][:-1]
-                            m_output[m_iter] = m_output[m_iter] + (m_SplitColumnValue[m_iter],)
-                        else:
-                            m_output[m_iter] = m_output[m_iter] + ("",)
+            m_output.append(m_Row)
             for m_iter in m_output:
                 m_TableContentLine = '|'
                 for m_nPos in range(0, len(m_iter)):
                     if m_iter[m_nPos] is None:
                         m_PrintValue = '<null>'
+                    elif isinstance(m_iter[m_nPos], str):
+                        m_PrintValue = repr(m_iter[m_nPos])
+                        if m_PrintValue.startswith("'"):
+                            m_PrintValue = m_PrintValue[1:]
+                        if m_PrintValue.endswith("'"):
+                            m_PrintValue = m_PrintValue[:-1]
                     else:
                         m_PrintValue = str(m_iter[m_nPos])
                     # 所有内容字符串左对齐
@@ -1941,7 +1926,8 @@ class SQLCli(object):
             for m_nPos in range(0, len(m_Row)):
                 if m_Row[m_nPos] is None:
                     # 空值打印为<null>
-                    m_ColumnLength[m_nPos] = len('<null>')
+                    if m_ColumnLength[m_nPos] < len('<null>'):
+                        m_ColumnLength[m_nPos] = len('<null>')
                 elif isinstance(m_Row[m_nPos], str):
                     for m_iter in m_Row[m_nPos].split('\n'):
                         if len(m_iter) + wide_chars(m_iter) > m_ColumnLength[m_nPos]:
