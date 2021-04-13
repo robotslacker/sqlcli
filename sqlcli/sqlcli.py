@@ -1083,7 +1083,7 @@ class SQLCli(object):
         # 分割字符串，考虑SQL文件名中包含空格的问题
         temp1 = str(arg).strip()
         temp1 = shlex.shlex(temp1)
-        temp1.whitespace = ','
+        temp1.whitespace = ' '
         temp1.whitespace_split = True
         m_SQLFileList = list(temp1)
 
@@ -1102,6 +1102,10 @@ class SQLCli(object):
                         m_SQLFile = m_SQLFile[:-1]
                     with open(os.path.expanduser(m_SQLFile), encoding=cls.Client_Charset) as f:
                         query = f.read()
+
+                    # 空文件直接返回
+                    if len(query) == 0:
+                        continue
 
                     # 处理NLS文档头数据
                     if ord(query[0]) == 0xFEFF:
