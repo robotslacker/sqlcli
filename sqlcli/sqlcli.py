@@ -181,8 +181,12 @@ class SQLCli(object):
             if os.path.isfile(os.path.join(os.environ["SQLCLI_HOME"], "profile", "default")):
                 self.profile.append(os.path.join(os.environ["SQLCLI_HOME"], "profile", "default"))
         if profile is not None:
-            if os.path.isfile(profile):
-                self.profile.append(profile)
+            if str(profile).startswith("'") and str(profile).endswith("'"):
+                m_Profile = str(profile)[1:-1]
+            else:
+                m_Profile = str(profile).strip()
+            if os.path.isfile(m_Profile):
+                self.profile.append(m_Profile)
             else:
                 if "SQLCLI_DEBUG" in os.environ:
                     print("Profile does not exist ! Will ignore it. [" + str(os.path.abspath(profile)) + "]")
