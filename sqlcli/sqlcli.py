@@ -181,15 +181,17 @@ class SQLCli(object):
             if os.path.isfile(os.path.join(os.environ["SQLCLI_HOME"], "profile", "default")):
                 self.profile.append(os.path.join(os.environ["SQLCLI_HOME"], "profile", "default"))
         if profile is not None:
+            # os.path.isfile 不能检查带有单引号的文件信息，所以这里检查的时候不包含单引号
+            # start 实际执行的时候需要有单引号，不然由于空格或者其他字符可能会导致SQL文件名称被分裂
             if str(profile).startswith("'") and str(profile).endswith("'"):
                 m_Profile = str(profile)[1:-1]
             else:
                 m_Profile = str(profile).strip()
             if os.path.isfile(m_Profile):
-                self.profile.append(m_Profile)
+                self.profile.append(str(profile))
             else:
                 if "SQLCLI_DEBUG" in os.environ:
-                    print("Profile does not exist ! Will ignore it. [" + str(os.path.abspath(profile)) + "]")
+                    print("Profile does not exist ! Will ignore it. [" + m_Profile + "]")
         if "SQLCLI_DEBUG" in os.environ:
             for m_Profile in self.profile:
                 print("Profile = [" + str(m_Profile) + "]")
