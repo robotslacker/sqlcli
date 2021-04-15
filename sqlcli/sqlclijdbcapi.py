@@ -741,7 +741,10 @@ def _java_to_py_clob(conn, rs, col):
     if m_TypeName.upper().find('CLOB') != -1:
         m_Length = java_val.length()
         m_TrimLength = int(_sqloptions.get("LOB_LENGTH"))
-        m_ColumnValue = java_val.getSubString(1, m_TrimLength)
+        if m_TrimLength > m_Length:
+            m_TrimLength = m_Length
+        print("Length =" + str(m_TrimLength))
+        m_ColumnValue = java_val.getSubString(1, int(m_TrimLength))
         if m_Length > int(m_TrimLength):
             m_ColumnValue = m_ColumnValue + "..."
         return m_ColumnValue
