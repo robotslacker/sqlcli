@@ -24,7 +24,6 @@ from multiprocessing import Lock
 from time import strftime, localtime
 from urllib.error import URLError
 from prompt_toolkit.shortcuts import PromptSession
-from multiprocessing.managers import BaseManager
 
 # 加载JDBC驱动和ODBC驱动
 from .sqlclijdbcapi import connect as jdbcconnect
@@ -32,15 +31,15 @@ from SQLCliODBC import connect as odbcconnect
 from SQLCliODBC import SQLCliODBCException
 import jpype
 
-from .sqlclijobmanager import JOBManager
-from .sqlclitransactionmanager import TransactionManager
 from .sqlexecute import SQLExecute
 from .sqlparse import SQLMapping
 from .kafkawrapper import KafkaWrapper
 from .testwrapper import TestWrapper
 from .hdfswrapper import HDFSWrapper
 from .sqlcliexception import SQLCliException
-from .sqlclisga import SQLCliGlobalSharedMemory
+from .sqlclimeta import SQLCliMeta
+from .sqlclijobmanager import JOBManager
+from .sqlclitransactionmanager import TransactionManager
 from .datawrapper import DataWrapper
 from .commandanalyze import register_special_command
 from .commandanalyze import CommandNotFound
@@ -103,8 +102,6 @@ class SQLCli(object):
             logger=None,                            # 程序输出日志句柄
             clientcharset='UTF-8',                  # 客户端字符集，在读取SQL文件时，采纳这个字符集，默认为UTF-8
             resultcharset='UTF-8',                  # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
-            EnableJobManager=True,                  # 是否开启后台调度程序管理模块，否则无法使用JOB类相关命令
-            SharedProcessInfo=None,                 # 共享内存信息。内部变量，不对外书写
             profile=None                            # 程序初始化执行脚本
     ):
         self.db_saved_conn = {}                         # 数据库Session备份
@@ -117,6 +114,7 @@ class SQLCli(object):
         self.JobHandler = JOBManager()                  # 并发任务管理器
         self.TransactionHandler = TransactionManager()  # 事务管理器
         self.DataHandler = DataWrapper()                # 随机临时数处理
+        self.MetaHandler = SQLCliMeta()                 # SQLCli元数据
         self.SpoolFileHandler = []                      # Spool文件句柄, 是一个数组，可能发生嵌套
         self.EchoFileHandler = None                     # 当前回显文件句柄
         self.AppOptions = None                          # 应用程序的配置参数
@@ -159,19 +157,6 @@ class SQLCli(object):
             HeadLessConsole = open(os.devnull, "w")
             self.Console = HeadLessConsole
         self.logger = logger
-        if SharedProcessInfo is None:
-            # 启动共享内存管理，注册服务
-            # 注册后台共享进程管理
-            if EnableJobManager:
-                self.MultiProcessManager = BaseManager()
-                self.MultiProcessManager.register('SQLCliGlobalSharedMemory', callable=SQLCliGlobalSharedMemory)
-                self.MultiProcessManager.start()
-                obj = getattr(self.MultiProcessManager, 'SQLCliGlobalSharedMemory')
-                self.SharedProcessInfo = obj()
-            else:
-                self.SharedProcessInfo = None
-        else:
-            self.SharedProcessInfo = SharedProcessInfo
 
         # profile的顺序， <PYTHON_PACKAGE>/sqlcli/profile/default， SQLCLI_HOME/profile/default , user define
         if os.path.isfile(os.path.join(os.path.dirname(__file__), "profile", "default")):
@@ -203,8 +188,6 @@ class SQLCli(object):
         self.JobHandler.setProcessContextInfo("sqlperf", sqlperf)
         self.JobHandler.setProcessContextInfo("logfilename", self.logfilename)
         self.JobHandler.setProcessContextInfo("sqlscript", self.sqlscript)
-        self.JobHandler.setProcessContextInfo("sga", self.SharedProcessInfo)
-        self.TransactionHandler.setSharedProcessInfo(self.SharedProcessInfo)
         self.TransactionHandler.SQLExecuteHandler = self.SQLExecuteHandler
 
         # 设置其他的变量
@@ -228,6 +211,9 @@ class SQLCli(object):
             self.AppOptions.read(m_conf_filename)
         else:
             raise SQLCliException("Can not open inifile for read [" + m_conf_filename + "]")
+
+        # 连接到Meta服务上
+        self.MetaHandler.Connect()
 
         # 打开输出日志, 如果打开失败，就直接退出
         try:
@@ -800,6 +786,7 @@ class SQLCli(object):
                     jclassname=m_driverclass,
                     url=m_JDBCURL, driver_args=m_jdbcconn_prop,
                     jars=m_JarList, sqloptions=cls.SQLOptions)
+
                 cls.db_url = m_JDBCURL
                 cls.SQLExecuteHandler.conn = cls.db_conn
             if cls.db_conntype == 'ODBC':  # ODBC 连接数据库
@@ -1888,8 +1875,7 @@ class SQLCli(object):
         # 打印字段内容
         m_RowNo = 0
         for m_Row in cur:
-            m_output = []
-            m_output.append(m_Row)
+            m_output = [m_Row]
             for m_iter in m_output:
                 m_TableContentLine = '|'
                 for m_nPos in range(0, len(m_iter)):
