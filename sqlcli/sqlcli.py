@@ -214,6 +214,9 @@ class SQLCli(object):
 
         # 连接到Meta服务上
         self.MetaHandler.Connect()
+        print("Conncted...")
+        # 注册当前的应用信息
+        self.MetaHandler.RegisterServer(None)
 
         # 打开输出日志, 如果打开失败，就直接退出
         try:

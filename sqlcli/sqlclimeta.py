@@ -42,11 +42,20 @@ class SQLCliMeta(object):
                         return
 
                 # 初始化Meta数据库表
-                m_SQL = "Create Table SQLCLI_ServerInfo" \
+                m_SQL = "Create Table IF Not Exists SQLCLI_ServerInfo" \
                         "(" \
-                        "   ProcessID  Integer, " \
-                        "   ProcessPath  VARCHAR(500), )"
+                        "ProcessID       Integer," \
+                        "ParentProcessID Integer," \
+                        "ProcessPath     VARCHAR(500)," \
+                        "Parameter       VARCHAR(500)," \
+                        "StartTime       TimeStamp," \
+                        "EndTime         TimeStamp" \
+                        ")"
+                m_db_cursor = self.db_conn.cursor()
+                m_db_cursor.execute(m_SQL)
+                m_db_cursor.close()
 
+                # 任务调度管理只有在Meta能够成功连接的情况下才可以使用
                 self.JobManagerEnabled = False
             except Exception as ce:
                 if "SQLCLI_DEBUG" in os.environ:
@@ -56,6 +65,17 @@ class SQLCliMeta(object):
             if "SQLCLI_DEBUG" in os.environ:
                 print("DEBUG:: SQLCliMeta:: Env(SQLCLI_HOME) does not exist! JobManager Aborted!")
                 return
+
+    def RegisterServer(self, p_ServerParameter):
+        m_ProcessID = os.getpid()
+        m_ParentProcessID = os.getppid()
+        m_ProcessPath = os.path.dirname(__file__)
+        m_SQL = "Insert Into SQLCLI_ServerInfo(ProcessID, ParentProcessID, ProcessPath, Parameter, StartTime)" \
+                "Values(" + str(m_ProcessID) + "," + str(m_ParentProcessID) + \
+                ",'" + str(m_ProcessPath) + "','" + str(p_ServerParameter) + "', CURRENT_TIMESTAMP())"
+        m_db_cursor = self.db_conn.cursor()
+        m_db_cursor.execute(m_SQL)
+        m_db_cursor.close()
 
     def Update(self):
         pass

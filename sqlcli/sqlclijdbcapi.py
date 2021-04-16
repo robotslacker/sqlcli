@@ -727,6 +727,8 @@ def _java_to_py_timestampwithtimezone(conn, rs, col):
     elif m_TypeName in ('oracle.sql.TIMESTAMPTZ', 'oracle.sql.TIMESTAMPLTZ'):
         return java_val.offsetDateTimeValue(conn).format(
             jpype.java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS Z"))
+    elif m_TypeName in ('org.h2.api.TimestampWithTimeZone'):
+        return java_val.toString()
     else:
         raise SQLCliJDBCException(
             "SQLCLI-00000: Unknown java class type [" + m_TypeName +
