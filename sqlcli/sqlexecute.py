@@ -305,11 +305,6 @@ class SQLExecute(object):
                                         for m_CellPos in range(0, len(result[m_RowPos])):
                                             print("Cell[" + str(m_RowPos) + ":" +
                                                   str(m_CellPos) + "]=[" + str(result[m_RowPos][m_CellPos]) + "]")
-                            self.LastJsonSQLResult = {"desc": headers,
-                                                      "rows": rowcount,
-                                                      "elapsed": time.time() - start,
-                                                      "result": result,
-                                                      "status": 0}
 
                             # 如果Hints中有order字样，对结果进行排序后再输出
                             if "Order" in m_SQLHint.keys() and result is not None:
@@ -318,6 +313,13 @@ class SQLExecute(object):
                                         if str(result[j]) > str(result[j + 1]):
                                             result[j], result[j + 1] = result[j + 1], result[j]
 
+                            # 保存之前的运行结果
+                            self.LastJsonSQLResult = {"desc": headers,
+                                                      "rows": rowcount,
+                                                      "elapsed": time.time() - start,
+                                                      "result": result,
+                                                      "status": 0}
+                            
                             # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
                             if "LogFilter" in m_SQLHint.keys() and result is not None:
                                 for m_SQLFilter in m_SQLHint["LogFilter"]:
