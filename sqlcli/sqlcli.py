@@ -1490,21 +1490,22 @@ class SQLCli(object):
                             m_EchoFlag = m_EchoFlag & ~OFLAG_CONSOLE
                         self.echo(message, m_EchoFlag)
                     elif p_result["type"] == "parse":
-                        # 首先打印原始SQL
-                        m_EchoFlag = OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL
-                        if re.match(r'spool\s+.*', p_result["rawsql"], re.IGNORECASE):
-                            # Spool off这个语句，不打印到Spool中
-                            m_EchoFlag = m_EchoFlag & ~OFLAG_SPOOL
-                        if p_result["script"] is None:
-                            # 控制台应用，不再打印SQL语句到控制台（因为用户已经输入了)
-                            m_EchoFlag = m_EchoFlag & ~OFLAG_CONSOLE
-                        if p_result["formattedsql"] is not None:
-                            self.echo(p_result["formattedsql"], m_EchoFlag)
-                        # 打印改写后的SQL
-                        if len(p_result["rewrotedsql"]) != 0:
+                        if self.SQLOptions.get("ECHO").upper() == 'ON':
+                            # 首先打印原始SQL
                             m_EchoFlag = OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL
-                            message = "\n".join(p_result["rewrotedsql"])
-                            self.echo(message, m_EchoFlag)
+                            if re.match(r'spool\s+.*', p_result["rawsql"], re.IGNORECASE):
+                                # Spool off这个语句，不打印到Spool中
+                                m_EchoFlag = m_EchoFlag & ~OFLAG_SPOOL
+                            if p_result["script"] is None:
+                                # 控制台应用，不再打印SQL语句到控制台（因为用户已经输入了)
+                                m_EchoFlag = m_EchoFlag & ~OFLAG_CONSOLE
+                            if p_result["formattedsql"] is not None:
+                                self.echo(p_result["formattedsql"], m_EchoFlag)
+                            # 打印改写后的SQL
+                            if len(p_result["rewrotedsql"]) != 0:
+                                m_EchoFlag = OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL
+                                message = "\n".join(p_result["rewrotedsql"])
+                                self.echo(message, m_EchoFlag)
                     elif p_result["type"] == "result":
                         title = p_result["title"]
                         cur = p_result["rows"]

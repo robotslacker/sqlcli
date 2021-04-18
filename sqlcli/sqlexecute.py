@@ -351,6 +351,7 @@ class SQLExecute(object):
                                                                  re.IGNORECASE)
                                             if m_NewOutput != m_Output:
                                                 result[i] = tuple(m_NewOutput.split('|||'))
+                                                m_Output = m_NewOutput
                                         else:
                                             if "SQLCLI_DEBUG" in os.environ:
                                                 print("LogMask Hint Error: " + m_SQLHint["LogMask"])
