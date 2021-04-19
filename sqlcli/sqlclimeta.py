@@ -67,6 +67,8 @@ class SQLCliMeta(object):
                 return
 
     def RegisterServer(self, p_ServerParameter):
+        if self.db_conn is None:
+            return
         m_ProcessID = os.getpid()
         m_ParentProcessID = os.getppid()
         m_ProcessPath = os.path.dirname(__file__)

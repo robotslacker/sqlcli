@@ -213,7 +213,6 @@ class SQLCli(object):
 
         # 连接到Meta服务上
         self.MetaHandler.Connect()
-        print("Conncted...")
         # 注册当前的应用信息
         self.MetaHandler.RegisterServer(None)
 
