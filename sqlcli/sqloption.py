@@ -80,6 +80,10 @@ class SQLOptions(object):
                                       "Value": "1",
                                       "Comments": 'Connect retry times.',
                                       "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "OUTPUT_PREFIX",
+                                      "Value": "",
+                                      "Comments": 'Output Prefix',
+                                      "Hidden": False})
         self.m_SQL_OptionList.append({"Name": "DEBUG",
                                       "Value": "OFF",
                                       "Comments": 'ON|OFF',

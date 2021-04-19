@@ -129,7 +129,6 @@ class SQLCli(object):
         self.SQLPerfFile = None                         # SQLPerf文件名
         self.SQLPerfFileHandle = None                   # SQLPerf文件句柄
         self.PerfFileLocker = None                      # 进程锁, 用来在输出perf文件的时候控制并发写文件
-
         if clientcharset is None:                       # 客户端字符集
             self.Client_Charset = 'UTF-8'
         else:
@@ -313,18 +312,21 @@ class SQLCli(object):
             except Exception as e:
                 raise SQLCliException("Connect to RemoteServer failed. " + repr(e))
 
+        # 如果参数要求不显示版本，则不再显示版本
+        if not self.nologo:
+            self.echo("SQLCli Release " + __version__)
+
         # 处理初始化启动文件，如果需要的话，在处理的过程中不打印任何日志信息
         if len(self.profile) != 0:
-            if "SQLCLI_DEBUG" not in os.environ:
-                self.SQLOptions.set("SILENT", "ON")
+            self.SQLOptions.set('OUTPUT_PREFIX', 'PROFILE')
+            self.SQLPrefix = "PROFILE "
             for m_Profile in self.profile:
                 if "SQLCLI_DEBUG" in os.environ:
                     print("DEBUG:: Begin SQL profile [" + m_Profile + "] ...")
                 self.DoSQL('start ' + m_Profile)
                 if "SQLCLI_DEBUG" in os.environ:
                     print("DEBUG:: End SQL profile [" + m_Profile + "]")
-            if "SQLCLI_DEBUG" not in os.environ:
-                self.SQLOptions.set("SILENT", "OFF")
+            self.SQLOptions.set('OUTPUT_PREFIX', '')
 
     def __del__(self):
         # 如果已经连接到远程，则断开连接
@@ -1478,21 +1480,22 @@ class SQLCli(object):
                             m_EchoFlag = m_EchoFlag & ~OFLAG_CONSOLE
                         self.echo(message, m_EchoFlag)
                     elif p_result["type"] == "parse":
-                        # 首先打印原始SQL
-                        m_EchoFlag = OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL
-                        if re.match(r'spool\s+.*', p_result["rawsql"], re.IGNORECASE):
-                            # Spool off这个语句，不打印到Spool中
-                            m_EchoFlag = m_EchoFlag & ~OFLAG_SPOOL
-                        if p_result["script"] is None:
-                            # 控制台应用，不再打印SQL语句到控制台（因为用户已经输入了)
-                            m_EchoFlag = m_EchoFlag & ~OFLAG_CONSOLE
-                        if p_result["formattedsql"] is not None:
-                            self.echo(p_result["formattedsql"], m_EchoFlag)
-                        # 打印改写后的SQL
-                        if len(p_result["rewrotedsql"]) != 0:
+                        if self.SQLOptions.get("ECHO").upper() == 'ON':
+                            # 首先打印原始SQL
                             m_EchoFlag = OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL
-                            message = "\n".join(p_result["rewrotedsql"])
-                            self.echo(message, m_EchoFlag)
+                            if re.match(r'spool\s+.*', p_result["rawsql"], re.IGNORECASE):
+                                # Spool off这个语句，不打印到Spool中
+                                m_EchoFlag = m_EchoFlag & ~OFLAG_SPOOL
+                            if p_result["script"] is None:
+                                # 控制台应用，不再打印SQL语句到控制台（因为用户已经输入了)
+                                m_EchoFlag = m_EchoFlag & ~OFLAG_CONSOLE
+                            if p_result["formattedsql"] is not None:
+                                self.echo(p_result["formattedsql"], m_EchoFlag)
+                            # 打印改写后的SQL
+                            if len(p_result["rewrotedsql"]) != 0:
+                                m_EchoFlag = OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL
+                                message = "\n".join(p_result["rewrotedsql"])
+                                self.echo(message, m_EchoFlag)
                     elif p_result["type"] == "result":
                         title = p_result["title"]
                         cur = p_result["rows"]
@@ -1651,10 +1654,6 @@ class SQLCli(object):
 
     # 主程序
     def run_cli(self):
-        # 如果参数要求不显示版本，则不再显示版本
-        if not self.nologo:
-            self.echo("SQLCli Release " + __version__)
-
         # 如果运行在脚本方式下，不在调用PromptSession, 调用PromptSession会导致程序在IDE下无法运行
         # 运行在无终端的模式下，也不会调用PromptSession, 调用PromptSession会导致程序出现Console错误
         # 对于脚本程序，在执行脚本完成后就会自动退出
@@ -1718,25 +1717,32 @@ class SQLCli(object):
         # 4：  程序的Spool文件
         # 5:   程序的ECHO回显文件
         if self.SQLOptions.get("SILENT").upper() != 'ON':
+            if len(self.SQLOptions.get('OUTPUT_PREFIX')) != 0:
+                m_OutputPrefix = self.SQLOptions.get('OUTPUT_PREFIX') + " "
+            else:
+                m_OutputPrefix = ''
+            matchObj = re.match(r"SQL>(\s+)?set(\s+)?OUTPUT_PREFIX(\s+)?$", s, re.IGNORECASE|re.DOTALL)
+            if matchObj:
+                m_OutputPrefix = ''
             if Flags & OFLAG_LOGFILE:
                 if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
-                    print(s, file=self.logfile)
+                    print(m_OutputPrefix + s, file=self.logfile)
                     self.logfile.flush()
             if Flags & OFLAG_SPOOL:
-                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.SpoolFileHandler is not None:
+                if self.SpoolFileHandler is not None:
                     for m_SpoolFileHandler in self.SpoolFileHandler:
-                        print(s, file=m_SpoolFileHandler)
+                        print(m_OutputPrefix + s, file=m_SpoolFileHandler)
                         m_SpoolFileHandler.flush()
             if Flags & OFLAG_LOGGER:
                 if self.logger is not None:
-                    self.logger.info(s)
+                    self.logger.info(m_OutputPrefix + s)
             if Flags & OFLAG_ECHO:
                 if self.EchoFileHandler is not None:
-                    print(s, file=self.EchoFileHandler)
+                    print(m_OutputPrefix + s, file=self.EchoFileHandler)
                     self.EchoFileHandler.flush()
             if Flags & OFLAG_CONSOLE:
                 try:
-                    click.secho(s, **kwargs, file=self.Console)
+                    click.secho(m_OutputPrefix + s, **kwargs, file=self.Console)
                 except UnicodeEncodeError as ue:
                     # Unicode Error, This is console issue, Skip
                     if "SQLCLI_DEBUG" in os.environ:
