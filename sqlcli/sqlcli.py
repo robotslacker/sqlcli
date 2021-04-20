@@ -761,7 +761,8 @@ class SQLCli(object):
                 if "SQLCLI_DEBUG" in os.environ:
                     print("Driver Jar List: " + str(m_JarList))
                 if m_JDBCURL is None:
-                    raise SQLCliException("Unknown database [" + cls.db_type.upper() + "]. Connect Failed. \n" +
+                    raise SQLCliException("Unknown database [" + cls.db_type.upper() + "]." +
+                                          "Connect Failed. JDBCURL is None\n" +
                                           "Maybe you forgot download jlib files. ")
                 m_JDBCURL = m_JDBCURL.replace("${host}", cls.db_host)
                 m_JDBCURL = m_JDBCURL.replace("${driver_type}", cls.db_driver_type)
