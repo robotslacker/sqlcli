@@ -917,7 +917,7 @@ class SQLCli(object):
         #   1:   UserName
         #   2:   Password
         #   3:   URL
-        if len(m_Parameters) == 1 and m_Parameters[0] == 'show':
+        if len(m_Parameters) == 1 and m_Parameters[0].lower() == 'show':
             m_Result = []
             for m_Session_Name, m_Connection in cls.db_saved_conn.items():
                 if m_Connection[0] is None:
@@ -950,28 +950,28 @@ class SQLCli(object):
             raise SQLCliException(
                 "Wrong argument : " + "Session save/restore/release [session name]")
 
-        if m_Parameters[0] == 'release':
+        if m_Parameters[0].lower() == 'release':
             if cls.db_conn is None:
                 raise SQLCliException(
                     "You don't have a saved session.")
             m_Session_Name = m_Parameters[1]
             del cls.db_saved_conn[m_Session_Name]
             cls.SessionName = None
-        elif m_Parameters[0] == 'save':
+        elif m_Parameters[0].lower() == 'save':
             if cls.db_conn is None:
                 raise SQLCliException(
                     "Please connect session first before save.")
             m_Session_Name = m_Parameters[1]
             cls.db_saved_conn[m_Session_Name] = [cls.db_conn, cls.db_username, cls.db_password, cls.db_url]
             cls.SessionName = m_Session_Name
-        elif m_Parameters[0] == 'saveurl':
+        elif m_Parameters[0].lower() == 'saveurl':
             if cls.db_conn is None:
                 raise SQLCliException(
                     "Please connect session first before save.")
             m_Session_Name = m_Parameters[1]
             cls.db_saved_conn[m_Session_Name] = [None, cls.db_username, cls.db_password, cls.db_url]
             cls.SessionName = m_Session_Name
-        elif m_Parameters[0] == 'restore':
+        elif m_Parameters[0].lower() == 'restore':
             m_Session_Name = m_Parameters[1]
             if m_Session_Name in cls.db_saved_conn:
                 cls.db_username = cls.db_saved_conn[m_Session_Name][1]
@@ -997,7 +997,7 @@ class SQLCli(object):
         else:
             raise SQLCliException(
                 "Wrong argument : " + "Session save/restore [session name]")
-        if m_Parameters[0] == 'save':
+        if m_Parameters[0].lower() == 'save':
             yield {
                 "title": None,
                 "rows": None,
@@ -1005,7 +1005,7 @@ class SQLCli(object):
                 "columntypes": None,
                 "status": "Session saved Successful."
             }
-        if m_Parameters[0] == 'release':
+        if m_Parameters[0].lower() == 'release':
             yield {
                 "title": None,
                 "rows": None,
@@ -1013,7 +1013,7 @@ class SQLCli(object):
                 "columntypes": None,
                 "status": "Session release Successful."
             }
-        if m_Parameters[0] == 'restore':
+        if m_Parameters[0].lower() == 'restore':
             cls.SQLOptions.set("CONNURL", cls.db_url)
             yield {
                 "title": None,
