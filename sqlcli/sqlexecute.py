@@ -296,7 +296,8 @@ class SQLExecute(object):
                         rowcount = 0
                         m_SQL_Status = 0
                         while True:
-                            (title, result, headers, columntypes, status, m_FetchStatus, m_FetchedRows) = \
+                            (title, result, headers, columntypes, status,
+                             m_FetchStatus, m_FetchedRows, m_SQLWarnings) = \
                                 self.get_result(self.cur, rowcount)
                             rowcount = m_FetchedRows
                             if "SQLCLI_DEBUG" in os.environ:
@@ -318,7 +319,8 @@ class SQLExecute(object):
                                                       "rows": rowcount,
                                                       "elapsed": time.time() - start,
                                                       "result": result,
-                                                      "status": 0}
+                                                      "status": 0,
+                                                      "warnings": m_SQLWarnings}
                             
                             # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
                             if "LogFilter" in m_SQLHint.keys() and result is not None:
@@ -547,7 +549,17 @@ class SQLExecute(object):
                 }
 
     def get_result(self, cursor, rowcount):
-        """Get the current result's data from the cursor."""
+        """
+            返回的内容：
+                title           输出的前提示信息
+                result          结果数据集
+                headers         表头信息
+                columntypes     结果字段类型
+                status          输出的后提示信息
+                FetchStatus     是否输出完成
+                rowcount        共返回记录行数
+                Warning         警告信息
+        """
         title = headers = None
         m_FetchStatus = True
 
@@ -557,7 +569,10 @@ class SQLExecute(object):
         columntypes = []
         if cursor.description is not None:
             headers = [x[0] for x in cursor.description]
-            status = "{0} row{1} selected."
+            if cursor.warnings is not None:
+                status = "{0} row{1} selected with warnings."
+            else:
+                status = "{0} row{1} selected."
             m_arraysize = int(self.SQLOptions.get("ARRAYSIZE"))
             rowset = cursor.fetchmany(m_arraysize)
             for row in rowset:
@@ -622,7 +637,10 @@ class SQLExecute(object):
                 # 已经没有什么可以取的了, 游标结束
                 m_FetchStatus = False
         else:
-            status = "{0} row{1} affected"
+            if cursor.warnings is not None:
+                status = "{0} row{1} affected with warnings."
+            else:
+                status = "{0} row{1} affected."
             rowcount = 0 if cursor.rowcount == -1 else cursor.rowcount
             result = None
             m_FetchStatus = False
@@ -632,7 +650,7 @@ class SQLExecute(object):
             status = None
 
         if self.SQLOptions.get('FEEDBACK').upper() == 'ON' and status is not None:
-            status = status.format(rowcount, "" if rowcount == 1 else "s")
+            status = status.format(rowcount, "" if rowcount in (0, 1) else "s")
         else:
             status = None
-        return title, result, headers, columntypes, status, m_FetchStatus, rowcount
+        return title, result, headers, columntypes, status, m_FetchStatus, rowcount, cursor.warnings

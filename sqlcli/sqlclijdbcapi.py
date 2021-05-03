@@ -387,6 +387,7 @@ class Cursor(object):
     _prep = None
     _rs = None
     _description = None
+    warnings = None
 
     def __init__(self, connection, converters):
         self._connection = connection
@@ -450,6 +451,11 @@ class Cursor(object):
         m_stmt = self._connection.jconn.createStatement()
         try:
             is_rs = m_stmt.execute(operation)
+            m_SQLWarnings = m_stmt.getWarnings()
+            if m_SQLWarnings is not None:
+                self.warnings = m_SQLWarnings.getMessage()
+            else:
+                self.warnings = None
         except:
             _handle_sql_exception_jpype()
         self._rs = m_stmt.getResultSet()
@@ -475,6 +481,11 @@ class Cursor(object):
         is_rs = False
         try:
             is_rs = self._prep.execute()
+            m_SQLWarnings = self._prep.getWarnings()
+            if m_SQLWarnings is not None:
+                self.warnings = m_SQLWarnings.getMessage()
+            else:
+                self.warnings = None
         except:
             _handle_sql_exception_jpype()
         # 忽略对execute的返回判断，总是恒定的去调用getResultSet
@@ -487,7 +498,6 @@ class Cursor(object):
             self.rowcount = -1
         else:
             self.rowcount = self._prep.getUpdateCount()
-        # self._prep.getWarnings() ???
 
     def executemany(self, operation, seq_of_parameters):
         self._close_last()
