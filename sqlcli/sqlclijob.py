@@ -2,6 +2,7 @@
 import copy
 import time
 import datetime
+from .sqlcliexception import SQLCliException
 
 
 class TaskHistory:
@@ -227,6 +228,28 @@ class JOB:
     # 返回Blowout失败的数量阈值
     def getBlowoutThresHoldCount(self):
         return self.blowout_threshold_count
+
+    # 根据参数设置JOB的相关参数
+    def setjob(self, p_ParameterName: str, p_ParameterValue: str):
+        if p_ParameterName.strip().lower() == "parallel":
+            self.setParallel(int(p_ParameterValue))
+        elif p_ParameterName.strip().lower() == "starter_maxprocess":
+            self.setStarterMaxProcess(int(p_ParameterValue))
+        elif p_ParameterName.strip().lower() == "starter_interval":
+            self.setStarterInterval(int(p_ParameterValue))
+        elif p_ParameterName.strip().lower() == "loop":
+            self.setLoop(int(p_ParameterValue))
+        elif p_ParameterName.strip().lower() == "script":
+            self.setScript(p_ParameterValue)
+        elif p_ParameterName.strip().lower() == "think_time":
+            self.setThinkTime(int(p_ParameterValue))
+        elif p_ParameterName.strip().lower() == "timeout":
+            self.setTimeOut(int(p_ParameterValue))
+        elif p_ParameterName.strip().lower() == "blowout_threshold_count":
+            self.setBlowoutThresHoldCount(int(p_ParameterValue))
+        else:
+            raise SQLCliException("Invalid JOB Parameter name. [" + str(p_ParameterName) + "]")
+
 
     # 返回所有JOB的任务列表
     def getTasks(self):

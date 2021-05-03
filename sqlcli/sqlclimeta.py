@@ -2,6 +2,10 @@
 import os
 import configparser
 import traceback
+import jpype
+import socket
+import sys
+from multiprocessing import Lock
 from .sqlclijdbcapi import connect as jdbcconnect
 from .sqloption import SQLOptions
 
@@ -11,8 +15,27 @@ class SQLCliMeta(object):
     def __init__(self):
         self.JobManagerEnabled = False
         self.db_conn = None
+        self.MetaServer = None
+        self.MetaURL = None
+        self.MetaPort = 0
 
-    def Connect(self):
+    def __del__(self):
+        self.DisConnect()
+
+    def DisConnect(self):
+        if self.MetaServer is not None:
+            try:
+                self.MetaServer.stop()
+                self.MetaServer.shutdown()
+            except Exception:
+                if "SQLCLI_DEBUG" in os.environ:
+                    print('traceback.print_exc():\n%s' % traceback.print_exc())
+                    print('traceback.format_exc():\n%s' % traceback.format_exc())
+            self.MetaServer = None
+        if self.db_conn is not None:
+            self.db_conn.close()
+
+    def StartAsServer(self, p_ServerParameter):
         # 检查SQLCli_HOME是否存在
         if "SQLCLI_HOME" in os.environ:
             try:
@@ -34,14 +57,46 @@ class SQLCliMeta(object):
                         return
                 m_MetaDriverURL = m_AppOptions.get("meta_driver", "jdbcurl")
                 self.db_conn = jdbcconnect(jclassname=m_MetaClass, url=m_MetaDriverURL,
-                                           driver_args= {'user': 'sa', 'password': 'sa'},
+                                           driver_args={'user': 'sa', 'password': 'sa'},
                                            jars=[m_MetaDriverFile], sqloptions=SQLOptions())
                 if self.db_conn is None:
                     if "SQLCLI_DEBUG" in os.environ:
                         print("DEBUG:: SQLCliMeta:: Connect to meta failed! JobManager Aborted!")
                         return
 
+                # 获得一个可用的端口
+                if "SQLCLI_METAPORT" in os.environ:
+                    self.MetaPort = int(os.environ["SQLCLI_METAPORT"])
+                else:
+                    m_PortFileLocker = Lock()
+                    m_PortFileLocker.acquire()
+                    self.MetaPort = 0
+                    try:
+                        sock = socket.socket()
+                        sock.bind(('', 0))
+                        self.MetaPort = sock.getsockname()[1]
+                        sock.close()
+                    except Exception:
+                        if "SQLCLI_DEBUG" in os.environ:
+                            print('traceback.print_exc():\n%s' % traceback.print_exc())
+                            print('traceback.format_exc():\n%s' % traceback.format_exc())
+                        self.MetaPort = 0
+                    m_PortFileLocker.release()
+                    if self.MetaPort == 0:
+                        if "SQLCLI_DEBUG" in os.environ:
+                            print("DEBUG:: SQLCliMeta:: Can't get avalable port! JobManager Aborted!")
+                            return
+
+                # 启动一个TCP Server，用来给其他后续的H2连接（主要是子进程）
+                # 端口号为随机获得，或者利用固定的参数
+                self.MetaServer = jpype.JClass("org.h2.tools.Server").\
+                    createTcpServer("-tcp", "-tcpAllowOthers", "-tcpPort", str(self.MetaPort))
+                self.MetaServer.start()
+                self.MetaURL = self.MetaServer.getURL()
+
                 # 初始化Meta数据库表
+                m_db_cursor = self.db_conn.cursor()
+
                 m_SQL = "Create Table IF Not Exists SQLCLI_ServerInfo" \
                         "(" \
                         "ProcessID       Integer," \
@@ -51,6 +106,40 @@ class SQLCliMeta(object):
                         "StartTime       TimeStamp," \
                         "EndTime         TimeStamp" \
                         ")"
+                m_db_cursor.execute(m_SQL)
+                m_SQL = "CREATE TABLE IF Not Exists SQLCLI_JOBS" \
+                        "(" \
+                        "JOB_ID                     Integer," \
+                        "Starter_MaxProcess         Integer," \
+                        "Starter_Interval           Integer," \
+                        "Starter_Started_Process    Integer," \
+                        "Starter_Last_Active_Time   TimeStamp," \
+                        "Parallel                   Integer," \
+                        "Loop                       Integer," \
+                        "Failed_JOBS                Integer," \
+                        "Finished_JOBS              Integer," \
+                        "Active_JOBS                Integer," \
+                        "Error_Message              VARCHAR(500)," \
+                        "Script                     VARCHAR(500)," \
+                        "Script_FullName            VARCHAR(500)," \
+                        "Think_Time                 Integer," \
+                        "Timeout                    Integer," \
+                        "Submit_Time                TimeStamp," \
+                        "Start_Time                 TimeStamp," \
+                        "End_Time                   TimeStamp," \
+                        "Blowout_Threshold_Count    Integer," \
+                        "Status                     VARCHAR(500)" \
+                        ")"
+                m_db_cursor.execute(m_SQL)
+
+                m_db_cursor.close()
+
+                m_ProcessID = os.getpid()
+                m_ParentProcessID = os.getppid()
+                m_ProcessPath = os.path.dirname(__file__)
+                m_SQL = "Insert Into SQLCLI_ServerInfo(ProcessID, ParentProcessID, ProcessPath, Parameter, StartTime)" \
+                        "Values(" + str(m_ProcessID) + "," + str(m_ParentProcessID) + \
+                        ",'" + str(m_ProcessPath) + "','" + str(p_ServerParameter) + "', CURRENT_TIMESTAMP())"
                 m_db_cursor = self.db_conn.cursor()
                 m_db_cursor.execute(m_SQL)
                 m_db_cursor.close()
@@ -66,18 +155,44 @@ class SQLCliMeta(object):
                 print("DEBUG:: SQLCliMeta:: Env(SQLCLI_HOME) does not exist! JobManager Aborted!")
                 return
 
-    def RegisterServer(self, p_ServerParameter):
-        if self.db_conn is None:
+    def ConnectServer(self, p_MetaServerURL, p_ServerParameter=None):
+        if p_MetaServerURL is None:
+            # 如果没有Meta的连接信息，直接退出
             return
-        m_ProcessID = os.getpid()
-        m_ParentProcessID = os.getppid()
-        m_ProcessPath = os.path.dirname(__file__)
-        m_SQL = "Insert Into SQLCLI_ServerInfo(ProcessID, ParentProcessID, ProcessPath, Parameter, StartTime)" \
-                "Values(" + str(m_ProcessID) + "," + str(m_ParentProcessID) + \
-                ",'" + str(m_ProcessPath) + "','" + str(p_ServerParameter) + "', CURRENT_TIMESTAMP())"
-        m_db_cursor = self.db_conn.cursor()
-        m_db_cursor.execute(m_SQL)
-        m_db_cursor.close()
 
-    def Update(self):
-        pass
+        # 检查SQLCli_HOME是否存在
+        if "SQLCLI_HOME" in os.environ:
+            try:
+                # 读取配置文件，并连接数据库
+                m_AppOptions = configparser.ConfigParser()
+                m_conf_filename = os.path.join(os.path.dirname(__file__), "conf", "sqlcli.ini")
+                if os.path.exists(m_conf_filename):
+                    m_AppOptions.read(m_conf_filename)
+                else:
+                    if "SQLCLI_DEBUG" in os.environ:
+                        print("DEBUG:: SQLCliMeta:: sqlcli.ini does not exist! JobManager Connect Failed!")
+                        return
+                m_MetaClass = m_AppOptions.get("meta_driver", "driver")
+                m_MetaDriverFile = os.path.join(os.path.dirname(__file__), "jlib",
+                                                 m_AppOptions.get("meta_driver", "filename"))
+                if not os.path.exists(m_MetaDriverFile):
+                    if "SQLCLI_DEBUG" in os.environ:
+                        print("DEBUG:: SQLCliMeta:: Driver file does not exist! JobManager Connect Failed!")
+                        return
+                m_MetaDriverURL = m_AppOptions.get("meta_driver", "jdbcurl")
+                m_MetaDriverURL = m_MetaDriverURL.replace("mem", p_MetaServerURL + "/mem")
+                self.db_conn = jdbcconnect(jclassname=m_MetaClass, url=m_MetaDriverURL,
+                                           driver_args={'user': 'sa', 'password': 'sa'},
+                                           jars=[m_MetaDriverFile], sqloptions=SQLOptions())
+                if self.db_conn is None:
+                    if "SQLCLI_DEBUG" in os.environ:
+                        print("DEBUG:: SQLCliMeta:: Connect to meta failed! JobManager Connect Failed!")
+                        return
+            except Exception as ce:
+                if "SQLCLI_DEBUG" in os.environ:
+                    print('traceback.print_exc():\n%s' % traceback.print_exc())
+                    print('traceback.format_exc():\n%s' % traceback.format_exc())
+        else:
+            if "SQLCLI_DEBUG" in os.environ:
+                print("DEBUG:: SQLCliMeta:: Env(SQLCLI_HOME) does not exist! JobManager Connect Failed!")
+                return

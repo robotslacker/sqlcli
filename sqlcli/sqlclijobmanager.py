@@ -36,6 +36,13 @@ class JOBManager(object):
         # 线程锁, 用来控制在更新JOB的时候的锁
         self.JobManagerLocker = threading.Lock()
 
+        # 记录Meta的数据库连接信息
+        self.MetaConn = None
+
+    # 设置Meta的连接信息
+    def setMetaConn(self, p_conn):
+        self.MetaConn = p_conn
+
     # 返回是否已经注册到共享服务器
     def isRegistered(self):
         return self._isRegistered
@@ -67,6 +74,7 @@ class JOBManager(object):
     def runSQLCli(p_args):
         from .main import SQLCli
 
+        # 运行子进程的时候，不需要启动JOBManager
         m_SQLCli = SQLCli(
             sqlscript=p_args["sqlscript"],
             logon=p_args["logon"],
@@ -76,7 +84,7 @@ class JOBManager(object):
             HeadlessMode=True,
             WorkerName=p_args["workername"],
             sqlperf=p_args["sqlperf"],
-            SharedProcessInfo=p_args["sga"]
+            EnableJobManager=False
         )
         m_SQLCli.run_cli()
 
@@ -257,6 +265,90 @@ class JOBManager(object):
         if self._isRegistered:
             self._isRegistered = False
 
+    def SaveJob(self, p_objJOB:JOB):
+        m_SQL = "SELECT COUNT(1) FROM SQLCLI_JOBS WHERE JOB_ID = " + str(p_objJOB.id)
+        m_db_cursor = self.MetaConn.cursor()
+        m_db_cursor.execute(m_SQL)
+        m_rs = m_db_cursor.fetchone()
+        if m_rs[0] == 0:
+            m_SQL = "Insert Into SQLCLI_JOBS(JOB_ID,Starter_MaxProcess,Starter_Interval,Starter_Started_Process, " \
+                    "Starter_Last_Active_Time, Parallel, Loop, Failed_JOBS,Finished_JOBS,Active_JOBS,Error_Message, " \
+                    "Script, Script_FullName, Think_Time,  Timeout, Submit_Time, Start_Time, End_Time, " \
+                    "Blowout_Threshold_Count, Status) VALUES (" \
+                    "?,?,?,?, " \
+                    "?,?,?,?,?,?,?," \
+                    "?,?,?,?,?,?,?," \
+                    "?,?" \
+                    ")"
+            m_Data = [
+                p_objJOB.id,
+                p_objJOB.starter_maxprocess,
+                p_objJOB.starter_interval,
+                p_objJOB.starter_started_process,
+                p_objJOB.starter_last_active_time,
+                p_objJOB.parallel,
+                p_objJOB.loop,
+                p_objJOB.failed_jobs,
+                p_objJOB.finished_jobs,
+                p_objJOB.active_jobs,
+                p_objJOB.error_message,
+                p_objJOB.script,
+                p_objJOB.script_fullname,
+                p_objJOB.think_time,
+                p_objJOB.timeout,
+                p_objJOB.submit_time,
+                p_objJOB.start_time,
+                p_objJOB.end_time,
+                p_objJOB.blowout_threshold_count,
+                p_objJOB.status
+            ]
+            m_db_cursor.execute(m_SQL, parameters=m_Data)
+        else:
+            m_SQL = "Update SQLCLI_JOBS " \
+                    "SET    Starter_MaxProcess = ?," \
+                    "       Starter_Interval = ?," \
+                    "       Starter_Started_Process = ?," \
+                    "       Starter_Last_Active_Time = ?," \
+                    "       Parallel = ?," \
+                    "       Loop = ?," \
+                    "       Failed_JOBS = ?," \
+                    "       Finished_JOBS = ?," \
+                    "       Active_JOBS = ?," \
+                    "       Error_Message = ?," \
+                    "       Script = ?," \
+                    "       Script_FullName = ?," \
+                    "       Think_Time = ?," \
+                    "       Timeout = ?," \
+                    "       Submit_Time = ?," \
+                    "       Start_Time = ?," \
+                    "       End_Time = ?," \
+                    "       Blowout_Threshold_Count = ?," \
+                    "       Status = ? " \
+                    "WHERE  JOB_ID = " + str(p_objJOB.id)
+            m_Data = [
+                p_objJOB.starter_maxprocess,
+                p_objJOB.starter_interval,
+                p_objJOB.starter_started_process,
+                p_objJOB.starter_last_active_time,
+                p_objJOB.parallel,
+                p_objJOB.loop,
+                p_objJOB.failed_jobs,
+                p_objJOB.finished_jobs,
+                p_objJOB.active_jobs,
+                p_objJOB.error_message,
+                p_objJOB.script,
+                p_objJOB.script_fullname,
+                p_objJOB.think_time,
+                p_objJOB.timeout,
+                p_objJOB.submit_time,
+                p_objJOB.start_time,
+                p_objJOB.end_time,
+                p_objJOB.blowout_threshold_count,
+                p_objJOB.status
+            ]
+            m_db_cursor.execute(m_SQL, parameters=m_Data)
+        m_db_cursor.close()
+
     # 提交一个任务
     def createjob(self, p_szname: str):
         # 初始化一个任务
@@ -271,8 +363,8 @@ class JOBManager(object):
         m_Job.setJobID(self.JobID + 1)
         self.JobID = self.JobID + 1
 
-        # 将任务添加到后台进程信息中
-        self.Update_Job(p_szname, m_Job)
+        # 返回一个空的JOB信息
+        return m_Job
 
     # 显示当前所有已经提交的任务信息
     def showjob(self, p_szjobName: str):
@@ -343,32 +435,6 @@ class JOBManager(object):
                 strMessages = strMessages + '+{0:10s}+{1:10s}+{2:20s}+{3:20s}+\n'.\
                     format('-' * 10, '-' * 10, '-' * 20, '-' * 20)
             return None, None, None, None, strMessages
-
-    # 设置JOB的各种参数
-    def setjob(self, p_jobName: str, p_ParameterName: str, p_ParameterValue: str):
-        m_Job = self.Get_Job(p_jobName)
-        if m_Job is None:
-            raise SQLCliException("Invalid JOB name. [" + str(p_jobName) + "]")
-        if p_ParameterName.strip().lower() == "parallel":
-            m_Job.setParallel(int(p_ParameterValue))
-        elif p_ParameterName.strip().lower() == "starter_maxprocess":
-            m_Job.setStarterMaxProcess(int(p_ParameterValue))
-        elif p_ParameterName.strip().lower() == "starter_interval":
-            m_Job.setStarterInterval(int(p_ParameterValue))
-        elif p_ParameterName.strip().lower() == "loop":
-            m_Job.setLoop(int(p_ParameterValue))
-        elif p_ParameterName.strip().lower() == "script":
-            m_Job.setScript(p_ParameterValue)
-        elif p_ParameterName.strip().lower() == "think_time":
-            m_Job.setThinkTime(int(p_ParameterValue))
-        elif p_ParameterName.strip().lower() == "timeout":
-            m_Job.setTimeOut(int(p_ParameterValue))
-        elif p_ParameterName.strip().lower() == "blowout_threshold_count":
-            m_Job.setBlowoutThresHoldCount(int(p_ParameterValue))
-        else:
-            raise SQLCliException("Invalid JOB Parameter name. [" + str(p_ParameterName) + "]")
-        # 回写到保存的结构中
-        self.Update_Job(p_jobName, m_Job)
 
     # 启动JOB
     def startjob(self, p_jobName: str):
@@ -475,6 +541,10 @@ class JOBManager(object):
 
     # 处理JOB的相关命令
     def Process_Command(self, p_szCommand: str):
+        if self.MetaConn is None:
+            # 如果没有Meta连接，直接退出
+            return None, None, None, None, "SQLCLI-00000: JOB Manager is not started. command abort!"
+
         m_szSQL = p_szCommand.strip()
 
         # 创建新的JOB
@@ -484,12 +554,13 @@ class JOBManager(object):
             m_ParameterList = str(matchObj.group(1)).strip().split()
             # 第一个参数是JOBNAME
             m_JobName = m_ParameterList[0].strip()
-            self.createjob(m_JobName)
+            m_JOB = self.createjob(m_JobName)
             m_ParameterList = m_ParameterList[1:]
             for m_nPos in range(0, len(m_ParameterList) // 2):
                 m_ParameterName = m_ParameterList[2*m_nPos]
                 m_ParameterValue = m_ParameterList[2 * m_nPos + 1]
-                self.setjob(m_JobName, m_ParameterName, m_ParameterValue)
+                m_JOB.setjob(m_ParameterName, m_ParameterValue)
+            self.SaveJob(m_JOB)
             return None, None, None, None, "JOB [" + m_JobName + "] create successful."
 
         # 显示当前的JOB

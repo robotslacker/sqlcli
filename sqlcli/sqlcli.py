@@ -98,10 +98,12 @@ class SQLCli(object):
             sqlperf=None,                           # SQL审计文件输出名，None表示不需要
             Console=sys.stdout,                     # 控制台输出，默认为sys.stdout,即标准输出
             HeadlessMode=False,                     # 是否为无终端模式，无终端模式下，任何屏幕信息都不会被输出
-            WorkerName='MAIN',                      # 程序别名，可用来区分不同的应用程序
+            WorkerName='MAIN',                      # 程序别名，可用来区分不同的应用程序,
             logger=None,                            # 程序输出日志句柄
             clientcharset='UTF-8',                  # 客户端字符集，在读取SQL文件时，采纳这个字符集，默认为UTF-8
             resultcharset='UTF-8',                  # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
+            EnableJobManager=True,                  # 是否开启后台调度程序管理模块，否则无法使用JOB类相关命令
+            JOBManagerURL=None,                     # 后台调度程序的连接端口
             profile=None                            # 程序初始化执行脚本
     ):
         self.db_saved_conn = {}                         # 数据库Session备份
@@ -138,7 +140,6 @@ class SQLCli(object):
         else:
             self.Result_Charset = resultcharset
         self.WorkerName = WorkerName                    # 当前进程名称. 如果有参数传递，以参数为准
-        self.MultiProcessManager = None                 # 进程间共享消息管理器， 如果为子进程，该参数为空
         self.profile = []                               # 程序的初始化脚本文件
 
         self.m_LastComment = None                       # 如果当前SQL之前的内容完全是注释，则注释带到这里
@@ -211,10 +212,15 @@ class SQLCli(object):
         else:
             raise SQLCliException("Can not open inifile for read [" + m_conf_filename + "]")
 
-        # 连接到Meta服务上
-        self.MetaHandler.Connect()
-        # 注册当前的应用信息
-        self.MetaHandler.RegisterServer(None)
+        # 对于主进程，启动JOB管理服务
+        if EnableJobManager:
+            # 连接到Meta服务上
+            self.MetaHandler.StartAsServer(p_ServerParameter=None)
+            # 标记JOB队列管理使用的数据库连接
+            self.JobHandler.setMetaConn(self.MetaHandler.db_conn)
+        else:
+            # 对于被主进程调用的进程，则不需要考虑, 连接到主进程的Meta服务商
+            self.MetaHandler.ConnectServer(JOBManagerURL)
 
         # 打开输出日志, 如果打开失败，就直接退出
         try:
@@ -350,15 +356,16 @@ class SQLCli(object):
                     print("e:" + str(type(e)))
                     raise SQLCliException("Logout from RemoteServer failed. " + repr(e))
 
-        # 如果打开了多进程管理，则关闭多进程管理
-        if self.MultiProcessManager is not None:
-            self.MultiProcessManager.shutdown()
-
         # 关闭LogFile
         if self.logfile is not None:
             self.logfile.flush()
             self.logfile.close()
             self.logfile = None
+
+        # 关闭Meta服务
+        if self.MetaHandler is not None:
+            self.MetaHandler.DisConnect()
+            self.MetaHandler = None
 
     # 加载CLI的各种特殊命令集
     def register_special_commands(self):
@@ -1706,6 +1713,11 @@ class SQLCli(object):
 
         # 还原进程标题
         setproctitle.setproctitle(m_Cli_ProcessTitleBak)
+
+        # 关闭Meta服务
+        if self.MetaHandler is not None:
+            self.MetaHandler.DisConnect()
+            self.MetaHandler = None
 
     def echo(self, s,
              Flags=OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL | OFLAG_ECHO,
