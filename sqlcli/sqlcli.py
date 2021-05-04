@@ -131,6 +131,7 @@ class SQLCli(object):
         self.SQLPerfFile = None                         # SQLPerf文件名
         self.SQLPerfFileHandle = None                   # SQLPerf文件句柄
         self.PerfFileLocker = None                      # 进程锁, 用来在输出perf文件的时候控制并发写文件
+        self.JobManagerEnabled = False                  # 是否开启了多任务控制
         if clientcharset is None:                       # 客户端字符集
             self.Client_Charset = 'UTF-8'
         else:
@@ -157,6 +158,7 @@ class SQLCli(object):
             HeadLessConsole = open(os.devnull, "w")
             self.Console = HeadLessConsole
         self.logger = logger
+        self.JobManagerEnabled = EnableJobManager
 
         # profile的顺序， <PYTHON_PACKAGE>/sqlcli/profile/default， SQLCLI_HOME/profile/default , user define
         if os.path.isfile(os.path.join(os.path.dirname(__file__), "profile", "default")):
@@ -217,17 +219,21 @@ class SQLCli(object):
             # 连接到Meta服务上
             self.MetaHandler.StartAsServer(p_ServerParameter=None)
             # 标记JOB队列管理使用的数据库连接
+            self.JobHandler.setProcessContextInfo("JOBManagerURL", self.MetaHandler.MetaURL)
             self.JobHandler.setMetaConn(self.MetaHandler.db_conn)
+            self.TransactionHandler.setMetaConn(self.MetaHandler.db_conn)
         else:
             # 对于被主进程调用的进程，则不需要考虑, 连接到主进程的Meta服务商
             self.MetaHandler.ConnectServer(JOBManagerURL)
+            self.JobHandler.setMetaConn(self.MetaHandler.db_conn)
+            self.TransactionHandler.setMetaConn(self.MetaHandler.db_conn)
 
         # 打开输出日志, 如果打开失败，就直接退出
         try:
             if self.logfilename is not None:
                 self.logfile = open(self.logfilename, mode="w", encoding=self.Result_Charset)
                 self.SQLExecuteHandler.logfile = self.logfile
-        except IOError as e:
+        except IOError:
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
@@ -344,10 +350,8 @@ class SQLCli(object):
                         })
                     headers = {'Content-Type': 'application/json', 'accept': 'application/json'}
                     try:
-                        ret = requests.post("http://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoLogout",
-                                            data=request_data,
-                                            headers=headers,
-                                            timeout=3)
+                        requests.post("http://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoLogout", data=request_data,
+                                      headers=headers, timeout=3)
                     except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
                         # 已经无法联系，直接退出，不再报告错误
                         pass
@@ -495,33 +499,41 @@ class SQLCli(object):
                     time.sleep(3)
                 else:
                     break
+
             # 等待那些已经Running的进程完成， 但是只有Submitted的不考虑在内
-            cls.JobHandler.waitjob("all")
+            if cls.JobManagerEnabled:
+                cls.JobHandler.waitjob("all")
+
             # 断开数据库连接
             if cls.db_conn:
                 cls.db_conn.close()
             cls.db_conn = None
             cls.SQLExecuteHandler.conn = None
+
             # 断开之前保存的其他数据库连接
             for m_conn in cls.db_saved_conn.values():
                 m_conn[0].close()
-            # 取消进程共享服务的注册信息
-            cls.JobHandler.unregister()
+
             # 退出应用程序
             raise EOFError
         else:
-            # 运行在控制台模式下
-            if not cls.JobHandler.isAllJobClosed():
-                yield {
-                    "title": None,
-                    "rows": None,
-                    "headers": None,
-                    "columntypes": None,
-                    "status": "Please wait all background process complete."
-                }
+            if cls.JobManagerEnabled:
+                # 运行在控制台模式下
+                if not cls.JobHandler.isAllJobClosed():
+                    yield {
+                        "title": None,
+                        "rows": None,
+                        "headers": None,
+                        "columntypes": None,
+                        "status": "Please wait all background process complete."
+                    }
+                else:
+                    # 退出应用程序
+                    raise EOFError
             else:
                 # 退出应用程序
                 raise EOFError
+
 
     # 加载数据库驱动
     # 标准的默认驱动程序并不需要使用这个函数，这个函数是用来覆盖标准默认驱动程序的加载信息
@@ -1033,6 +1045,8 @@ class SQLCli(object):
     # 休息一段时间, 如果收到SHUTDOWN信号的时候，立刻终止SLEEP
     @staticmethod
     def sleep(cls, arg, **_):
+        if cls:
+            pass
         if not arg:
             message = "Missing required argument, sleep [seconds]."
             return [{
@@ -1081,7 +1095,7 @@ class SQLCli(object):
                 "rows": None,
                 "headers": None,
                 "columntypes": None,
-                "status": "Session restored Successful."
+                "status": message
             }
             return
 
@@ -1540,7 +1554,6 @@ class SQLCli(object):
                         raise SQLCliException("internal error. unknown sql type error. " + str(p_result["type"]))
                 else:
                     raise SQLCliException("internal error. incomplete return. missed type" + str(p_result))
-
             # End Of show_result
 
             if "SQLCLI_REMOTESERVER" in os.environ and \
@@ -1561,13 +1574,15 @@ class SQLCli(object):
                                     ret = await websocket.recv()
                                     json_ret = json.loads(ret)
                                     show_result(json_ret)
-                                except websockets.ConnectionClosedOK as wc:
+                                except websockets.ConnectionClosedOK:
                                     return True
 
                     asyncio.get_event_loop().run_until_complete(test_ws_quote())
                     return True
+                # End of run_remote
 
-                result = run_remote()
+                # 命令在远程执行，而不是本地
+                run_remote()
             else:   # 本地执行脚本
                 # 执行指定的SQL
                 for result in self.SQLExecuteHandler.run(text):
@@ -1590,6 +1605,7 @@ class SQLCli(object):
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
             # 用户执行的SQL出了错误, 由于SQLExecute已经打印了错误消息，这里直接退出
             self.output(None, e.message)
+            print("DoSQL With SQLCliException ....")
             if self.SQLOptions.get("WHENEVER_SQLERROR").upper() == "EXIT":
                 raise e
         except Exception as e:
@@ -1676,7 +1692,6 @@ class SQLCli(object):
             # 如果用户指定了用户名，口令，尝试直接进行数据库连接
             if self.logon:
                 if not self.DoSQL("connect " + str(self.logon)):
-                    m_runCli_Result = False
                     raise EOFError
 
             # 如果传递的参数中有SQL文件，先执行SQL文件, 执行完成后自动退出
@@ -1684,22 +1699,17 @@ class SQLCli(object):
                 try:
                     self.DoSQL('start ' + self.sqlscript)
                 except SQLCliException:
-                    m_runCli_Result = False
                     raise EOFError
                 self.DoSQL('exit')
             else:
                 # 循环从控制台读取命令
                 while True:
                     if not self.DoSQL():
-                        m_runCli_Result = False
                         raise EOFError
         except (SQLCliException, EOFError):
             # 如果还有活动的事务，标记事务为失败信息
-            m_TransactionNames = []
-            for transaction_name in self.TransactionHandler.transactions.keys():
-                m_TransactionNames.append(transaction_name)
-            for transaction_name in m_TransactionNames:
-                self.TransactionHandler.TransactionFail(transaction_name)
+            for m_Transaction in self.TransactionHandler.getAllTransactions():
+                self.TransactionHandler.TransactionFail(m_Transaction)
             # SQLCliException只有在被设置了WHENEVER_SQLERROR为EXIT的时候，才会被捕获到
 
         # 退出进程
@@ -1713,6 +1723,9 @@ class SQLCli(object):
 
         # 还原进程标题
         setproctitle.setproctitle(m_Cli_ProcessTitleBak)
+
+        # 取消进程共享服务的注册信息
+        self.JobHandler.unregister()
 
         # 关闭Meta服务
         if self.MetaHandler is not None:
@@ -1733,7 +1746,7 @@ class SQLCli(object):
                 m_OutputPrefix = self.SQLOptions.get('OUTPUT_PREFIX') + " "
             else:
                 m_OutputPrefix = ''
-            matchObj = re.match(r"SQL>(\s+)?set(\s+)?OUTPUT_PREFIX(\s+)?$", s, re.IGNORECASE|re.DOTALL)
+            matchObj = re.match(r"SQL>(\s+)?set(\s+)?OUTPUT_PREFIX(\s+)?$", s, re.IGNORECASE | re.DOTALL)
             if matchObj:
                 m_OutputPrefix = ''
             if Flags & OFLAG_LOGFILE:
@@ -1835,7 +1848,7 @@ class SQLCli(object):
                     m_row = m_row + m_csv_delimiter
             yield str(m_row)
 
-    def format_output_leagcy(self, headers, columntypes, cur):
+    def format_output_leagcy(self, headers, cur):
         # 这个函数完全是为了兼容旧的tab格式
         def wide_chars(s):
             # 判断字符串中包含的中文字符数量
@@ -1868,11 +1881,6 @@ class SQLCli(object):
                 elif isinstance(m_Row[m_nPos], str):
                     m_PrintValue = m_Row[m_nPos]
                     m_PrintValue = m_PrintValue.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
-                    # m_PrintValue = repr(m_Row[m_nPos]
-                    # if m_PrintValue.startswith("'") and m_PrintValue.endswith("'"):
-                    #     m_PrintValue = m_PrintValue[1:-1]
-                    # elif m_PrintValue.startswith('"') and m_PrintValue.endswith('"'):
-                    #     m_PrintValue = m_PrintValue[1:-1]
                     if len(m_PrintValue) + wide_chars(m_PrintValue) > m_ColumnLength[m_nPos]:
                         # 为了保持长度一致，长度计算的时候扣掉中文的显示长度
                         m_ColumnLength[m_nPos] = len(m_PrintValue) + wide_chars(m_PrintValue)
@@ -1894,7 +1902,6 @@ class SQLCli(object):
         yield m_TableContentLine
         yield m_TableBoxLine
         # 打印字段内容
-        m_RowNo = 0
         for m_Row in cur:
             m_output = [m_Row]
             for m_iter in m_output:
@@ -1905,12 +1912,6 @@ class SQLCli(object):
                     elif isinstance(m_iter[m_nPos], str):
                         m_PrintValue = m_Row[m_nPos]
                         m_PrintValue = m_PrintValue.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
-                        #
-                        # m_PrintValue = repr(m_iter[m_nPos])
-                        # if m_PrintValue.startswith("'") and m_PrintValue.endswith("'"):
-                        #     m_PrintValue = m_PrintValue[1:-1]
-                        # elif m_PrintValue.startswith('"') and m_PrintValue.endswith('"'):
-                        #     m_PrintValue = m_PrintValue[1:-1]
                     else:
                         m_PrintValue = str(m_iter[m_nPos])
                     # 所有内容字符串左对齐
@@ -1992,7 +1993,6 @@ class SQLCli(object):
                     m_output.append(())
                 # 依次填入数据
                 for m_nPos in range(0, len(m_Row)):
-                    m_SplitRow = ()
                     if isinstance(m_Row[m_nPos], str):
                         m_SplitColumnValue = m_Row[m_nPos].split('\n')
                     else:
@@ -2054,7 +2054,7 @@ class SQLCli(object):
                 formatted = self.format_output_tab(headers, columntypes, cur)
             elif p_format_name.upper() == 'LEGACY':
                 # 按照TAB格式输出查询结果
-                formatted = self.format_output_leagcy(headers, columntypes, cur)
+                formatted = self.format_output_leagcy(headers, cur)
             else:
                 raise SQLCliException("SQLCLI-0000: Unknown output_format. CSV|TAB|LEGACY only")
             if isinstance(formatted, str):

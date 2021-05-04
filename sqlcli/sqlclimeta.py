@@ -4,7 +4,6 @@ import configparser
 import traceback
 import jpype
 import socket
-import sys
 from multiprocessing import Lock
 from .sqlclijdbcapi import connect as jdbcconnect
 from .sqloption import SQLOptions
@@ -49,8 +48,8 @@ class SQLCliMeta(object):
                         print("DEBUG:: SQLCliMeta:: sqlcli.ini does not exist! JobManager Aborted!")
                         return
                 m_MetaClass = m_AppOptions.get("meta_driver", "driver")
-                m_MetaDriverFile = os.path.join(os.path.dirname(__file__), "jlib",
-                                                 m_AppOptions.get("meta_driver", "filename"))
+                m_MetaDriverFile = os.path.join(os.path.dirname(__file__),
+                                                "jlib", m_AppOptions.get("meta_driver", "filename"))
                 if not os.path.exists(m_MetaDriverFile):
                     if "SQLCLI_DEBUG" in os.environ:
                         print("DEBUG:: SQLCliMeta:: Driver file does not exist! JobManager Aborted!")
@@ -110,12 +109,12 @@ class SQLCliMeta(object):
                 m_SQL = "CREATE TABLE IF Not Exists SQLCLI_JOBS" \
                         "(" \
                         "JOB_ID                     Integer," \
-                        "Starter_MaxProcess         Integer," \
+                        "JOB_Name                   VARCHAR(500)," \
                         "Starter_Interval           Integer," \
-                        "Starter_Started_Process    Integer," \
                         "Starter_Last_Active_Time   TimeStamp," \
                         "Parallel                   Integer," \
                         "Loop                       Integer," \
+                        "Started_JOBS               Integer," \
                         "Failed_JOBS                Integer," \
                         "Finished_JOBS              Integer," \
                         "Active_JOBS                Integer," \
@@ -131,7 +130,37 @@ class SQLCliMeta(object):
                         "Status                     VARCHAR(500)" \
                         ")"
                 m_db_cursor.execute(m_SQL)
-
+                m_SQL = "CREATE TABLE IF Not Exists SQLCLI_TASKS" \
+                        "(" \
+                        "JOB_ID                     Integer," \
+                        "TaskHandler_ID             Integer," \
+                        "ProcessInfo                Integer," \
+                        "start_time                 BIGINT," \
+                        "end_time                   BIGINT," \
+                        "exit_code                  Integer," \
+                        "Finished_Status            VARCHAR(500)," \
+                        "Synchronized_Point         VARCHAR(500)" \
+                        ")"
+                m_db_cursor.execute(m_SQL)
+                m_SQL = "CREATE TABLE IF Not Exists SQLCLI_TRANSACTIONS" \
+                        "(" \
+                        "Process_ID                 Integer," \
+                        "Transaction_Name           VARCHAR(500)," \
+                        "Transaction_StartTime      Integer," \
+                        "Transaction_EndTime        Integer,"\
+                        "Transaction_Status         Integer" \
+                        ")"
+                m_db_cursor.execute(m_SQL)
+                m_SQL = "CREATE TABLE IF Not Exists SQLCLI_TRANSACTIONS_STATISTICS" \
+                        "(" \
+                        "Transaction_Name           VARCHAR(500)," \
+                        "Max_Transaction_Time       Integer," \
+                        "Min_Transaction_Time       Integer," \
+                        "Sum_Transaction_Time       Integer," \
+                        "Transaction_Count          Integer," \
+                        "Transaction_Failed_Count   Integer" \
+                        ")"
+                m_db_cursor.execute(m_SQL)
                 m_db_cursor.close()
 
                 m_ProcessID = os.getpid()
@@ -143,10 +172,11 @@ class SQLCliMeta(object):
                 m_db_cursor = self.db_conn.cursor()
                 m_db_cursor.execute(m_SQL)
                 m_db_cursor.close()
+                self.db_conn.commit()
 
                 # 任务调度管理只有在Meta能够成功连接的情况下才可以使用
                 self.JobManagerEnabled = False
-            except Exception as ce:
+            except Exception:
                 if "SQLCLI_DEBUG" in os.environ:
                     print('traceback.print_exc():\n%s' % traceback.print_exc())
                     print('traceback.format_exc():\n%s' % traceback.format_exc())
@@ -155,7 +185,7 @@ class SQLCliMeta(object):
                 print("DEBUG:: SQLCliMeta:: Env(SQLCLI_HOME) does not exist! JobManager Aborted!")
                 return
 
-    def ConnectServer(self, p_MetaServerURL, p_ServerParameter=None):
+    def ConnectServer(self, p_MetaServerURL):
         if p_MetaServerURL is None:
             # 如果没有Meta的连接信息，直接退出
             return
@@ -173,8 +203,8 @@ class SQLCliMeta(object):
                         print("DEBUG:: SQLCliMeta:: sqlcli.ini does not exist! JobManager Connect Failed!")
                         return
                 m_MetaClass = m_AppOptions.get("meta_driver", "driver")
-                m_MetaDriverFile = os.path.join(os.path.dirname(__file__), "jlib",
-                                                 m_AppOptions.get("meta_driver", "filename"))
+                m_MetaDriverFile = os.path.join(os.path.dirname(__file__),
+                                                "jlib", m_AppOptions.get("meta_driver", "filename"))
                 if not os.path.exists(m_MetaDriverFile):
                     if "SQLCLI_DEBUG" in os.environ:
                         print("DEBUG:: SQLCliMeta:: Driver file does not exist! JobManager Connect Failed!")
@@ -188,7 +218,7 @@ class SQLCliMeta(object):
                     if "SQLCLI_DEBUG" in os.environ:
                         print("DEBUG:: SQLCliMeta:: Connect to meta failed! JobManager Connect Failed!")
                         return
-            except Exception as ce:
+            except Exception:
                 if "SQLCLI_DEBUG" in os.environ:
                     print('traceback.print_exc():\n%s' % traceback.print_exc())
                     print('traceback.format_exc():\n%s' % traceback.format_exc())

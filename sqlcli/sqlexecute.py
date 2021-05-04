@@ -13,8 +13,8 @@ from .sqlparse import SQLFormatWithPrefix
 from .commandanalyze import execute
 from .commandanalyze import CommandNotFound
 from .sqlcliexception import SQLCliException
-from SQLCliODBC import SQLCliODBCException
 from .sqlclijdbcapi import SQLCliJDBCException
+from SQLCliODBC import SQLCliODBCException
 
 
 class SQLExecute(object):
@@ -39,7 +39,7 @@ class SQLExecute(object):
         self.SQLScenario = ''
 
         # Transaction信息
-        self.SQLTransaction = ''
+        self.SQLTransactionName = ""
 
         # 当前SQL游标
         self.cur = None
@@ -160,7 +160,6 @@ class SQLExecute(object):
 
             sql = m_raw_sql                                          # 当前要被执行的SQL，这个SQL可能被随后的注释或者替换规则改写
             m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]   # 记录带有注释信息的SQL
-            m_FormattedSQL = None                                    # 已经被格式化了的SQL语句
             m_RewrotedSQL = []                                       # SQL可能会被多次改写
 
             # 分析SQLHint信息
@@ -383,10 +382,9 @@ class SQLExecute(object):
                                 self.SQLOptions.set("SILENT", "ON")
                                 self.SQLOptions.set("TIMING", "OFF")
                                 self.SQLOptions.set("TIME", "OFF")
-                                m_LoopFinished = False
                                 for m_nLoopPos in range(0, m_LoopTimes):
                                     # 检查Until条件，如果达到Until条件，退出
-                                    m_AssertSuccessful =False
+                                    m_AssertSuccessful = False
                                     for m_Result in \
                                             self.run("__internal__ test assert " + m_LoopUntil):
                                         if m_Result["type"] == "result":
@@ -526,6 +524,7 @@ class SQLExecute(object):
                     if "SQLCLI_DEBUG" in os.environ:
                         print('traceback.print_exc():\n%s' % traceback.print_exc())
                         print('traceback.format_exc():\n%s' % traceback.format_exc())
+                        print("traceback.pid():" + str(os.getpid()))
                     self.LastJsonSQLResult = None
                     yield {"type": "error", "message": m_SQL_ErrorMessage}
 
@@ -545,7 +544,7 @@ class SQLExecute(object):
                     "ErrorMessage": m_SQL_ErrorMessage,
                     "thread_name": self.WorkerName,
                     "Scenario": self.SQLScenario,
-                    "Transaction": self.SQLTransaction
+                    "Transaction": self.SQLTransactionName
                 }
 
     def get_result(self, cursor, rowcount):
@@ -582,7 +581,6 @@ class SQLExecute(object):
                     for column in row:
                         if "SQLCLI_DEBUG" in os.environ:
                             print("DEBUG: COLUMN TYPE TYPE: [" + str(type(column)) + "]")
-                        m_ColumnType = ""
                         if type(column) == int:
                             m_ColumnType = "int"
                         elif type(column) == str:
