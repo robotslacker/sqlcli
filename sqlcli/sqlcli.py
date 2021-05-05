@@ -102,6 +102,7 @@ class SQLCli(object):
             logger=None,                            # 程序输出日志句柄
             clientcharset='UTF-8',                  # 客户端字符集，在读取SQL文件时，采纳这个字符集，默认为UTF-8
             resultcharset='UTF-8',                  # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
+            EnableJobManager=False,                 # 没有用处，只是保留用作兼容，日后删除
             profile=None                            # 程序初始化执行脚本
     ):
         self.db_saved_conn = {}                         # 数据库Session备份
