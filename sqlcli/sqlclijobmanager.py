@@ -520,9 +520,7 @@ class JOBManager(object):
             nologo=p_args["nologo"],
             HeadlessMode=True,
             WorkerName=p_args["workername"],
-            sqlperf=p_args["sqlperf"],
-            EnableJobManager=False,
-            JOBManagerURL=p_args["JOBManagerURL"]
+            sqlperf=p_args["sqlperf"]
         )
         m_SQLCli.run_cli()
 
@@ -656,7 +654,6 @@ class JOBManager(object):
                                   "sqlperf": self.getProcessContextInfo("sqlperf"),
                                   "sqlmap": self.getProcessContextInfo("sqlmap"),
                                   "sqlscript": m_Job.getScriptFullName(),
-                                  "JOBManagerURL": self.getProcessContextInfo("JOBManagerURL"),
                                   "workername":
                                       m_Job.getJobName() + "#" + str(m_TaskStarter) + "-" +
                                       str(m_JOB_Sequence+1)

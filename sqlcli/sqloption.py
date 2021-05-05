@@ -104,6 +104,14 @@ class SQLOptions(object):
                                       "Value": "PREPARE",
                                       "Comments": 'DIRECT|PREPARE',
                                       "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "JOBMANAGER",
+                                      "Value": "OFF",
+                                      "Comments": 'ON|OFF',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "JOBMANAGER_METAURL",
+                                      "Value": "",
+                                      "Comments": '',
+                                      "Hidden": False})
 
     def get(self, p_ParameterName):
         """根据参数名称返回参数，若不存在该参数，返回None."""

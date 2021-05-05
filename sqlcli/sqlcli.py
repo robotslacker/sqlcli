@@ -102,8 +102,6 @@ class SQLCli(object):
             logger=None,                            # 程序输出日志句柄
             clientcharset='UTF-8',                  # 客户端字符集，在读取SQL文件时，采纳这个字符集，默认为UTF-8
             resultcharset='UTF-8',                  # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
-            EnableJobManager=True,                  # 是否开启后台调度程序管理模块，否则无法使用JOB类相关命令
-            JOBManagerURL=None,                     # 后台调度程序的连接端口
             profile=None                            # 程序初始化执行脚本
     ):
         self.db_saved_conn = {}                         # 数据库Session备份
@@ -131,7 +129,6 @@ class SQLCli(object):
         self.SQLPerfFile = None                         # SQLPerf文件名
         self.SQLPerfFileHandle = None                   # SQLPerf文件句柄
         self.PerfFileLocker = None                      # 进程锁, 用来在输出perf文件的时候控制并发写文件
-        self.JobManagerEnabled = False                  # 是否开启了多任务控制
         if clientcharset is None:                       # 客户端字符集
             self.Client_Charset = 'UTF-8'
         else:
@@ -158,7 +155,6 @@ class SQLCli(object):
             HeadLessConsole = open(os.devnull, "w")
             self.Console = HeadLessConsole
         self.logger = logger
-        self.JobManagerEnabled = EnableJobManager
 
         # profile的顺序， <PYTHON_PACKAGE>/sqlcli/profile/default， SQLCLI_HOME/profile/default , user define
         if os.path.isfile(os.path.join(os.path.dirname(__file__), "profile", "default")):
@@ -214,17 +210,11 @@ class SQLCli(object):
         else:
             raise SQLCliException("Can not open inifile for read [" + m_conf_filename + "]")
 
-        # 对于主进程，启动JOB管理服务
-        if EnableJobManager:
-            # 连接到Meta服务上
-            self.MetaHandler.StartAsServer(p_ServerParameter=None)
-            # 标记JOB队列管理使用的数据库连接
-            self.JobHandler.setProcessContextInfo("JOBManagerURL", self.MetaHandler.MetaURL)
-            self.JobHandler.setMetaConn(self.MetaHandler.db_conn)
-            self.TransactionHandler.setMetaConn(self.MetaHandler.db_conn)
-        else:
+        # 对于子进程，连接到JOB管理服务
+        if "SQLCLI_JOBMANAGERURL" in os.environ:
+            m_JobManagerURL = os.environ["SQLCLI_JOBMANAGERURL"]
             # 对于被主进程调用的进程，则不需要考虑, 连接到主进程的Meta服务商
-            self.MetaHandler.ConnectServer(JOBManagerURL)
+            self.MetaHandler.ConnectServer(m_JobManagerURL)
             self.JobHandler.setMetaConn(self.MetaHandler.db_conn)
             self.TransactionHandler.setMetaConn(self.MetaHandler.db_conn)
 
@@ -501,7 +491,7 @@ class SQLCli(object):
                     break
 
             # 等待那些已经Running的进程完成， 但是只有Submitted的不考虑在内
-            if cls.JobManagerEnabled:
+            if cls.SQLOptions.get("JOBMANAGER") == "TRUE":
                 cls.JobHandler.waitjob("all")
 
             # 断开数据库连接
@@ -517,7 +507,7 @@ class SQLCli(object):
             # 退出应用程序
             raise EOFError
         else:
-            if cls.JobManagerEnabled:
+            if cls.SQLOptions.get("JOBMANAGER") == "ON":
                 # 运行在控制台模式下
                 if not cls.JobHandler.isAllJobClosed():
                     yield {
@@ -533,7 +523,6 @@ class SQLCli(object):
             else:
                 # 退出应用程序
                 raise EOFError
-
 
     # 加载数据库驱动
     # 标准的默认驱动程序并不需要使用这个函数，这个函数是用来覆盖标准默认驱动程序的加载信息
@@ -1290,6 +1279,28 @@ class SQLCli(object):
                     raise SQLCliException("SQLCLI-00000: "
                                           "Unknown option [" + str(options_parameters[1]) + "] for debug. ON/OFF only.")
 
+            # 处理JOBMANAGER选项
+            if options_parameters[0].upper() == "JOBMANAGER":
+                if options_parameters[1].upper() == 'ON' and cls.SQLOptions.get("JOBMANAGER") == "OFF":
+                    # 本次打开，之前为OFF
+                    # 连接到Meta服务上
+                    cls.MetaHandler.StartAsServer(p_ServerParameter=None)
+                    # 标记JOB队列管理使用的数据库连接
+                    if cls.MetaHandler.db_conn is not None:
+                        os.environ["SQLCLI_JOBMANAGERURL"] = cls.MetaHandler.MetaURL
+                        cls.JobHandler.setMetaConn(cls.MetaHandler.db_conn)
+                        cls.TransactionHandler.setMetaConn(cls.MetaHandler.db_conn)
+                        cls.SQLOptions.set("JOBMANAGER", "ON")
+                        cls.SQLOptions.set("JOBMANAGER_METAURL", cls.MetaHandler.MetaURL)
+                elif options_parameters[1].upper() == 'OFF' and cls.SQLOptions.get("JOBMANAGER") == "ON":
+                    del os.environ["SQLCLI_JOBMANAGERURL"]
+                    cls.SQLOptions.set("JOBMANAGER", "OFF")
+                    cls.SQLOptions.set("JOBMANAGER_METAURL", '')
+                else:
+                    raise SQLCliException("SQLCLI-00000: "
+                                          "Unknown option [" + str(options_parameters[1]) +
+                                          "] for JOBMANAGER. ON/OFF only.")
+
             # 如果不是已知的选项，则直接抛出到SQL引擎
             if options_parameters[0].startswith('@'):
                 m_ParameterValue = " ".join(options_parameters[1:])
@@ -1707,9 +1718,10 @@ class SQLCli(object):
                     if not self.DoSQL():
                         raise EOFError
         except (SQLCliException, EOFError):
-            # 如果还有活动的事务，标记事务为失败信息
-            for m_Transaction in self.TransactionHandler.getAllTransactions():
-                self.TransactionHandler.TransactionFail(m_Transaction)
+            if self.SQLOptions.get("JOBMANAGER") == "ON":
+                # 如果还有活动的事务，标记事务为失败信息
+                for m_Transaction in self.TransactionHandler.getAllTransactions():
+                    self.TransactionHandler.TransactionFail(m_Transaction)
             # SQLCliException只有在被设置了WHENEVER_SQLERROR为EXIT的时候，才会被捕获到
 
         # 退出进程

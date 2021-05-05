@@ -83,8 +83,7 @@ class TransactionManager(object):
         # 返回指定的Transaction信息，如果找不到，返回None
         m_SQL = "SELECT Transaction_StartTime,Transaction_EndTime,Transaction_Status " \
                 "FROM   SQLCLI_TRANSACTIONS " \
-                "WHERE  Transaction_Name = '" + p_szTransaction_Name + "' " \
-                "AND    Process_ID = " + str(os.getpid())
+                "WHERE  Transaction_Name = '" + p_szTransaction_Name + "' "
         m_db_cursor = self.MetaConn.cursor()
         m_db_cursor.execute(m_SQL)
         m_rs = m_db_cursor.fetchone()
@@ -103,8 +102,7 @@ class TransactionManager(object):
     def getAllTransactions(self):
         # 返回指定的Transaction信息，如果找不到，返回None
         m_SQL = "SELECT Transaction_Name " \
-                "FROM   SQLCLI_TRANSACTIONS " \
-                "WHERE  Process_ID = " + str(os.getpid())
+                "FROM   SQLCLI_TRANSACTIONS "
         m_db_cursor = self.MetaConn.cursor()
         m_db_cursor.execute(m_SQL)
         m_rs = m_db_cursor.fetchone()
@@ -175,10 +173,9 @@ class TransactionManager(object):
         m_rs = m_db_cursor.fetchone()
         if m_rs[0] == 0:
             m_SQL = "Insert Into SQLCLI_TRANSACTIONS(" \
-                    "Process_ID, Transaction_Name,Transaction_StartTime,Transaction_EndTime,Transaction_Status) " \
+                    "Transaction_Name,Transaction_StartTime,Transaction_EndTime,Transaction_Status) " \
                     "VALUES (?,?,?,?,?)"
             m_Data = [
-                os.getpid(),
                 p_objTransaction.Transaction_Name,
                 p_objTransaction.Transaction_StartTime,
                 p_objTransaction.Transaction_EndTime,
@@ -190,8 +187,7 @@ class TransactionManager(object):
                     "SET    Transaction_StartTime = ?, " \
                     "       Transaction_EndTime = ?, " \
                     "       Transaction_Status = ? " \
-                    "WHERE  Transaction_Name = '" + p_objTransaction.Transaction_Name + "' " + \
-                    "AND    Process_ID = " + str(os.getpid())
+                    "WHERE  Transaction_Name = '" + p_objTransaction.Transaction_Name + "'"
 
             m_Data = [
                 p_objTransaction.Transaction_StartTime,
