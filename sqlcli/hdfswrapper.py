@@ -22,6 +22,8 @@ class HDFSWrapper(object):
     def __init__(self):
         self.__m_HDFS_Handler__ = None
         self.__m_HDFS_WebFSDir__ = None
+        self.__m_HDFS_User__ = None
+        self.__m_HDFS_WebFSURL__ = None
 
     def HDFS_makedirs(self, hdfs_path):
         """ 创建目录 """
@@ -44,9 +46,19 @@ class HDFSWrapper(object):
         m_HDFS_Protocal = p_szURL.split("://")[0]
         m_HDFS_NodePort = p_szURL[len(m_HDFS_Protocal) + 3:].split("/")[0]
         m_HDFS_WebFSURL = m_HDFS_Protocal + "://" + m_HDFS_NodePort
+        self.__m_HDFS_User__ = p_szUser
+        self.__m_HDFS_WebFSURL__ = m_HDFS_WebFSURL
         self.__m_HDFS_WebFSDir__ = p_szURL[len(m_HDFS_WebFSURL):]
         self.__m_HDFS_Handler__ = InsecureClient(url=m_HDFS_WebFSURL,
                                                  user=p_szUser,
+                                                 root=self.__m_HDFS_WebFSDir__)
+        # 尝试创建目录，如果目录不存在的话
+        self.__m_HDFS_Handler__.makedirs(self.__m_HDFS_WebFSDir__.replace('\\', '/'))
+
+    def HDFS_CD(self, p_szPath):
+        self.__m_HDFS_WebFSDir__ = os.path.join(self.__m_HDFS_WebFSDir__, p_szPath)
+        self.__m_HDFS_Handler__ = InsecureClient(url=self.__m_HDFS_WebFSURL__,
+                                                 user=self.__m_HDFS_User__,
                                                  root=self.__m_HDFS_WebFSDir__)
         # 尝试创建目录，如果目录不存在的话
         self.__m_HDFS_Handler__.makedirs(self.__m_HDFS_WebFSDir__.replace('\\', '/'))
@@ -142,6 +154,13 @@ class HDFSWrapper(object):
                 self.HDFS_Connect(m_HDFSServer, m_HDFSUser)
                 return None, None, None, None, "Hdfs Server set successful."
 
+            matchObj = re.match(r"hdfs\s+cd\s+(.*)$",
+                                m_szSQL, re.IGNORECASE | re.DOTALL)
+            if matchObj:
+                m_HDFSPath = str(matchObj.group(1)).strip()
+                self.HDFS_CD(m_HDFSPath)
+                return None, None, None, None, "Hdfs root dir change successful."
+
             matchObj = re.match(r"hdfs\s+status\s+(.*)$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
             if matchObj:
@@ -191,11 +210,17 @@ class HDFSWrapper(object):
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
             if matchObj:
                 if matchObj:
+                    m_Bak_WebFSDir = self.__m_HDFS_WebFSDir__
                     m_FileDeleted = str(matchObj.group(1)).strip()
-                    m_FileList = self.HDFS_list(recusive=False)
+                    m_FileDeletedPath = os.path.dirname(m_FileDeleted)
+                    m_FileDeletedName = os.path.basename(m_FileDeleted)
+                    self.HDFS_CD(m_FileDeletedPath)
+                    m_FileList = self.HDFS_list(self.__m_HDFS_WebFSDir__, recusive=False)
                     for row in m_FileList:
-                        if fnmatch.fnmatch(row[0], m_FileDeleted):
+                        if fnmatch.fnmatch(os.path.basename(row[0]), m_FileDeletedName):
                             self.__m_HDFS_Handler__.delete(row[0], recursive=True)
+                    # 重新返回原目录
+                    self.HDFS_CD(m_Bak_WebFSDir)
                 return None, None, None, None, "Hdfs file deleted successful."
 
             matchObj = re.match(r"hdfs\s+makedirs\s+(.*)$",

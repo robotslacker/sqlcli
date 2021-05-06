@@ -23,6 +23,10 @@ class SQLCliMeta(object):
         self.DisConnect()
 
     def DisConnect(self):
+        if self.db_conn is not None:
+            self.db_conn.close()
+
+    def ShutdownServer(self):
         if self.MetaServer is not None:
             try:
                 self.MetaServer.stop()

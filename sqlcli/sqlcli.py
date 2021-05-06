@@ -359,7 +359,7 @@ class SQLCli(object):
 
         # 关闭Meta服务
         if self.MetaHandler is not None:
-            self.MetaHandler.DisConnect()
+            self.MetaHandler.ShutdownServer()
             self.MetaHandler = None
 
     # 加载CLI的各种特殊命令集
@@ -1282,7 +1282,7 @@ class SQLCli(object):
 
             # 处理JOBMANAGER选项
             if options_parameters[0].upper() == "JOBMANAGER":
-                if options_parameters[1].upper() == 'ON' and cls.SQLOptions.get("JOBMANAGER") == "OFF":
+                if options_parameters[1].upper() == 'ON' and cls.SQLOptions.get("JOBMANAGER").upper() == "OFF":
                     # 本次打开，之前为OFF
                     # 连接到Meta服务上
                     cls.MetaHandler.StartAsServer(p_ServerParameter=None)
@@ -1293,10 +1293,11 @@ class SQLCli(object):
                         cls.TransactionHandler.setMetaConn(cls.MetaHandler.db_conn)
                         cls.SQLOptions.set("JOBMANAGER", "ON")
                         cls.SQLOptions.set("JOBMANAGER_METAURL", cls.MetaHandler.MetaURL)
-                elif options_parameters[1].upper() == 'OFF' and cls.SQLOptions.get("JOBMANAGER") == "ON":
+                elif options_parameters[1].upper() == 'OFF' and cls.SQLOptions.get("JOBMANAGER").upper() == "ON":
                     del os.environ["SQLCLI_JOBMANAGERURL"]
                     cls.SQLOptions.set("JOBMANAGER", "OFF")
                     cls.SQLOptions.set("JOBMANAGER_METAURL", '')
+                    cls.MetaHandler.ShutdownServer()
                 else:
                     raise SQLCliException("SQLCLI-00000: "
                                           "Unknown option [" + str(options_parameters[1]) +
@@ -1742,7 +1743,7 @@ class SQLCli(object):
 
         # 关闭Meta服务
         if self.MetaHandler is not None:
-            self.MetaHandler.DisConnect()
+            self.MetaHandler.ShutdownServer()
             self.MetaHandler = None
 
     def echo(self, s,

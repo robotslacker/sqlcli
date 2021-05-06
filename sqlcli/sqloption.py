@@ -55,7 +55,6 @@ class SQLOptions(object):
                                       "Comments": 'ON|OFF',
                                       "Hidden": False
                                       })
-
         self.m_SQL_OptionList.append({"Name": "ARRAYSIZE",
                                       "Value": 10000,
                                       "Comments": '',
@@ -104,6 +103,7 @@ class SQLOptions(object):
                                       "Value": "PREPARE",
                                       "Comments": 'DIRECT|PREPARE',
                                       "Hidden": False})
+
         self.m_SQL_OptionList.append({"Name": "JOBMANAGER",
                                       "Value": "OFF",
                                       "Comments": 'ON|OFF',

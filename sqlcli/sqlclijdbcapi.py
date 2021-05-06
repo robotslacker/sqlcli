@@ -519,6 +519,7 @@ class Cursor(object):
         for col in range(1, self._meta.getColumnCount() + 1):
             sqltype = self._meta.getColumnType(col)
             m_ColumnClassName = self._meta.getColumnClassName(col)
+            m_ColumnTypeName = self._meta.getColumnTypeName(col)
             if m_ColumnClassName is None:
                 # NULL值
                 converter = _DEFAULT_CONVERTERS["VARCHAR"]
@@ -528,6 +529,8 @@ class Cursor(object):
                 converter = _DEFAULT_CONVERTERS["TIMESTAMP_WITH_TIMEZONE"]
             elif m_ColumnClassName.upper().find("BFILE") != -1:
                 converter = _DEFAULT_CONVERTERS["BFILE"]
+            elif m_ColumnTypeName in ['YEAR']:  # mysql数据类型
+                converter = _DEFAULT_CONVERTERS["YEAR"]
             else:
                 if sqltype in self._converters.keys():
                     converter = self._converters.get(sqltype)
@@ -538,7 +541,7 @@ class Cursor(object):
                                       ":" + self._meta.getColumnClassName(col))
             if "SQLCLI_DEBUG" in os.environ:
                 print("JDBC SQLType=[" + str(converter.__name__) + "] for col [" + str(col) + "]. " +
-                      "sqltype=[" + str(sqltype) + ":" + str(m_ColumnClassName) + "]")
+                      "sqltype=[" + str(sqltype) + ":" + str(m_ColumnClassName) + ":" + m_ColumnTypeName + "]")
             v = converter(self._connection.jconn, self._rs, col)
             row.append(v)
         return tuple(row)
@@ -617,6 +620,19 @@ def _to_time(conn, rs, col):
     if not java_val:
         return
     return str(java_val)
+
+
+def _to_year(conn, rs, col):
+    try:
+        java_val = rs.getDate(col)
+    except Exception:
+        # 处理一些超过Python数据类型限制的时间类型
+        return rs.getString(col)
+    if not java_val:
+        return
+    java_cal = jpype.JClass("java.util.Calendar").getInstance()
+    java_cal.setTime(java_val)
+    return java_cal.get(1)
 
 
 def _to_date(conn, rs, col):
@@ -922,6 +938,7 @@ _DEFAULT_CONVERTERS = {
     'TIMESTAMP':                    _to_datetime,
     'TIME':                         _to_time,
     'DATE':                         _to_date,
+    'YEAR':                         _to_year,
     'VARBINARY':                    _to_binary,
     'BINARY':                       _to_binary,
     'LONGVARBINARY':                _to_binary,
