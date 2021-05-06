@@ -638,7 +638,7 @@ class SQLExecute(object):
             if cursor.warnings is not None:
                 status = "{0} row{1} affected with warnings."
             else:
-                status = "{0} row{1} affected."
+                status = "{0} row{1} affected"
             rowcount = 0 if cursor.rowcount == -1 else cursor.rowcount
             result = None
             m_FetchStatus = False
