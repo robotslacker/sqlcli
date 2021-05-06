@@ -648,7 +648,7 @@ class SQLExecute(object):
             status = None
 
         if self.SQLOptions.get('FEEDBACK').upper() == 'ON' and status is not None:
-            status = status.format(rowcount, "" if rowcount in (0, 1) else "s")
+            status = status.format(rowcount, "" if rowcount == 1 else "s")
         else:
             status = None
         return title, result, headers, columntypes, status, m_FetchStatus, rowcount, cursor.warnings
