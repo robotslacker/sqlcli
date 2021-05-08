@@ -650,6 +650,7 @@ def _to_date(conn, rs, col):
     # https://github.com/baztian/jaydebeapi/issues/18):
     return str(java_val)[:10]
 
+
 def _to_bit(conn, rs, col):
     try:
         java_val = rs.getObject(col)
@@ -688,11 +689,17 @@ def _to_binary(conn, rs, col):
         return
     m_TypeName = str(java_val.getClass().getTypeName())
     if m_TypeName == "byte[]":
+        # 转换为16进制字符串后返回
         return binascii.b2a_hex(java_val)
     elif m_TypeName.upper().find("BLOB") != -1:
-        m_Bytes = java_val.getBytes(1, 1024)
+        m_Length = java_val.length()
+        m_TrimLength = int(_sqloptions.get("LOB_LENGTH"))
+        if m_TrimLength > m_Length:
+            m_TrimLength = m_Length
+        m_Bytes = java_val.getBytes(1, int(m_TrimLength))
         if m_Bytes is not None:
-            return binascii.b2a_hex(java_val.getBytes(1, 1024))
+            # 转换为16进制字符串后返回
+            return binascii.b2a_hex(java_val.getBytes(1, int(m_TrimLength)))
         else:
             return ""
     elif m_TypeName.find("BFILE") != -1:
@@ -707,7 +714,6 @@ def _to_binary(conn, rs, col):
             else:
                 return "True"
     else:
-        # return binascii.b2a_hex(java_val.getBytes(0, 1024))
         raise SQLCliJDBCException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_binary")
 
 

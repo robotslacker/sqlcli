@@ -348,11 +348,16 @@ class SQLExecute(object):
                                             if "SQLCLI_DEBUG" in os.environ:
                                                 print("Apply Mask: " + m_Output +
                                                       " with " + m_SQLMaskPattern + "=>" + m_SQLMaskTarget)
-                                            m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget, m_Output,
-                                                                 re.IGNORECASE)
-                                            if m_NewOutput != m_Output:
-                                                result[i] = tuple(m_NewOutput.split('|||'))
-                                                m_Output = m_NewOutput
+                                            try:
+                                                m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget, m_Output,
+                                                                     re.IGNORECASE)
+                                                if m_NewOutput != m_Output:
+                                                    result[i] = tuple(m_NewOutput.split('|||'))
+                                                    m_Output = m_NewOutput
+                                            except re.error:
+                                                if "SQLCLI_DEBUG" in os.environ:
+                                                    print('traceback.print_exc():\n%s' % traceback.print_exc())
+                                                    print('traceback.format_exc():\n%s' % traceback.format_exc())
                                         else:
                                             if "SQLCLI_DEBUG" in os.environ:
                                                 print("LogMask Hint Error: " + m_SQLHint["LogMask"])
