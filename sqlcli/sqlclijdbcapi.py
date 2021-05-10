@@ -451,11 +451,15 @@ class Cursor(object):
         m_stmt = self._connection.jconn.createStatement()
         try:
             is_rs = m_stmt.execute(operation)
+            m_SQLWarnMessage = None
             m_SQLWarnings = m_stmt.getWarnings()
-            if m_SQLWarnings is not None:
-                self.warnings = m_SQLWarnings.getMessage()
-            else:
-                self.warnings = None
+            while m_SQLWarnings is not None:
+                if m_SQLWarnMessage is None:
+                    m_SQLWarnMessage = m_SQLWarnings.getMessage()
+                else:
+                    m_SQLWarnMessage = m_SQLWarnMessage + "\n" + m_SQLWarnings.getMessage()
+                m_SQLWarnings = m_SQLWarnings.getNextWarning()
+            self.warnings = m_SQLWarnMessage
         except:
             _handle_sql_exception_jpype()
         self._rs = m_stmt.getResultSet()
@@ -481,11 +485,15 @@ class Cursor(object):
         is_rs = False
         try:
             is_rs = self._prep.execute()
+            m_SQLWarnMessage = None
             m_SQLWarnings = self._prep.getWarnings()
-            if m_SQLWarnings is not None:
-                self.warnings = m_SQLWarnings.getMessage()
-            else:
-                self.warnings = None
+            while m_SQLWarnings is not None:
+                if m_SQLWarnMessage is None:
+                    m_SQLWarnMessage = m_SQLWarnings.getMessage()
+                else:
+                    m_SQLWarnMessage = m_SQLWarnMessage + "\n" + m_SQLWarnings.getMessage()
+                m_SQLWarnings = m_SQLWarnings.getNextWarning()
+            self.warnings = m_SQLWarnMessage
         except:
             _handle_sql_exception_jpype()
         # 忽略对execute的返回判断，总是恒定的去调用getResultSet

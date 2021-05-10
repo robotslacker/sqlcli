@@ -288,7 +288,7 @@ class SQLExecute(object):
                         elif "SQL_PREPARE" in m_SQLHint.keys():
                             self.cur.execute(sql)
                         else:
-                            if self.SQLOptions.get("SQL_EXECUTE") == "DIRECT":
+                            if self.SQLOptions.get("SQL_EXECUTE").upper() == "DIRECT":
                                 self.cur.execute_direct(sql)
                             else:
                                 self.cur.execute(sql)

@@ -193,7 +193,6 @@ class SQLMapping(object):
         except re.error as ex:
             raise SQLCliException("[WARNING] Invalid regex pattern in ReplaceSQL. "
                                   "[" + str(p_Key) + "]:[" + m_Value + "]:[" + p_szSQL + "]  " + repr(ex))
-            raise ex
         return m_ResultSQL
 
     def RewriteSQL(self, p_szTestScriptFileName, p_szSQL):
@@ -675,9 +674,13 @@ def SQLAnalyze(p_SQLCommandPlainText):
         # 去掉行尾的空格
         SQLSplitResults[m_nPos] = SQLSplitResults[m_nPos].rstrip()
         # 去掉行尾的最后一个分号, “但是开头是BEGIN或者DECLARE开头的，不去掉
+        strRegexPattern = \
+            r'^((\s+)?CREATE(\s+)|' \
+            r'^(\s+)?REPLACE(\s+))((\s+)?(OR)?(\s+)?(REPLACE)?(\s+)?)?(FUNCTION|PROCEDURE)'
         if SQLSplitResults[m_nPos][-1:] == ';' and \
                 not SQLSplitResults[m_nPos].upper().startswith("BEGIN") and \
-                not SQLSplitResults[m_nPos].upper().startswith("DECLARE"):
+                not SQLSplitResults[m_nPos].upper().startswith("DECLARE") and \
+                not re.match(strRegexPattern, SQLSplitResults[m_nPos], flags=re.IGNORECASE | re.DOTALL):
             SQLSplitResults[m_nPos] = SQLSplitResults[m_nPos][:-1]
 
     # 去掉注释信息中的最后一个回车换行符
