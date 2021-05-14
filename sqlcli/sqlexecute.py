@@ -617,6 +617,50 @@ class SQLExecute(object):
                             m_row.append(self.SQLOptions.get("DECIMAL_FORMAT") % column)
                         else:
                             m_row.append(column)
+                    elif type(column) == list:
+                        m_ColumnValue = "ARRAY["
+                        for m_nPos in range(0, len(column)):
+                            m_ColumnType = str(type(column[m_nPos]))
+                            if m_nPos == 0:
+                                if m_ColumnType.upper().find('STR') != -1:
+                                    m_ColumnValue = m_ColumnValue + "'" + str(column[m_nPos]) + "'"
+                                elif m_ColumnType.upper().find('SQLDATE') != -1:
+                                    m_ColumnValue = m_ColumnValue + "DATE'" + str(column[m_nPos]) + "'"
+                                elif m_ColumnType.upper().find("FLOAT") != -1:
+                                    m_ColumnValue = m_ColumnValue + \
+                                                    self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
+                                elif m_ColumnType.upper().find("DOUBLE") != -1:
+                                    m_ColumnValue = m_ColumnValue + \
+                                                    self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
+                                elif m_ColumnType.upper().find("DECIMAL") != -1:
+                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
+                                        m_ColumnValue = m_ColumnValue + \
+                                                        self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos]
+                                    else:
+                                        m_ColumnValue = m_ColumnValue + column[m_nPos]
+                                else:
+                                    m_ColumnValue = m_ColumnValue + str(column[m_nPos])
+                            else:
+                                if m_ColumnType.upper().find('STR') != -1:
+                                    m_ColumnValue = m_ColumnValue + ",'" + str(column[m_nPos]) + "'"
+                                elif m_ColumnType.upper().find('SQLDATE') != -1:
+                                    m_ColumnValue = m_ColumnValue + ",DATE'" + str(column[m_nPos]) + "'"
+                                elif m_ColumnType.upper().find("FLOAT") != -1:
+                                    m_ColumnValue = m_ColumnValue + "," + \
+                                                    self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
+                                elif m_ColumnType.upper().find("DOUBLE") != -1:
+                                    m_ColumnValue = m_ColumnValue + "," + \
+                                                    self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
+                                elif m_ColumnType.upper().find("DECIMAL") != -1:
+                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
+                                        m_ColumnValue = m_ColumnValue + "," + \
+                                                        self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos]
+                                    else:
+                                        m_ColumnValue = m_ColumnValue + "," + column[m_nPos]
+                                else:
+                                    m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
+                        m_ColumnValue = m_ColumnValue + "]"
+                        m_row.append(m_ColumnValue)
                     elif type(column) == bytes:
                         # 对于二进制数据，其末尾用0x00表示，这里进行截断
                         column = column.decode()

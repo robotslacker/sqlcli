@@ -211,14 +211,6 @@ class SQLCli(object):
         else:
             raise SQLCliException("Can not open inifile for read [" + m_conf_filename + "]")
 
-        # 对于子进程，连接到JOB管理服务
-        if "SQLCLI_JOBMANAGERURL" in os.environ:
-            m_JobManagerURL = os.environ["SQLCLI_JOBMANAGERURL"]
-            # 对于被主进程调用的进程，则不需要考虑, 连接到主进程的Meta服务商
-            self.MetaHandler.ConnectServer(m_JobManagerURL)
-            self.JobHandler.setMetaConn(self.MetaHandler.db_conn)
-            self.TransactionHandler.setMetaConn(self.MetaHandler.db_conn)
-
         # 打开输出日志, 如果打开失败，就直接退出
         try:
             if self.logfilename is not None:
@@ -287,6 +279,24 @@ class SQLCli(object):
                                 "Database": m_DatabaseType,
                                 "ODBCURL": m_ODBCURL}
                 self.connection_configs.append(m_Jar_Config)
+
+        # 设置Meta连接时候需要用到的JarList1
+        m_JarList = []
+        for m_Jar_Config in self.connection_configs:
+            m_JarList.extend(m_Jar_Config["FullName"])
+        self.MetaHandler.setJVMJarList(m_JarList)
+
+        # 对于子进程，连接到JOB管理服务
+        if "SQLCLI_JOBMANAGERURL" in os.environ:
+            m_JobManagerURL = os.environ["SQLCLI_JOBMANAGERURL"]
+            # 对于被主进程调用的进程，则不需要考虑, 连接到主进程的Meta服务商
+            self.MetaHandler.ConnectServer(m_JobManagerURL)
+            self.JobHandler.setMetaConn(self.MetaHandler.db_conn)
+            self.TransactionHandler.setMetaConn(self.MetaHandler.db_conn)
+            self.SQLOptions.set("JOBMANAGER_METAURL", m_JobManagerURL)
+            m_Job = self.JobHandler.getJobByProcessID(os.getpid())
+            if m_Job is not None:
+                self.SQLOptions.set("JOBTAG", m_Job.getTag())
 
         # 处理传递的映射文件, 首先加载参数的部分，如果环境变量里头有设置，则环境变量部分会叠加参数部分
         self.SQLOptions.set("SQLREWRITE", "OFF")

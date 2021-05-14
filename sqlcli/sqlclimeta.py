@@ -18,9 +18,10 @@ class SQLCliMeta(object):
         self.MetaServer = None
         self.MetaURL = None
         self.MetaPort = 0
+        self.JarList = None
 
-    def __del__(self):
-        self.DisConnect()
+    def setJVMJarList(self, p_JarList):
+        self.JarList = p_JarList
 
     def DisConnect(self):
         if self.db_conn is not None:
@@ -28,6 +29,10 @@ class SQLCliMeta(object):
 
     def ShutdownServer(self):
         if self.MetaServer is not None:
+            # 先停止数据库连接
+            if self.db_conn is not None:
+                self.db_conn.close()
+            # 再停止数据库服务
             try:
                 self.MetaServer.stop()
                 self.MetaServer.shutdown()
@@ -36,8 +41,6 @@ class SQLCliMeta(object):
                     print('traceback.print_exc():\n%s' % traceback.print_exc())
                     print('traceback.format_exc():\n%s' % traceback.format_exc())
             self.MetaServer = None
-        if self.db_conn is not None:
-            self.db_conn.close()
 
     def StartAsServer(self, p_ServerParameter):
         # 检查SQLCli_HOME是否存在
@@ -55,10 +58,12 @@ class SQLCliMeta(object):
             m_MetaDriverURL = m_AppOptions.get("meta_driver", "jdbcurl")
             self.db_conn = jdbcconnect(jclassname=m_MetaClass, url=m_MetaDriverURL,
                                        driver_args={'user': 'sa', 'password': 'sa'},
-                                       jars=[m_MetaDriverFile], sqloptions=SQLOptions())
+                                       jars=self.JarList, sqloptions=SQLOptions())
             if self.db_conn is None:
                 raise SQLCliException("SQLCLI-00000: "
                                       "SQLCliMeta:: Connect to meta failed! JobManager Aborted!")
+            # 设置AutoCommit为False
+            self.db_conn.setAutoCommit(False)
 
             # 获得一个可用的端口
             if "SQLCLI_METAPORT" in os.environ:
@@ -106,6 +111,7 @@ class SQLCliMeta(object):
                     "(" \
                     "JOB_ID                     Integer," \
                     "JOB_Name                   VARCHAR(500)," \
+                    "JOB_TAG                    VARCHAR(500)," \
                     "Starter_Interval           Integer," \
                     "Starter_Last_Active_Time   TimeStamp," \
                     "Parallel                   Integer," \
@@ -130,12 +136,24 @@ class SQLCliMeta(object):
                     "(" \
                     "JOB_ID                     Integer," \
                     "TaskHandler_ID             Integer," \
-                    "ProcessInfo                Integer," \
+                    "ProcessID                  Integer," \
                     "start_time                 BIGINT," \
                     "end_time                   BIGINT," \
                     "exit_code                  Integer," \
                     "Finished_Status            VARCHAR(500)," \
-                    "Synchronized_Point         VARCHAR(500)" \
+                    "Timer_Point                VARCHAR(500)" \
+                    ")"
+            m_db_cursor.execute(m_SQL)
+            m_SQL = "CREATE TABLE IF Not Exists SQLCLI_TASKS_HISTORY" \
+                    "(" \
+                    "JOB_ID                     Integer," \
+                    "TaskHandler_ID             Integer," \
+                    "ProcessID                  Integer," \
+                    "start_time                 BIGINT," \
+                    "end_time                   BIGINT," \
+                    "exit_code                  Integer," \
+                    "Finished_Status            VARCHAR(500)," \
+                    "Timer_Point                VARCHAR(500)" \
                     ")"
             m_db_cursor.execute(m_SQL)
             m_SQL = "CREATE TABLE IF Not Exists SQLCLI_TRANSACTIONS" \
@@ -204,11 +222,14 @@ class SQLCliMeta(object):
             m_MetaDriverURL = m_MetaDriverURL.replace("mem", p_MetaServerURL + "/mem")
             self.db_conn = jdbcconnect(jclassname=m_MetaClass, url=m_MetaDriverURL,
                                        driver_args={'user': 'sa', 'password': 'sa'},
-                                       jars=[m_MetaDriverFile], sqloptions=SQLOptions())
+                                       jars=self.JarList, sqloptions=SQLOptions())
             if self.db_conn is None:
                 if "SQLCLI_DEBUG" in os.environ:
                     print("DEBUG:: SQLCliMeta:: Connect to meta failed! JobManager Connect Failed!")
                     return
+
+            # 设置AutoCommit为False
+            self.db_conn.setAutoCommit(False)
         except Exception:
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())

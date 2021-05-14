@@ -5,6 +5,7 @@ import time
 import os
 import datetime
 import copy
+from multiprocessing import Lock
 from multiprocessing import Process
 
 from .sqlcliexception import SQLCliException
@@ -13,11 +14,12 @@ from .sqlcliexception import SQLCliException
 class Task:
     def __init__(self):
         self.TaskHandler_ID = 0        # 任务处理器编号，范围是1-parallel
-        self.ProcessInfo = 0           # 进程信息，这里存放的是进程PID，如果没有进程存在，这里是0
+        self.ProcessID = 0             # 进程信息，这里存放的是进程PID，如果没有进程存在，这里是0
         self.start_time = None         # 进程开始时间，这里存放的是UnixTimeStamp
         self.end_time = None           # 进程结束时间，这里存放的是UnixTimeStamp
         self.exit_code = 0             # 进程退出状态
         self.Finished_Status = ""      # 进程结束状态，有FINISHED, ABORTED, SHUTDOWN,
+        self.Timer_Point = []          # 进程当前已经到达的检查点
 
 
 class JOB:
@@ -39,8 +41,9 @@ class JOB:
 
         self.error_message = None                 # 错误失败原因
 
-        self.script = None
-        self.script_fullname = None
+        self.script = None                        # JOB计划执行的脚本
+        self.script_fullname = None               # JOB计划执行的脚本全路径
+        self.tag = None                           # JOB的标识，同一个TAG下保持相同的聚合点规则
         self.think_time = 0
         self.timeout = 0                          # 超时的秒数限制，0表示不限制
         self.submit_time = None
@@ -48,7 +51,7 @@ class JOB:
         self.end_time = None
         self.blowout_threshold_count = 0          # 完全失败阈值，若达到该阈值，认为后续继续测试没有意义。0表示不做限制
         self.status = "Submitted"
-        self.tasks = []                           # 当前任务的具体进程信息
+        self.tasks = {}                           # 当前任务的具体进程信息, TaskHandler_ID, Task
         self.transactionstaistics = []            # 当前JOB的transaction统计信息
         self.transactionhistory = []              # 当前JOB的transaction的历史信息
 
@@ -213,6 +216,14 @@ class JOB:
     def getBlowoutThresHoldCount(self):
         return self.blowout_threshold_count
 
+    # 设置JOB的标签
+    def setTag(self, p_tag):
+        self.tag = p_tag
+
+    # 返回JOB的标签
+    def getTag(self):
+        return self.tag
+
     # 根据参数设置JOB的相关参数
     def setjob(self, p_ParameterName: str, p_ParameterValue: str):
         if p_ParameterName.strip().lower() == "parallel":
@@ -229,12 +240,21 @@ class JOB:
             self.setTimeOut(int(p_ParameterValue))
         elif p_ParameterName.strip().lower() == "blowout_threshold_count":
             self.setBlowoutThresHoldCount(int(p_ParameterValue))
+        elif p_ParameterName.strip().lower() == "tag":
+            self.setTag(p_ParameterValue)
         else:
             raise SQLCliException("Invalid JOB Parameter name. [" + str(p_ParameterName) + "]")
 
     # 返回所有JOB的任务列表
     def getTasks(self):
-        return self.tasks
+        return self.tasks.values()
+
+    # 根据进程ID信息返回当前的TASK信息
+    def getTaskByProcessID(self, p_nProcessID):
+        for m_Task in self.tasks.values():
+            if m_Task.ProcessID == p_nProcessID:
+                return m_Task
+        return None
 
     # 设置Task信息
     def setTask(self, p_Task: Task):
@@ -245,8 +265,9 @@ class JOB:
                 self.tasks[m_nPos].start_time = p_Task.start_time
                 self.tasks[m_nPos].end_time = p_Task.end_time
                 self.tasks[m_nPos].exit_code = p_Task.exit_code
-                self.tasks[m_nPos].ProcessInfo = p_Task.ProcessInfo
+                self.tasks[m_nPos].ProcessID = p_Task.ProcessID
                 self.tasks[m_nPos].Finished_Status = p_Task.Finished_Status
+                self.tasks[m_nPos].Timer_Point = p_Task.Timer_Point
                 break
         if not m_TaskFound:
             m_Task = Task()
@@ -254,18 +275,10 @@ class JOB:
             m_Task.start_time = p_Task.start_time
             m_Task.end_time = p_Task.end_time
             m_Task.exit_code = p_Task.exit_code
-            m_Task.ProcessInfo = p_Task.ProcessInfo
+            m_Task.ProcessID = p_Task.ProcessID
             m_Task.Finished_Status = p_Task.Finished_Status
-            self.tasks.append(copy.copy(m_Task))
-
-    # 初始化Task列表
-    def initTaskList(self):
-        # 根据并发度在start后直接创建全部的Task列表
-        for nPos in range(0, self.parallel):
-            m_Task = Task()
-            m_Task.TaskHandler_ID = nPos
-            m_Task.ProcessInfo = 0
-            self.tasks.append(copy.copy(m_Task))
+            m_Task.Timer_Point = p_Task.Timer_Point
+            self.tasks[p_Task.TaskHandler_ID] = copy.copy(m_Task)
 
     # 启动作业
     # 返回一个包含TaskHandlerID的列表
@@ -274,72 +287,101 @@ class JOB:
         m_IDLEHandlerIDList = []
         if self.active_jobs >= self.parallel:
             # 如果当前活动进程数量已经超过了并发要求，直接退出
-            return m_IDLEHandlerIDList
+            return []
         if self.started_jobs >= self.loop:
             # 如果到目前位置，已经启动的进程数量超过了总数要求，直接退出
-            return m_IDLEHandlerIDList
+            return []
         if self.starter_interval != 0 and self.started_jobs < self.parallel:
             # 如果上一个批次启动时间到现在还不到限制时间要求，则不再启动
             if self.starter_last_active_time + self.starter_interval > currenttime:
                 # 还不到可以启动进程的时间, 返回空列表
-                return m_IDLEHandlerIDList
+                return []
+
         # 循环判断每个JOB信息，考虑think_time以及starter_interval
         for nPos in range(0, self.parallel):
-            if self.tasks[nPos].ProcessInfo == 0:  # 进程当前空闲
-                if self.think_time != 0:
-                    # 需要考虑think_time
-                    if self.tasks[nPos].end_time + self.think_time > currenttime:
-                        # 还不满足ThinkTime的限制要求，跳过
-                        continue
-                else:
-                    # 不需要考虑think_time, 假设可以启动
-                    m_IDLEHandlerIDList.append(nPos)
+            if nPos in self.tasks.keys():
+                # 该Task对应的相关信息已经存在
+                if self.tasks[nPos].ProcessID == 0:
+                    # 进程处于空闲状态
+                    if self.think_time != 0:
+                        if self.tasks[nPos].end_time + self.think_time > currenttime:
+                            # 还不满足ThinkTime的限制要求，跳过
+                            continue
                     if len(m_IDLEHandlerIDList) >= (self.parallel - self.active_jobs):
                         # 如果已经要启动的进程已经满足最大进程数限制，则不再考虑新进程
                         break
+                    else:
+                        m_IDLEHandlerIDList.append(nPos)
+                else:
+                    # 进程当前不空闲
+                    continue
             else:
-                # 进程当前不空闲
-                continue
+                # 不存在该Task信息, 不需要考虑thinktime, 可以启动
+                if len(m_IDLEHandlerIDList) >= (self.parallel - self.active_jobs):
+                    # 如果已经要启动的进程已经满足最大进程数限制，则不再考虑新进程
+                    break
+                else:
+                    m_IDLEHandlerIDList.append(nPos)
         # 更新批次启动时间的时间
         if self.starter_interval != 0:
             self.starter_last_active_time = currenttime
         return m_IDLEHandlerIDList
 
     # 启动作业任务
-    def StartTask(self, p_TaskHandlerID: int, p_ProcessID: int):
-        self.tasks[p_TaskHandlerID].ProcessInfo = p_ProcessID
-        self.tasks[p_TaskHandlerID].start_time = int(time.mktime(datetime.datetime.now().timetuple()))
-        self.tasks[p_TaskHandlerID].end_time = None
-        self.active_jobs = self.active_jobs + 1
-        self.started_jobs = self.started_jobs + 1
+    def StartTask(self, p_MetaConn, p_TaskHandlerID: int, p_ProcessID: int):
+        m_CurrentTime = int(time.mktime(datetime.datetime.now().timetuple()))
+
+        m_Task = Task()
+        m_Task.ProcessID = p_ProcessID
+        m_Task.start_time = m_CurrentTime
+        m_Task.end_time = None
+        self.tasks[p_TaskHandlerID] = m_Task
+
+        # 在SQLCLI_TASK中创建对应记录
+        m_db_cursor = p_MetaConn.cursor()
+        m_SQL = "Insert into SQLCLI_TASKS(" \
+                "JOB_ID,TaskHandler_ID,ProcessID, Start_Time) " \
+                "VALUES(?,?,?,?)"
+        m_Data = [
+            self.id,
+            p_TaskHandlerID,
+            p_ProcessID,
+            m_CurrentTime
+        ]
+        m_db_cursor.execute(m_SQL, parameters=m_Data)
+        m_db_cursor.close()
+        p_MetaConn.commit()
 
     # 完成当前任务
-    def FinishTask(self, p_TaskHandler_ID, p_Task_ExitCode: int, p_Task_FinishedStatus: str):
-        # 备份Task信息
-        if p_Task_FinishedStatus == "TIMEOUT":
-            # 进程被强行终止
-            self.failed_jobs = self.failed_jobs + 1
-            self.finished_jobs = self.finished_jobs + 1
-        elif p_Task_FinishedStatus == "ABORTED":
-            # 进程被强行终止
-            self.failed_jobs = self.failed_jobs + 1
-            self.finished_jobs = self.finished_jobs + 1
-        elif p_Task_FinishedStatus == "SHUTDOWNED":
-            # 进程正常结束
-            self.finished_jobs = self.finished_jobs + 1
-        elif p_Task_ExitCode != 0:
-            # 任务不正常退出
-            self.failed_jobs = self.failed_jobs + 1
-            self.finished_jobs = self.finished_jobs + 1
-        else:
-            self.finished_jobs = self.finished_jobs + 1
+    def FinishTask(self, p_MetaConn, p_TaskHandlerID, p_Task_ExitCode: int, p_Task_FinishedStatus: str):
+        m_CurrentTime = int(time.mktime(datetime.datetime.now().timetuple()))
+        # 清空当前Task的结构信息
+        self.tasks[p_TaskHandlerID].start_time = None
+        self.tasks[p_TaskHandlerID].exit_code = 0
+        self.tasks[p_TaskHandlerID].ProcessID = 0
+        self.tasks[p_TaskHandlerID].Finished_Status = ""
 
-        # 清空当前Task, 这里不会清空End_Time，以保持Think_time的判断逻辑
-        self.tasks[p_TaskHandler_ID].start_time = None
-        self.tasks[p_TaskHandler_ID].exit_code = 0
-        self.tasks[p_TaskHandler_ID].ProcessInfo = 0
-        self.tasks[p_TaskHandler_ID].Finished_Status = ""
-        self.active_jobs = self.active_jobs - 1
+        # 在数据库中记录相关信息
+        m_db_cursor = p_MetaConn.cursor()
+        m_SQL = "Insert Into SQLCLI_TASKS_HISTORY(JOB_ID,TaskHandler_ID,ProcessID,Timer_Point," \
+                "       Start_Time,End_Time,Exit_Code,Finished_Status) " \
+                "SELECT JOB_ID,TaskHandler_ID,ProcessID,Timer_Point,Start_Time," + \
+                str(m_CurrentTime) + "," + str(p_Task_ExitCode) + ",'" + \
+                p_Task_FinishedStatus + "' " + \
+                "FROM SQLCLI_TASKS " \
+                "WHERE  JOB_ID=" + str(self.id) + " " + \
+                "AND    TaskHandler_ID=" + str(p_TaskHandlerID)
+        m_db_cursor.execute(m_SQL)
+        m_SQL = "UPDATE SQLCLI_TASKS " + \
+                "SET    ProcessID = 0, " \
+                "       Start_Time = 0, " \
+                "       Exit_Code = 0, " \
+                "       End_Time = Null " \
+                "WHERE  JOB_ID=" + str(self.id) + " " + \
+                "AND    TaskHandler_ID=" + str(p_TaskHandlerID)
+        m_db_cursor.execute(m_SQL)
+        m_db_cursor.close()
+        p_MetaConn.commit()
 
 
 # JOB任务的管理
@@ -350,7 +392,7 @@ class JOBManager(object):
         self.ProcessContextInfo = {}
 
         # 进程句柄信息
-        self.ProcessInfo = {}
+        self.ProcessID = {}
 
         # 当前清理进程的状态, NOT-STARTED, RUNNING, WAITINGFOR_STOP, STOPPED
         # 如果WorkerStatus==WAITINGFOR_STOP 则Worker主动停止
@@ -365,6 +407,9 @@ class JOBManager(object):
         # 记录Meta的数据库连接信息
         self.MetaConn = None
 
+        # 更新Meta信息的锁
+        self.MetaLockHandler = None
+
     # 设置Meta的连接信息
     def setMetaConn(self, p_conn):
         self.MetaConn = p_conn
@@ -377,14 +422,18 @@ class JOBManager(object):
     def getWorkerStatus(self):
         return self.WorkerStatus
 
-    # 根据JobID返回指定的JOB信息
-    def getJobByID(self, p_szJobID):
+    # 根据Job的进程ID返回指定的JOB信息
+    def getJobByProcessID(self, p_szProcessID):
         # 返回指定的Job信息，如果找不到，返回None
-        m_SQL = "SELECT Job_ID,Job_Name,Starter_Interval, " \
-                    "Starter_Last_Active_Time, Parallel, Loop, " \
-                    "Started_JOBS, Failed_JOBS,Finished_JOBS,Active_JOBS,Error_Message, " \
-                    "Script, Script_FullName, Think_Time,  Timeout, Submit_Time, Start_Time, End_Time, " \
-                    "Blowout_Threshold_Count, Status FROM SQLCLI_JOBS WHERE Job_ID = " + str(p_szJobID)
+        m_SQL = "SELECT     J.Job_ID,J.Job_Name,J.Starter_Interval, " \
+                "           J.Starter_Last_Active_Time, J.Parallel, J.Loop, " \
+                "           J.Started_JOBS, J.Failed_JOBS, J.Finished_JOBS, J.Active_JOBS, J.Error_Message, " \
+                "           J.Script, J.Script_FullName, J.Think_Time,  J.Timeout, " \
+                "           J.Submit_Time, J.Start_Time, J.End_Time, " \
+                "           J.Blowout_Threshold_Count, J.Status, J.JOB_TAG " \
+                "FROM   SQLCLI_JOBS J, SQLCLI_TASKS T " \
+                "WHERE  J.Job_ID = T.Job_ID " \
+                "AND    T.ProcessID = " + str(p_szProcessID)
         m_db_cursor = self.MetaConn.cursor()
         m_db_cursor.execute(m_SQL)
         m_rs = m_db_cursor.fetchone()
@@ -413,10 +462,11 @@ class JOBManager(object):
             m_Job.setEndTime(m_rs[17])
             m_Job.setBlowoutThresHoldCount(m_rs[18])
             m_Job.setStatus(m_rs[19])
+            m_Job.setTag(m_rs[20])
             m_db_cursor.close()
 
             # 获取Task信息
-            m_SQL = "SELECT TaskHandler_ID,ProcessInfo,start_time,end_time,exit_code, Finished_Status "  \
+            m_SQL = "SELECT TaskHandler_ID,ProcessID,start_time,end_time,exit_code, Finished_Status,Timer_Point "  \
                     "FROM   SQLCLI_TASKS WHERE JOB_ID=" + str(m_Job.getJobID())
             m_db_cursor = self.MetaConn.cursor()
             m_db_cursor.execute(m_SQL)
@@ -425,22 +475,26 @@ class JOBManager(object):
                 for m_row in m_rs:
                     m_Task = Task()
                     m_Task.TaskHandler_ID = m_row[0]
-                    m_Task.ProcessInfo = m_row[1]
+                    m_Task.ProcessID = m_row[1]
                     m_Task.start_time = m_row[2]
                     m_Task.end_time = m_row[3]
                     m_Task.exit_code = m_row[4]
                     m_Task.Finished_Status = m_row[5]
+                    m_Task.Timer_Point = m_row[6]
                     m_Job.setTask(m_Task)
             m_db_cursor.close()
+
             return m_Job
 
-    # 根据JobName返回指定的JOB信息
-    def getJobByName(self, p_szJobName):
+    # 根据JobID返回指定的JOB信息
+    def getJobByID(self, p_szJobID):
         # 返回指定的Job信息，如果找不到，返回None
         m_SQL = "SELECT Job_ID,Job_Name,Starter_Interval, " \
-                    "Starter_Last_Active_Time, Parallel, Loop, Failed_JOBS,Finished_JOBS,Active_JOBS,Error_Message, " \
-                    "Script, Script_FullName, Think_Time,  Timeout, Submit_Time, Start_Time, End_Time, " \
-                    "Blowout_Threshold_Count, Status FROM SQLCLI_JOBS WHERE JOB_NAME = '" + str(p_szJobName) + "'"
+                "Starter_Last_Active_Time, Parallel, Loop, " \
+                "Started_JOBS, Failed_JOBS,Finished_JOBS,Active_JOBS,Error_Message, " \
+                "Script, Script_FullName, Think_Time,  Timeout, Submit_Time, Start_Time, End_Time, " \
+                "Blowout_Threshold_Count, Status, JOB_TAG " \
+                "FROM SQLCLI_JOBS WHERE Job_ID = " + str(p_szJobID)
         m_db_cursor = self.MetaConn.cursor()
         m_db_cursor.execute(m_SQL)
         m_rs = m_db_cursor.fetchone()
@@ -455,23 +509,25 @@ class JOBManager(object):
             m_Job.setStarterLastActiveTime(m_rs[3])
             m_Job.setParallel(m_rs[4])
             m_Job.setLoop(m_rs[5])
-            m_Job.setFailedJobs(m_rs[6])
-            m_Job.setFinishedJobs(m_rs[7])
-            m_Job.setActiveJobs(m_rs[8])
-            m_Job.setErrorMessage(m_rs[9])
-            m_Job.setScript(m_rs[10])
-            m_Job.setScriptFullName(m_rs[11])
-            m_Job.setThinkTime(m_rs[12])
-            m_Job.setTimeOut(m_rs[13])
-            m_Job.setSubmitTime(m_rs[14])
-            m_Job.setStartTime(m_rs[15])
-            m_Job.setEndTime(m_rs[16])
-            m_Job.setBlowoutThresHoldCount(m_rs[17])
-            m_Job.setStatus(m_rs[18])
+            m_Job.setStartedJobs(m_rs[6])
+            m_Job.setFailedJobs(m_rs[7])
+            m_Job.setFinishedJobs(m_rs[8])
+            m_Job.setActiveJobs(m_rs[9])
+            m_Job.setErrorMessage(m_rs[10])
+            m_Job.setScript(m_rs[11])
+            m_Job.setScriptFullName(m_rs[12])
+            m_Job.setThinkTime(m_rs[13])
+            m_Job.setTimeOut(m_rs[14])
+            m_Job.setSubmitTime(m_rs[15])
+            m_Job.setStartTime(m_rs[16])
+            m_Job.setEndTime(m_rs[17])
+            m_Job.setBlowoutThresHoldCount(m_rs[18])
+            m_Job.setStatus(m_rs[19])
+            m_Job.setTag(m_rs[20])
             m_db_cursor.close()
 
             # 获取Task信息
-            m_SQL = "SELECT TaskHandler_ID,ProcessInfo,start_time,end_time,exit_code, Finished_Status "  \
+            m_SQL = "SELECT TaskHandler_ID,ProcessID,start_time,end_time,exit_code, Finished_Status,Timer_Point "  \
                     "FROM   SQLCLI_TASKS WHERE JOB_ID=" + str(m_Job.getJobID())
             m_db_cursor = self.MetaConn.cursor()
             m_db_cursor.execute(m_SQL)
@@ -480,11 +536,72 @@ class JOBManager(object):
                 for m_row in m_rs:
                     m_Task = Task()
                     m_Task.TaskHandler_ID = m_row[0]
-                    m_Task.ProcessInfo = m_row[1]
+                    m_Task.ProcessID = m_row[1]
                     m_Task.start_time = m_row[2]
                     m_Task.end_time = m_row[3]
                     m_Task.exit_code = m_row[4]
                     m_Task.Finished_Status = m_row[5]
+                    m_Task.Timer_Point = m_row[6]
+                    m_Job.setTask(m_Task)
+            m_db_cursor.close()
+            return m_Job
+
+    # 根据JobName返回指定的JOB信息
+    def getJobByName(self, p_szJobName):
+        # 返回指定的Job信息，如果找不到，返回None
+        m_SQL = "SELECT Job_ID,Job_Name,Starter_Interval, " \
+                "Starter_Last_Active_Time, Parallel, Loop, " \
+                "Started_JOBS, Failed_JOBS,Finished_JOBS,Active_JOBS,Error_Message, " \
+                "Script, Script_FullName, Think_Time,  Timeout, Submit_Time, Start_Time, End_Time, " \
+                "Blowout_Threshold_Count, Status, JOB_TAG " \
+                "FROM SQLCLI_JOBS WHERE JOB_NAME = '" + str(p_szJobName) + "'"
+        m_db_cursor = self.MetaConn.cursor()
+        m_db_cursor.execute(m_SQL)
+        m_rs = m_db_cursor.fetchone()
+        if m_rs is None:
+            m_db_cursor.close()
+            return None
+        else:
+            m_Job = JOB()
+            m_Job.setJobID(m_rs[0])
+            m_Job.setJobName(m_rs[1])
+            m_Job.setStarterInterval(m_rs[2])
+            m_Job.setStarterLastActiveTime(m_rs[3])
+            m_Job.setParallel(m_rs[4])
+            m_Job.setLoop(m_rs[5])
+            m_Job.setStartedJobs(m_rs[6])
+            m_Job.setFailedJobs(m_rs[7])
+            m_Job.setFinishedJobs(m_rs[8])
+            m_Job.setActiveJobs(m_rs[9])
+            m_Job.setErrorMessage(m_rs[10])
+            m_Job.setScript(m_rs[11])
+            m_Job.setScriptFullName(m_rs[12])
+            m_Job.setThinkTime(m_rs[13])
+            m_Job.setTimeOut(m_rs[14])
+            m_Job.setSubmitTime(m_rs[15])
+            m_Job.setStartTime(m_rs[16])
+            m_Job.setEndTime(m_rs[17])
+            m_Job.setBlowoutThresHoldCount(m_rs[18])
+            m_Job.setStatus(m_rs[19])
+            m_Job.setTag(m_rs[20])
+            m_db_cursor.close()
+
+            # 获取Task信息
+            m_SQL = "SELECT TaskHandler_ID,ProcessID,start_time,end_time,exit_code, Finished_Status, Timer_Point "  \
+                    "FROM   SQLCLI_TASKS WHERE JOB_ID=" + str(m_Job.getJobID())
+            m_db_cursor = self.MetaConn.cursor()
+            m_db_cursor.execute(m_SQL)
+            m_rs = m_db_cursor.fetchall()
+            if m_rs is not None:
+                for m_row in m_rs:
+                    m_Task = Task()
+                    m_Task.TaskHandler_ID = m_row[0]
+                    m_Task.ProcessID = m_row[1]
+                    m_Task.start_time = m_row[2]
+                    m_Task.end_time = m_row[3]
+                    m_Task.exit_code = m_row[4]
+                    m_Task.Finished_Status = m_row[5]
+                    m_Task.Timer_Point = m_row[6]
                     m_Job.setTask(m_Task)
             m_db_cursor.close()
             return m_Job
@@ -536,7 +653,7 @@ class JOBManager(object):
             # 循环处理工作JOB
             for m_Job in self.getAllJobs():
                 if m_Job.getStatus() in ("FAILED", "SHUTDOWNED", "FINISHED", "ABORTED"):
-                    # 已经失败的Case不再处理
+                    # 已经结束的Case不再处理
                     continue
                 if m_Job.getStatus() in ("RUNNING", "WAITINGFOR_SHUTDOWN", "WAITINGFOR_ABORT"):
                     # 依次检查Task的状态
@@ -545,40 +662,57 @@ class JOBManager(object):
                     currenttime = int(time.mktime(datetime.datetime.now().timetuple()))
                     bAllTaskFinished = True
                     for m_Task in m_TaskList:
-                        m_ProcessID = m_Task.ProcessInfo
+                        m_ProcessID = m_Task.ProcessID
                         if m_ProcessID != 0:
-                            m_Process = self.ProcessInfo[m_ProcessID]
+                            m_Process = self.ProcessID[m_ProcessID]
                             if not m_Process.is_alive():
                                 # 进程ID不是0，进程已经不存在，或者是正常完成，或者是异常退出
-                                m_Job.FinishTask(m_Task.TaskHandler_ID, m_Process.exitcode, "")
+                                if m_Process.exitcode != 0:
+                                    m_Job.failed_jobs = m_Job.failed_jobs + 1
+                                m_Job.finished_jobs = m_Job.finished_jobs + 1
+                                m_Job.active_jobs = m_Job.active_jobs - 1
+                                m_Job.FinishTask(self.MetaConn, m_Task.TaskHandler_ID,
+                                                 m_Process.exitcode, "")
                                 self.SaveJob(m_Job)
                                 # 从当前保存的进程信息中释放该进程
-                                self.ProcessInfo.pop(m_ProcessID)
+                                self.ProcessID.pop(m_ProcessID)
                             else:
                                 # 进程还在运行中
                                 if m_Job.getTimeOut() != 0:
                                     # 设置了超时时间，我们需要根据超时时间进行判断
                                     if m_Task.start_time + m_Job.getTimeOut() < currenttime:
                                         m_Process.terminate()
-                                        m_Job.FinishTask(m_Task.TaskHandler_ID, m_Process.exitcode, "TIMEOUT")
+                                        m_Job.FinishTask(self.MetaConn, m_Task.TaskHandler_ID,
+                                                         m_Process.exitcode, "TIMEOUT")
+                                        m_Job.failed_jobs = m_Job.failed_jobs + 1
+                                        m_Job.finished_jobs = m_Job.finished_jobs + 1
+                                        m_Job.active_jobs = m_Job.active_jobs - 1
                                         self.SaveJob(m_Job)
                                         # 从当前保存的进程信息中释放该进程
-                                        self.ProcessInfo.pop(m_ProcessID)
+                                        self.ProcessID.pop(m_ProcessID)
                                     else:
                                         if m_Job.getStatus() == "WAITINGFOR_ABORT":
                                             m_Process.terminate()
-                                            m_Job.FinishTask(m_Task.TaskHandler_ID, m_Process.exitcode, "ABORTED")
+                                            m_Job.FinishTask(self.MetaConn, m_Task.TaskHandler_ID,
+                                                             m_Process.exitcode, "ABORTED")
+                                            m_Job.failed_jobs = m_Job.failed_jobs + 1
+                                            m_Job.finished_jobs = m_Job.finished_jobs + 1
+                                            m_Job.active_jobs = m_Job.active_jobs - 1
                                             self.SaveJob(m_Job)
                                             # 从当前保存的进程信息中释放该进程
-                                            self.ProcessInfo.pop(m_ProcessID)
+                                            self.ProcessID.pop(m_ProcessID)
                                         bAllTaskFinished = False
                                 else:
                                     if m_Job.getStatus() == "WAITINGFOR_ABORT":
                                         m_Process.terminate()
-                                        m_Job.FinishTask(m_Task.TaskHandler_ID, m_Process.exitcode, "ABORTED")
+                                        m_Job.FinishTask(self.MetaConn, m_Task.TaskHandler_ID,
+                                                         m_Process.exitcode, "ABORTED")
+                                        m_Job.failed_jobs = m_Job.failed_jobs + 1
+                                        m_Job.finished_jobs = m_Job.finished_jobs + 1
+                                        m_Job.active_jobs = m_Job.active_jobs - 1
                                         self.SaveJob(m_Job)
                                         # 从当前保存的进程信息中释放该进程
-                                        self.ProcessInfo.pop(m_ProcessID)
+                                        self.ProcessID.pop(m_ProcessID)
                                     bAllTaskFinished = False
                                 continue
                     if bAllTaskFinished and m_Job.getStatus() == "WAITINGFOR_SHUTDOWN":
@@ -635,7 +769,7 @@ class JOBManager(object):
                         m_Job.setScript(m_SQL_ScriptBaseName)
                         m_Job.setScriptFullName(m_SQL_ScriptFullName)
                         self.SaveJob(m_Job)
-                    if m_Job.getFinishedJobs() >= m_Job.getLoop():
+                    if m_Job.getFinishedJobs() >= (m_Job.getLoop() * m_Job.getParallel()):
                         # 已经完成了全部的作业，标记为完成状态
                         m_Job.setStatus("FINISHED")
                         m_Job.setEndTime(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time())))
@@ -672,12 +806,17 @@ class JOBManager(object):
                         m_Process = Process(target=self.runSQLCli,
                                             args=(m_args,))
                         m_Process.start()
-                        # 将Process信息放入到JOB列表中，启动进程
-                        m_Job.StartTask(m_TaskStarter, m_Process.pid)
+
+                        # 更新TASK字典信息
+                        m_Job.StartTask(self.MetaConn, m_TaskStarter, m_Process.pid)
+
+                        # 更新JOB信息
+                        m_Job.active_jobs = m_Job.active_jobs + 1
+                        m_Job.started_jobs = m_Job.started_jobs + 1
                         m_Job.setStartedJobs(m_JOB_Sequence+1)
                         m_JOB_Sequence = m_JOB_Sequence + 1
                         self.SaveJob(m_Job)
-                        self.ProcessInfo[m_Process.pid] = m_Process
+                        self.ProcessID[m_Process.pid] = m_Process
             # 每2秒检查一次任务
             time.sleep(2)
 
@@ -702,124 +841,100 @@ class JOBManager(object):
         self.isAgentStarted = False
 
     def SaveJob(self, p_objJOB: JOB):
-        m_SQL = "SELECT COUNT(1) FROM SQLCLI_JOBS WHERE JOB_ID = " + str(p_objJOB.id)
-        m_db_cursor = self.MetaConn.cursor()
-        m_db_cursor.execute(m_SQL)
-        m_rs = m_db_cursor.fetchone()
-        if m_rs[0] == 0:
-            m_SQL = "Insert Into SQLCLI_JOBS(JOB_ID,JOB_Name,Starter_Interval, Starter_Last_Active_Time, " \
-                    "Parallel, Loop, Started_JOBS, Failed_JOBS,Finished_JOBS,Active_JOBS,Error_Message, " \
-                    "Script, Script_FullName, Think_Time,  Timeout, Submit_Time, Start_Time, End_Time, " \
-                    "Blowout_Threshold_Count, Status) VALUES (" \
-                    "?,?,?,?," \
-                    "?,?,?,?,?,?,?, " \
-                    "?,?,?,?,?,?,?," \
-                    "?,?" \
-                    ")"
-            m_Data = [
-                p_objJOB.id,
-                p_objJOB.job_name,
-                p_objJOB.starter_interval,
-                p_objJOB.starter_last_active_time,
-                p_objJOB.parallel,
-                p_objJOB.loop,
-                p_objJOB.started_jobs,
-                p_objJOB.failed_jobs,
-                p_objJOB.finished_jobs,
-                p_objJOB.active_jobs,
-                p_objJOB.error_message,
-                p_objJOB.script,
-                p_objJOB.script_fullname,
-                p_objJOB.think_time,
-                p_objJOB.timeout,
-                p_objJOB.submit_time,
-                p_objJOB.start_time,
-                p_objJOB.end_time,
-                p_objJOB.blowout_threshold_count,
-                p_objJOB.status
-            ]
-            m_db_cursor.execute(m_SQL, parameters=m_Data)
-        else:
-            m_SQL = "Update SQLCLI_JOBS " \
-                    "SET    JOB_NAME = ?," \
-                    "       Starter_Interval = ?," \
-                    "       Starter_Last_Active_Time = ?," \
-                    "       Parallel = ?," \
-                    "       Loop = ?," \
-                    "       Started_JOBS = ?," \
-                    "       Failed_JOBS = ?," \
-                    "       Finished_JOBS = ?," \
-                    "       Active_JOBS = ?," \
-                    "       Error_Message = ?," \
-                    "       Script = ?," \
-                    "       Script_FullName = ?," \
-                    "       Think_Time = ?," \
-                    "       Timeout = ?," \
-                    "       Submit_Time = ?," \
-                    "       Start_Time = ?," \
-                    "       End_Time = ?," \
-                    "       Blowout_Threshold_Count = ?," \
-                    "       Status = ? " \
-                    "WHERE  JOB_ID = " + str(p_objJOB.id)
-            m_Data = [
-                p_objJOB.job_name,
-                p_objJOB.starter_interval,
-                p_objJOB.starter_last_active_time,
-                p_objJOB.parallel,
-                p_objJOB.loop,
-                p_objJOB.started_jobs,
-                p_objJOB.failed_jobs,
-                p_objJOB.finished_jobs,
-                p_objJOB.active_jobs,
-                p_objJOB.error_message,
-                p_objJOB.script,
-                p_objJOB.script_fullname,
-                p_objJOB.think_time,
-                p_objJOB.timeout,
-                p_objJOB.submit_time,
-                p_objJOB.start_time,
-                p_objJOB.end_time,
-                p_objJOB.blowout_threshold_count,
-                p_objJOB.status
-            ]
-            m_db_cursor.execute(m_SQL, parameters=m_Data)
-            for m_Task in p_objJOB.getTasks():
-                m_SQL = "SELECT COUNT(1) FROM SQLCLI_TASKS " \
-                        "WHERE JOB_ID=" + str(p_objJOB.id) + " AND TaskHandler_ID=" + str(m_Task.TaskHandler_ID)
-                m_db_cursor = self.MetaConn.cursor()
-                m_db_cursor.execute(m_SQL)
-                m_rs = m_db_cursor.fetchone()
-                if m_rs[0] == 0:
-                    m_SQL = "Insert into SQLCLI_TASKS(JOB_ID,TaskHandler_ID,ProcessInfo," \
-                            "start_time,end_time,exit_code,Finished_Status) VALUES(?,?,?,?,?,?,?)"
-                    m_Data = [
-                        p_objJOB.id,
-                        m_Task.TaskHandler_ID,
-                        m_Task.ProcessInfo,
-                        m_Task.start_time,
-                        m_Task.end_time,
-                        m_Task.exit_code,
-                        m_Task.Finished_Status
-                    ]
-                    m_db_cursor.execute(m_SQL, parameters=m_Data)
-                else:
-                    m_SQL = "UPDATE SQLCLI_TASKS " \
-                            "SET    ProcessInfo = ?," \
-                            "       start_time = ?," \
-                            "       end_time = ?," \
-                            "       exit_code = ?," \
-                            "       Finished_Status = ? " \
-                            "WHERE JOB_ID=" + str(p_objJOB.id) + " AND TaskHandler_ID=" + str(m_Task.TaskHandler_ID)
-                    m_Data = [
-                        m_Task.ProcessInfo,
-                        m_Task.start_time,
-                        m_Task.end_time,
-                        m_Task.exit_code,
-                        m_Task.Finished_Status
-                    ]
-                    m_db_cursor.execute(m_SQL, parameters=m_Data)
-        m_db_cursor.close()
-        self.MetaConn.commit()
+        if self.MetaLockHandler is None:
+            self.MetaLockHandler = Lock()
+        try:
+            self.MetaLockHandler.acquire()
+            m_SQL = "SELECT COUNT(1) FROM SQLCLI_JOBS WHERE JOB_ID = " + str(p_objJOB.id)
+            m_db_cursor = self.MetaConn.cursor()
+            m_db_cursor.execute(m_SQL)
+            m_rs = m_db_cursor.fetchone()
+            if m_rs[0] == 0:
+                m_SQL = "Insert Into SQLCLI_JOBS(JOB_ID,JOB_Name,Starter_Interval, Starter_Last_Active_Time, " \
+                        "Parallel, Loop, Started_JOBS, Failed_JOBS,Finished_JOBS,Active_JOBS,Error_Message, " \
+                        "Script, Script_FullName, Think_Time,  Timeout, Submit_Time, Start_Time, End_Time, " \
+                        "Blowout_Threshold_Count, Status, JOB_Tag) VALUES (" \
+                        "?,?,?,?," \
+                        "?,?,?,?,?,?,?, " \
+                        "?,?,?,?,?,?,?," \
+                        "?,?,?" \
+                        ")"
+                m_Data = [
+                    p_objJOB.id,
+                    p_objJOB.job_name,
+                    p_objJOB.starter_interval,
+                    p_objJOB.starter_last_active_time,
+                    p_objJOB.parallel,
+                    p_objJOB.loop,
+                    p_objJOB.started_jobs,
+                    p_objJOB.failed_jobs,
+                    p_objJOB.finished_jobs,
+                    p_objJOB.active_jobs,
+                    p_objJOB.error_message,
+                    p_objJOB.script,
+                    p_objJOB.script_fullname,
+                    p_objJOB.think_time,
+                    p_objJOB.timeout,
+                    p_objJOB.submit_time,
+                    p_objJOB.start_time,
+                    p_objJOB.end_time,
+                    p_objJOB.blowout_threshold_count,
+                    p_objJOB.status,
+                    p_objJOB.tag
+                ]
+                m_db_cursor.execute(m_SQL, parameters=m_Data)
+            else:
+                m_SQL = "Update SQLCLI_JOBS " \
+                        "SET    JOB_NAME = ?," \
+                        "       Starter_Interval = ?," \
+                        "       Starter_Last_Active_Time = ?," \
+                        "       Parallel = ?," \
+                        "       Loop = ?," \
+                        "       Started_JOBS = ?," \
+                        "       Failed_JOBS = ?," \
+                        "       Finished_JOBS = ?," \
+                        "       Active_JOBS = ?," \
+                        "       Error_Message = ?," \
+                        "       Script = ?," \
+                        "       Script_FullName = ?," \
+                        "       Think_Time = ?," \
+                        "       Timeout = ?," \
+                        "       Submit_Time = ?," \
+                        "       Start_Time = ?," \
+                        "       End_Time = ?," \
+                        "       Blowout_Threshold_Count = ?," \
+                        "       Status = ?, " \
+                        "       JOB_TAG = ? " \
+                        "WHERE  JOB_ID = " + str(p_objJOB.id)
+                m_Data = [
+                    p_objJOB.job_name,
+                    p_objJOB.starter_interval,
+                    p_objJOB.starter_last_active_time,
+                    p_objJOB.parallel,
+                    p_objJOB.loop,
+                    p_objJOB.started_jobs,
+                    p_objJOB.failed_jobs,
+                    p_objJOB.finished_jobs,
+                    p_objJOB.active_jobs,
+                    p_objJOB.error_message,
+                    p_objJOB.script,
+                    p_objJOB.script_fullname,
+                    p_objJOB.think_time,
+                    p_objJOB.timeout,
+                    p_objJOB.submit_time,
+                    p_objJOB.start_time,
+                    p_objJOB.end_time,
+                    p_objJOB.blowout_threshold_count,
+                    p_objJOB.status,
+                    p_objJOB.tag
+                ]
+                m_db_cursor.execute(m_SQL, parameters=m_Data)
+            m_db_cursor.close()
+            self.MetaConn.commit()
+        except Exception as ex:
+            print("Internal error:: perf file write not complete. " + repr(ex))
+        finally:
+            self.MetaLockHandler.release()
 
     # 提交一个任务
     def createjob(self, p_szname: str):
@@ -852,11 +967,11 @@ class JOBManager(object):
         """
         # 如果输入的参数为all，则显示全部的JOB信息
         if p_szjobName.lower() == "all":
-            m_Header = ["job_name", "status", "active_jobs", "failed_jobs", "finished_jobs",
+            m_Header = ["job_name", "tag", "status", "active_jobs", "failed_jobs", "finished_jobs",
                         "submit_time", "start_time", "end_time"]
             m_Result = []
             for m_JOB in self.getAllJobs():
-                m_Result.append([m_JOB.getJobName(), m_JOB.getStatus(), m_JOB.getActiveJobs(),
+                m_Result.append([m_JOB.getJobName(), m_JOB.getTag(), m_JOB.getStatus(), m_JOB.getActiveJobs(),
                                  m_JOB.getFailedJobs(), m_JOB.getFinishedJobs(),
                                  str(m_JOB.getSubmitTime()), str(m_JOB.getStartTime()),
                                  str(m_JOB.getEndTime())])
@@ -866,32 +981,34 @@ class JOBManager(object):
             m_Job = self.getJobByName(p_szjobName)
             if m_Job is None:
                 return None, None, None, None, "JOB [" + p_szjobName + "] does not exist."
-            strMessages = strMessages + 'JOB_Name = [{0:12}]; ID = [{1:4d}]; Status = [{2:19}]\n'.\
-                format(p_szjobName, m_Job.getJobID(), m_Job.getStatus())
-            strMessages = strMessages + 'ActiveJobs/FailedJobs/FinishedJobs: [{0:10d}/{1:10d}/{2:10d}]\n'.\
+            strMessages = strMessages + 'JOB_Name = [{0:12}]; ID = [{1:4d}]; Tag = [{2:12}], Status = [{3:12}]\n'.\
+                format(p_szjobName, m_Job.getJobID(), m_Job.getTag(), m_Job.getStatus())
+            strMessages = strMessages + 'ActiveJobs/FailedJobs/FinishedJobs: [{0:15d}/{1:15d}/{2:15d}]\n'.\
                 format(m_Job.getActiveJobs(), m_Job.getFailedJobs(), m_Job.getFinishedJobs())
-            strMessages = strMessages + 'Submit Time: [{0:55}]\n'.format(str(m_Job.getSubmitTime()))
-            strMessages = strMessages + 'Start Time : [{0:20}] ; End Time: [{1:20}]\n'.\
+            strMessages = strMessages + 'Submit Time: [{0:70}]\n'.format(str(m_Job.getSubmitTime()))
+            strMessages = strMessages + 'Start Time : [{0:30}] ; End Time: [{1:25}]\n'.\
                 format(str(m_Job.getStartTime()), str(m_Job.getEndTime()))
-            strMessages = strMessages + 'Script              : [{0:46}]\n'.format(str(m_Job.getScript()))
-            strMessages = strMessages + 'Script Full FileName: [{0:46}]\n'.format(str(m_Job.getScriptFullName()))
-            strMessages = strMessages + 'Parallel: [{0:10d}]; Loop: [{1:10d}]; Starter Interval: [{2:5d}s]\n'.\
+            strMessages = strMessages + 'Script              : [{0:61}]\n'.format(str(m_Job.getScript()))
+            strMessages = strMessages + 'Script Full FileName: [{0:61}]\n'.format(str(m_Job.getScriptFullName()))
+            strMessages = strMessages + 'Parallel: [{0:15d}]; Loop: [{1:15d}]; Starter Interval: [{2:10d}s]\n'.\
                 format(m_Job.getParallel(), m_Job.getLoop(),
                        m_Job.getStarterInterval())
             if m_Job.getStartTime() is None:
                 m_ElapsedTime = 0
             else:
                 m_ElapsedTime = time.time() - time.mktime(time.strptime(m_Job.getStartTime(), "%Y-%m-%d %H:%M:%S"))
-            strMessages = strMessages + 'Think time: [{0:10d}]; Timeout: [{1:10d}]; Elapsed: [{2:10s}]\n'.\
+            strMessages = strMessages + 'Think time: [{0:15d}]; Timeout: [{1:15d}]; Elapsed: [{2:15s}]\n'.\
                 format(m_Job.getThinkTime(), m_Job.getTimeOut(), "%10.2f" % float(m_ElapsedTime))
-            strMessages = strMessages + 'Blowout Threshold Count: [{0:43d}]\n'.\
+            strMessages = strMessages + 'Blowout Threshold Count: [{0:58d}]\n'.\
                 format(m_Job.getBlowoutThresHoldCount())
-            strMessages = strMessages + 'Message : [{0:58s}]\n'.format(str(m_Job.getErrorMessage()))
+            strMessages = strMessages + 'Message : [{0:73s}]\n'.format(str(m_Job.getErrorMessage()))
             strMessages = strMessages + 'Detail Tasks>>>:\n'
-            strMessages = strMessages + '+{0:10s}+{1:10s}+{2:20s}+{3:20s}+\n'.format('-'*10, '-'*10, '-'*20, '-'*20)
-            strMessages = strMessages + '|{0:10s}|{1:10s}|{2:20s}|{3:20s}|\n'.format(
-                'Task-ID', 'PID', 'Start_Time', 'End_Time')
-            strMessages = strMessages + '+{0:10s}+{1:10s}+{2:20s}+{3:20s}+\n'.format('-'*10, '-'*10, '-'*20, '-'*20)
+            strMessages = strMessages + '+{0:10s}+{1:10s}+{2:20s}+{3:20s}+{4:20s}+\n'.format(
+                '-'*10, '-'*10, '-'*20, '-'*20, '-'*20)
+            strMessages = strMessages + '|{0:10s}|{1:10s}|{2:20s}|{3:20s}|{4:20s}|\n'.format(
+                'Task-ID', 'PID', 'Start_Time', 'End_Time', 'Timer_Point')
+            strMessages = strMessages + '+{0:10s}+{1:10s}+{2:20s}+{3:20s}+{4:20s}+\n'.format(
+                '-'*10, '-'*10, '-'*20, '-'*20, '-'*20)
             for m_Task in m_Job.getTasks():
                 if m_Task.start_time is None:
                     m_StartTime = "____-__-__ __:__:__"
@@ -903,11 +1020,11 @@ class JOBManager(object):
                 else:
                     m_EndTime = datetime.datetime.fromtimestamp(m_Task.end_time).\
                         strftime("%Y-%m-%d %H:%M:%S")
-                strMessages = strMessages + '|{0:10d}|{1:10d}|{2:20s}|{3:20s}|\n'.\
-                    format(m_Task.TaskHandler_ID, m_Task.ProcessInfo,
-                           m_StartTime, m_EndTime)
-                strMessages = strMessages + '+{0:10s}+{1:10s}+{2:20s}+{3:20s}+\n'.\
-                    format('-' * 10, '-' * 10, '-' * 20, '-' * 20)
+                strMessages = strMessages + '|{0:10d}|{1:10d}|{2:20s}|{3:20s}|{4:20s}|\n'.\
+                    format(m_Task.TaskHandler_ID, m_Task.ProcessID,
+                           m_StartTime, m_EndTime, str(m_Task.Timer_Point))
+                strMessages = strMessages + '+{0:10s}+{1:10s}+{2:20s}+{3:20s}+{4:20s}+\n'.\
+                    format('-' * 10, '-' * 10, '-' * 20, '-' * 20, '-' * 20)
             return None, None, None, None, strMessages
 
     # 启动JOB
@@ -922,8 +1039,6 @@ class JOBManager(object):
         for m_Job in m_JobList:
             if m_Job.getStatus() == "Submitted":
                 nJobStarted = nJobStarted + 1
-                # 初始化Task列表
-                m_Job.initTaskList()
                 # 标记Task已经开始运行
                 m_Job.setStatus("RUNNING")
                 # 设置Task运行开始时间
@@ -994,6 +1109,114 @@ class JOBManager(object):
                 self.SaveJob(m_Job)
         return nJobAborted
 
+    # 等待TimerPoint到特定的时间点
+    def waitjobtimer(self, p_TimerPoint):
+        # 获得当前的Task_Tag
+        m_Job = self.getJobByProcessID(os.getpid())
+        if m_Job is None:
+            raise SQLCliException("SQLCLI-00000:  This is not a job process, you can't wait anything.")
+
+        # 获得进程的Task信息
+        m_Task = m_Job.getTaskByProcessID(os.getpid())
+        # 获取共有多少个进程需要达到该时间点
+        m_JobTag = m_Job.getTag()
+        if m_JobTag == "":
+            m_TotalParallel = m_Job.getParallel()
+        else:
+            m_SQL = "SELECT     Sum(J.Parallel) " \
+                    "FROM       SQLCLI_JOBS J " \
+                    "WHERE      J.Job_TAG = '" + m_JobTag + "' " + \
+                    "AND        Status Not In ('FAILED', 'SHUTDOWNED', 'FINISHED', 'ABORTED') "
+            m_db_cursor = self.MetaConn.cursor()
+            m_db_cursor.execute(m_SQL)
+            m_rs = m_db_cursor.fetchone()
+            m_TotalParallel = m_rs[0]
+            m_db_cursor.close()
+
+        # 自己已经到达时间点， 标记Timer_Point为自己等待的时间点
+        m_Task.Timer_Point = p_TimerPoint
+        m_Job.setTask(m_Task)
+        m_db_cursor = self.MetaConn.cursor()
+        m_SQL = "UPDATE SQLCLI_TASKS " \
+                "SET    Timer_Point = ? " \
+                "WHERE  JOB_ID=" + str(m_Job.id) + " " + \
+                "AND    TaskHandler_ID=" + str(m_Task.TaskHandler_ID)
+        m_Data = [
+            m_Task.Timer_Point
+        ]
+        m_db_cursor.execute(m_SQL, parameters=m_Data)
+        self.MetaConn.commit()
+
+        # 检查是否为READY状态，如果是，则可以离开
+        while True:
+            # 检查其他进程是否到达该检查点
+            m_TimerPointAllArrived = False
+            if m_JobTag == "":
+                m_SQL = "SELECT     COUNT(1) " \
+                        "FROM       SQLCLI_TASKS T " \
+                        "WHERE      T.Job_ID = " + str(m_Job.id) + " " + \
+                        "AND        T.Timer_Point ='" + p_TimerPoint + "'"
+            else:
+                m_SQL = "SELECT     COUNT(1) " \
+                        "FROM       SQLCLI_JOBS J, SQLCLI_TASKS T " \
+                        "WHERE      J.Job_ID = T.Job_ID " \
+                        "AND        J.Status Not In ('FAILED', 'SHUTDOWNED', 'FINISHED', 'ABORTED') " \
+                        "AND        J.Job_TAG = '" + m_JobTag + "' " + \
+                        "AND        T.Timer_Point ='" + p_TimerPoint + "'"
+            m_db_cursor = self.MetaConn.cursor()
+            m_db_cursor.execute(m_SQL)
+            m_rs = m_db_cursor.fetchone()
+            if m_rs[0] == m_TotalParallel:
+                m_db_cursor.close()
+                m_TimerPointAllArrived = True
+            m_db_cursor.close()
+
+            # 如果所有进程都已经到达检查点，则标记所有进程为READY符号，否则等待其他进程标记
+            if m_TimerPointAllArrived:
+                if m_JobTag == "":
+                    m_SQL = "UPDATE     SQLCLI_TASKS T " \
+                            "SET        T.Timer_Point ='__READY__'" \
+                            "WHERE      T.Job_ID = " + str(m_Job.id) + \
+                            "AND        T.Timer_Point ='" + p_TimerPoint + "'"
+                else:
+                    m_SQL = "UPDATE     SQLCLI_TASKS T " \
+                            "SET        T.Timer_Point ='__READY__'" \
+                            "WHERE      T.Job_ID IN " \
+                            "   (" \
+                            "     SELECT JOB_ID FROM SQLCLI_JOBS J " \
+                            "     WHERE  J.Job_TAG = '" + m_JobTag + "' " + \
+                            "     AND    J.Status Not In ('FAILED', 'SHUTDOWNED', 'FINISHED', 'ABORTED') " \
+                            "   ) " \
+                            "AND        T.Timer_Point ='" + p_TimerPoint + "'"
+                m_db_cursor = self.MetaConn.cursor()
+                m_db_cursor.execute(m_SQL)
+                m_db_cursor.close()
+
+            # 如果已经被其他进程标记为READY，退出等待
+            m_SQL = "SELECT     Timer_Point " \
+                    "FROM       SQLCLI_TASKS T " \
+                    "WHERE      JOB_ID=" + str(m_Job.id) + " " + \
+                    "AND        TaskHandler_ID=" + str(m_Task.TaskHandler_ID)
+            m_db_cursor = self.MetaConn.cursor()
+            m_db_cursor.execute(m_SQL)
+            m_rs = m_db_cursor.fetchone()
+            if m_rs[0] == '__READY__':
+                m_db_cursor.close()
+                break
+            self.MetaConn.commit()
+
+            time.sleep(2)
+
+        # 离开当前等待，清空READY状态
+        m_db_cursor = self.MetaConn.cursor()
+        m_SQL = "UPDATE SQLCLI_TASKS " \
+                "SET    Timer_Point = Null " \
+                "WHERE  JOB_ID=" + str(m_Job.id) + " " + \
+                "AND    TaskHandler_ID=" + str(m_Task.TaskHandler_ID)
+        m_db_cursor.execute(m_SQL)
+        m_db_cursor.close()
+        self.MetaConn.commit()
+
     # 判断是否所有有效的子进程都已经退出
     def isJobClosed(self, p_JobName: str):
         m_Job = self.getJobByName(p_JobName)
@@ -1004,7 +1227,7 @@ class JOBManager(object):
     # 判断是否所有有效的子进程都已经退出
     def isAllJobClosed(self):
         # 当前有活动进程存在
-        return len(self.ProcessInfo) == 0
+        return len(self.ProcessID) == 0
 
     # 处理JOB的相关命令
     def Process_Command(self, p_szCommand: str):
@@ -1064,6 +1287,14 @@ class JOBManager(object):
             m_JobName = str(matchObj.group(1)).strip()
             self.waitjob(m_JobName)
             return None, None, None, None, "All jobs [" + m_JobName + "] finished."
+
+        # 等待JOB的检查点完成
+        matchObj = re.match(r"job\s+timer\s+(.*)$",
+                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_TimerPoint = str(matchObj.group(1)).strip()
+            self.waitjobtimer(m_TimerPoint)
+            return None, None, None, None, "TimerPoint [" + m_TimerPoint + "] has arrived."
 
         # 终止JOB作业
         matchObj = re.match(r"job\s+shutdown\s+(.*)$",

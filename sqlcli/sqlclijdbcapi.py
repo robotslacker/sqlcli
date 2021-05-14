@@ -95,7 +95,7 @@ def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
     # register driver for DriverManager
     try:
         jpype.JClass(jclassname)
-    except TypeError as te:
+    except TypeError:
         raise SQLCliJDBCException("SQLCLI-00000: Load java class failed. [" + str(jclassname) + "]")
     if isinstance(driver_args, dict):
         Properties = jpype.java.util.Properties
@@ -379,6 +379,9 @@ class Connection(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    def setAutoCommit(self, p_bAutoCommit):
+        self.jconn.setAutoCommit(p_bAutoCommit)
+
 
 # DB-API 2.0 Cursor Object
 class Cursor(object):
@@ -441,7 +444,14 @@ class Cursor(object):
 
     def _set_stmt_parms(self, prep_stmt, parameters):
         for i in range(len(parameters)):
-            prep_stmt.setObject(i + 1, parameters[i])
+            if type(parameters[i]) == list:
+                m_JavaObject = None
+                if len(parameters[i]) != 0:
+                    m_JavaArray = jpype.JArray(jpype.JObject)
+                    m_JavaObject = m_JavaArray(parameters[i])
+                prep_stmt.setObject(i + 1, m_JavaObject)
+            else:
+                prep_stmt.setObject(i + 1, parameters[i])
 
     def execute_direct(self, operation):
         if self._connection._closed:
@@ -856,50 +866,12 @@ def _java_to_py_array(conn, rs, col):
         return
     m_TypeName = str(java_val.getClass().getTypeName())
     if m_TypeName.upper().find('ARRAY') != -1:
-        m_ColumnValue = "ARRAY["
         java_val = java_val.getArray();
-        for m_nPos in range(0, len(java_val)):
-            m_ColumnType = str(type(java_val[m_nPos]))
-            if m_nPos == 0:
-                if m_ColumnType.upper().find('STR') != -1:
-                    m_ColumnValue = m_ColumnValue + "'" + str(java_val[m_nPos]) + "'"
-                elif m_ColumnType.upper().find('SQLDATE') != -1:
-                    m_ColumnValue = m_ColumnValue + "DATE'" + str(java_val[m_nPos]) + "'"
-                elif str(type(java_val)).upper().find("FLOAT") != -1:
-                    m_ColumnValue = m_ColumnValue + \
-                                    _sqloptions.get("FLOAT_FORMAT") % java_val[m_nPos]
-                elif str(type(java_val)).upper().find("DOUBLE") != -1:
-                    m_ColumnValue = m_ColumnValue + \
-                                    _sqloptions.get("DOUBLE_FORMAT") % java_val[m_nPos]
-                elif type(java_val) == decimal.Decimal:
-                    if _sqloptions.get("DECIMAL_FORMAT") != "":
-                        m_ColumnValue = m_ColumnValue + \
-                                        _sqloptions.get("DECIMAL_FORMAT") % java_val[m_nPos]
-                    else:
-                        m_ColumnValue = m_ColumnValue + java_val[m_nPos]
-                else:
-                    m_ColumnValue = m_ColumnValue + str(java_val[m_nPos])
-            else:
-                if m_ColumnType.upper().find('STR') != -1:
-                    m_ColumnValue = m_ColumnValue + ",'" + str(java_val[m_nPos]) + "'"
-                elif m_ColumnType.upper().find('SQLDATE') != -1:
-                    m_ColumnValue = m_ColumnValue + ",DATE'" + str(java_val[m_nPos]) + "'"
-                elif str(type(java_val)).upper().find("FLOAT") != -1:
-                    m_ColumnValue = m_ColumnValue + "," + \
-                                    _sqloptions.get("FLOAT_FORMAT") % java_val[m_nPos]
-                elif str(type(java_val)).upper().find("DOUBLE") != -1:
-                    m_ColumnValue = m_ColumnValue + "," + \
-                                    _sqloptions.get("DOUBLE_FORMAT") % java_val[m_nPos]
-                elif type(java_val) == decimal.Decimal:
-                    if _sqloptions.get("DECIMAL_FORMAT") != "":
-                        m_ColumnValue = m_ColumnValue + "," + \
-                                        _sqloptions.get("DECIMAL_FORMAT") % java_val[m_nPos]
-                    else:
-                        m_ColumnValue = m_ColumnValue + "," + java_val[m_nPos]
-                else:
-                    m_ColumnValue = m_ColumnValue + "," + str(java_val[m_nPos])
-        m_ColumnValue = m_ColumnValue + "]"
-        return m_ColumnValue
+        return java_val.tolist()
+    elif m_TypeName.find('Object[]') != -1:
+        m_retVal = []
+        m_retVal.extend(java_val)
+        return m_retVal
     else:
         raise SQLCliJDBCException(
             "SQLCLI-00000: Unknown java class type [" + m_TypeName +
