@@ -259,7 +259,7 @@ class JOB:
     # 设置Task信息
     def setTask(self, p_Task: Task):
         m_TaskFound = False
-        for m_nPos in range(0, len(self.tasks)):
+        for m_nPos in self.tasks.keys():
             if self.tasks[m_nPos].TaskHandler_ID == p_Task.TaskHandler_ID:
                 m_TaskFound = True
                 self.tasks[m_nPos].start_time = p_Task.start_time
@@ -288,7 +288,7 @@ class JOB:
         if self.active_jobs >= self.parallel:
             # 如果当前活动进程数量已经超过了并发要求，直接退出
             return []
-        if self.started_jobs >= self.loop:
+        if self.started_jobs >= self.loop * self.parallel:
             # 如果到目前位置，已经启动的进程数量超过了总数要求，直接退出
             return []
         if self.starter_interval != 0 and self.started_jobs < self.parallel:
@@ -372,11 +372,8 @@ class JOB:
                 "WHERE  JOB_ID=" + str(self.id) + " " + \
                 "AND    TaskHandler_ID=" + str(p_TaskHandlerID)
         m_db_cursor.execute(m_SQL)
-        m_SQL = "UPDATE SQLCLI_TASKS " + \
-                "SET    ProcessID = 0, " \
-                "       Start_Time = 0, " \
-                "       Exit_Code = 0, " \
-                "       End_Time = Null " \
+        # 归零SQLCLI_TASKS中的信息
+        m_SQL = "DELETE SQLCLI_TASKS " + \
                 "WHERE  JOB_ID=" + str(self.id) + " " + \
                 "AND    TaskHandler_ID=" + str(p_TaskHandlerID)
         m_db_cursor.execute(m_SQL)
