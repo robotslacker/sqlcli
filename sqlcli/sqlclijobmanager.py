@@ -1186,6 +1186,7 @@ class JOBManager(object):
                 m_db_cursor = self.MetaConn.cursor()
                 m_db_cursor.execute(m_SQL)
                 m_db_cursor.close()
+                self.MetaConn.commit()
 
             # 如果已经被其他进程标记为READY，退出等待
             m_SQL = "SELECT    COUNT(*) " \
