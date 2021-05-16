@@ -102,7 +102,6 @@ class SQLCli(object):
             logger=None,                            # 程序输出日志句柄
             clientcharset='UTF-8',                  # 客户端字符集，在读取SQL文件时，采纳这个字符集，默认为UTF-8
             resultcharset='UTF-8',                  # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
-            EnableJobManager=False,                 # 没有用处，只是保留用作兼容，日后删除
             profile=None                            # 程序初始化执行脚本
     ):
         self.db_saved_conn = {}                         # 数据库Session备份
@@ -294,9 +293,6 @@ class SQLCli(object):
             self.JobHandler.setMetaConn(self.MetaHandler.db_conn)
             self.TransactionHandler.setMetaConn(self.MetaHandler.db_conn)
             self.SQLOptions.set("JOBMANAGER_METAURL", m_JobManagerURL)
-            m_Job = self.JobHandler.getJobByProcessID(os.getpid())
-            if m_Job is not None:
-                self.SQLOptions.set("JOBTAG", m_Job.getTag())
 
         # 处理传递的映射文件, 首先加载参数的部分，如果环境变量里头有设置，则环境变量部分会叠加参数部分
         self.SQLOptions.set("SQLREWRITE", "OFF")
@@ -1313,6 +1309,25 @@ class SQLCli(object):
                                           "Unknown option [" + str(options_parameters[1]) +
                                           "] for JOBMANAGER. ON/OFF only.")
 
+            # 对于子进程，连接到JOB管理服务
+            if options_parameters[0].upper() == "JOBMANAGER_METAURL":
+                if cls.SQLOptions.get("JOBMANAGER") == "ON":
+                    raise SQLCliException("SQLCLI-00000: "
+                                          "You can't act as worker rule while option JOBMANAGER is ON")
+                m_JobManagerURL = options_parameters[1]
+                if len(m_JobManagerURL) == 0:
+                    # 退出Meta的连接
+                    cls.MetaHandler.DisConnectServer()
+                    cls.JobHandler.setMetaConn(None)
+                    cls.TransactionHandler.setMetaConn(None)
+                    cls.SQLOptions.set("JOBMANAGER_METAURL", "")
+                else:
+                    # 对于被主进程调用的进程，则不需要考虑, 连接到主进程的Meta服务
+                    cls.MetaHandler.ConnectServer(m_JobManagerURL)
+                    cls.JobHandler.setMetaConn(cls.MetaHandler.db_conn)
+                    cls.TransactionHandler.setMetaConn(cls.MetaHandler.db_conn)
+                    cls.SQLOptions.set("JOBMANAGER_METAURL", m_JobManagerURL)
+
             # 如果不是已知的选项，则直接抛出到SQL引擎
             if options_parameters[0].startswith('@'):
                 m_ParameterValue = " ".join(options_parameters[1:])
@@ -1749,7 +1764,8 @@ class SQLCli(object):
         setproctitle.setproctitle(m_Cli_ProcessTitleBak)
 
         # 取消进程共享服务的注册信息
-        self.JobHandler.unregister()
+        self.JobHandler.unregisterjob()
+        self.JobHandler.unregisterAgent()
 
         # 关闭Meta服务
         if self.MetaHandler is not None:

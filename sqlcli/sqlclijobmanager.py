@@ -258,18 +258,14 @@ class JOB:
 
     # 设置Task信息
     def setTask(self, p_Task: Task):
-        m_TaskFound = False
-        for m_nPos in self.tasks.keys():
-            if self.tasks[m_nPos].TaskHandler_ID == p_Task.TaskHandler_ID:
-                m_TaskFound = True
-                self.tasks[m_nPos].start_time = p_Task.start_time
-                self.tasks[m_nPos].end_time = p_Task.end_time
-                self.tasks[m_nPos].exit_code = p_Task.exit_code
-                self.tasks[m_nPos].ProcessID = p_Task.ProcessID
-                self.tasks[m_nPos].Finished_Status = p_Task.Finished_Status
-                self.tasks[m_nPos].Timer_Point = p_Task.Timer_Point
-                break
-        if not m_TaskFound:
+        if p_Task.TaskHandler_ID in self.tasks.keys():
+            self.tasks[p_Task.TaskHandler_ID].start_time = p_Task.start_time
+            self.tasks[p_Task.TaskHandler_ID].end_time = p_Task.end_time
+            self.tasks[p_Task.TaskHandler_ID].exit_code = p_Task.exit_code
+            self.tasks[p_Task.TaskHandler_ID].ProcessID = p_Task.ProcessID
+            self.tasks[p_Task.TaskHandler_ID].Finished_Status = p_Task.Finished_Status
+            self.tasks[p_Task.TaskHandler_ID].Timer_Point = p_Task.Timer_Point
+        else:
             m_Task = Task()
             m_Task.TaskHandler_ID = p_Task.TaskHandler_ID
             m_Task.start_time = p_Task.start_time
@@ -340,10 +336,12 @@ class JOB:
         # 在SQLCLI_TASK中创建对应记录
         m_db_cursor = p_MetaConn.cursor()
         m_SQL = "Insert into SQLCLI_TASKS(" \
-                "JOB_ID,TaskHandler_ID,ProcessID, Start_Time) " \
-                "VALUES(?,?,?,?)"
+                "JOB_ID,JOB_Name, JOB_Tag, TaskHandler_ID,ProcessID, Start_Time) " \
+                "VALUES(?,?,?,?,?,?)"
         m_Data = [
             self.id,
+            self.job_name,
+            self.tag,
             p_TaskHandlerID,
             p_ProcessID,
             m_CurrentTime
@@ -363,12 +361,13 @@ class JOB:
 
         # 在数据库中记录相关信息
         m_db_cursor = p_MetaConn.cursor()
-        m_SQL = "Insert Into SQLCLI_TASKS_HISTORY(JOB_ID,TaskHandler_ID,ProcessID,Timer_Point," \
+        m_SQL = "Insert Into SQLCLI_TASKS_HISTORY(JOB_ID,JOB_Name,JOB_TAG," \
+                "       TaskHandler_ID,ProcessID,Timer_Point," \
                 "       Start_Time,End_Time,Exit_Code,Finished_Status) " \
-                "SELECT JOB_ID,TaskHandler_ID,ProcessID,Timer_Point,Start_Time," + \
+                "SELECT JOB_ID,JOB_Name,JOB_TAG,TaskHandler_ID,ProcessID,Timer_Point,Start_Time," + \
                 str(m_CurrentTime) + "," + str(p_Task_ExitCode) + ",'" + \
                 p_Task_FinishedStatus + "' " + \
-                "FROM SQLCLI_TASKS " \
+                "FROM   SQLCLI_TASKS " \
                 "WHERE  JOB_ID=" + str(self.id) + " " + \
                 "AND    TaskHandler_ID=" + str(p_TaskHandlerID)
         m_db_cursor.execute(m_SQL)
@@ -406,6 +405,9 @@ class JOBManager(object):
 
         # 更新Meta信息的锁
         self.MetaLockHandler = None
+
+        # 是否为手动注册的Worker
+        self.isManualRegister = False
 
     # 设置Meta的连接信息
     def setMetaConn(self, p_conn):
@@ -649,8 +651,8 @@ class JOBManager(object):
                 break
             # 循环处理工作JOB
             for m_Job in self.getAllJobs():
-                if m_Job.getStatus() in ("FAILED", "SHUTDOWNED", "FINISHED", "ABORTED"):
-                    # 已经结束的Case不再处理
+                if m_Job.getStatus() in ("Submitted", "FAILED", "SHUTDOWNED", "FINISHED", "ABORTED"):
+                    # 已经结束的Case不再处理， 或者刚提交，但是没有执行的
                     continue
                 if m_Job.getStatus() in ("RUNNING", "WAITINGFOR_SHUTDOWN", "WAITINGFOR_ABORT"):
                     # 依次检查Task的状态
@@ -793,12 +795,13 @@ class JOBManager(object):
                             m_logfilename = os.path.join(
                                 os.path.dirname(self.getProcessContextInfo("logfilename")),
                                 m_Job.getScript().split('.')[0] + "_" + str(m_Job.getJobID()) +
-                                "-" + str(m_JOB_Sequence+1) + ".log")
+                                str(m_JOB_Sequence+1) + "-" + str(m_TaskStarter) + ".log")
                         else:
                             m_logfilename = \
                                 m_Job.getScript().split('.')[0] + "_" + \
                                 str(m_Job.getJobID()) + "-" + \
-                                str(m_JOB_Sequence+1) + ".log"
+                                str(m_JOB_Sequence+1) + "-" + \
+                                str(m_TaskStarter) + ".log"
                         m_args["logfilename"] = m_logfilename
                         m_Process = Process(target=self.runSQLCli,
                                             args=(m_args,))
@@ -818,7 +821,7 @@ class JOBManager(object):
             time.sleep(2)
 
     # 启动Agent进程
-    def register(self):
+    def registerAgent(self):
         # 启动后台守护线程，用来处理延时启动，超时等问题
         Agenthread = threading.Thread(target=self.JOBManagerAgent)
         Agenthread.setDaemon(True)  # 主进程退出，守护进程也会退出
@@ -827,7 +830,7 @@ class JOBManager(object):
         self.isAgentStarted = True
 
     # 退出Agent进程
-    def unregister(self):
+    def unregisterAgent(self):
         if self.getWorkerStatus() == "RUNNING":
             self.setWorkerStatus("WAITINGFOR_STOP")
             while True:
@@ -941,7 +944,7 @@ class JOBManager(object):
 
         # 创建第一个JOB的时候，初始化共享服务器
         if not self.isAgentStarted:
-            self.register()
+            self.registerAgent()
 
         # 设置JOBID
         m_Job.setJobID(self.JobID + 1)
@@ -1117,8 +1120,11 @@ class JOBManager(object):
         m_Task = m_Job.getTaskByProcessID(os.getpid())
         # 获取共有多少个进程需要达到该时间点
         m_JobTag = m_Job.getTag()
-        if m_JobTag == "":
-            m_TotalParallel = m_Job.getParallel()
+        if (m_JobTag is None) or (m_JobTag == ""):
+            if self.isManualRegister:
+                m_TotalParallel = m_Job.getActiveJobs()
+            else:
+                m_TotalParallel = m_Job.getParallel()
         else:
             m_SQL = "SELECT     Sum(J.Parallel) " \
                     "FROM       SQLCLI_JOBS J " \
@@ -1136,8 +1142,7 @@ class JOBManager(object):
         m_db_cursor = self.MetaConn.cursor()
         m_SQL = "UPDATE SQLCLI_TASKS " \
                 "SET    Timer_Point = ? " \
-                "WHERE  JOB_ID=" + str(m_Job.id) + " " + \
-                "AND    TaskHandler_ID=" + str(m_Task.TaskHandler_ID)
+                "WHERE  ProcessID=" + str(os.getpid())
         m_Data = [
             m_Task.Timer_Point
         ]
@@ -1148,17 +1153,15 @@ class JOBManager(object):
         while True:
             # 检查其他进程是否到达该检查点
             m_TimerPointAllArrived = False
-            if m_JobTag == "":
+            if (m_JobTag is None) or (m_JobTag == ""):
                 m_SQL = "SELECT     COUNT(1) " \
                         "FROM       SQLCLI_TASKS T " \
                         "WHERE      T.Job_ID = " + str(m_Job.id) + " " + \
                         "AND        T.Timer_Point ='" + p_TimerPoint + "'"
             else:
                 m_SQL = "SELECT     COUNT(1) " \
-                        "FROM       SQLCLI_JOBS J, SQLCLI_TASKS T " \
-                        "WHERE      J.Job_ID = T.Job_ID " \
-                        "AND        J.Status Not In ('FAILED', 'SHUTDOWNED', 'FINISHED', 'ABORTED') " \
-                        "AND        J.Job_TAG = '" + m_JobTag + "' " + \
+                        "FROM       SQLCLI_TASKS T " \
+                        "WHERE      T.Job_TAG = '" + m_JobTag + "' " + \
                         "AND        T.Timer_Point ='" + p_TimerPoint + "'"
             m_db_cursor = self.MetaConn.cursor()
             m_db_cursor.execute(m_SQL)
@@ -1170,7 +1173,7 @@ class JOBManager(object):
 
             # 如果所有进程都已经到达检查点，则标记所有进程为READY符号，否则等待其他进程标记
             if m_TimerPointAllArrived:
-                if m_JobTag == "":
+                if (m_JobTag is None) or (m_JobTag == ""):
                     m_SQL = "UPDATE     SQLCLI_TASKS T " \
                             "SET        T.Timer_Point ='__READY__'" \
                             "WHERE      T.Job_ID = " + str(m_Job.id) + \
@@ -1178,38 +1181,33 @@ class JOBManager(object):
                 else:
                     m_SQL = "UPDATE     SQLCLI_TASKS T " \
                             "SET        T.Timer_Point ='__READY__'" \
-                            "WHERE      T.Job_ID IN " \
-                            "   (" \
-                            "     SELECT JOB_ID FROM SQLCLI_JOBS J " \
-                            "     WHERE  J.Job_TAG = '" + m_JobTag + "' " + \
-                            "     AND    J.Status Not In ('FAILED', 'SHUTDOWNED', 'FINISHED', 'ABORTED') " \
-                            "   ) " \
+                            "WHERE      T.Job_Tag = '" + m_JobTag + "'" \
                             "AND        T.Timer_Point ='" + p_TimerPoint + "'"
                 m_db_cursor = self.MetaConn.cursor()
                 m_db_cursor.execute(m_SQL)
                 m_db_cursor.close()
 
             # 如果已经被其他进程标记为READY，退出等待
-            m_SQL = "SELECT     Timer_Point " \
-                    "FROM       SQLCLI_TASKS T " \
-                    "WHERE      JOB_ID=" + str(m_Job.id) + " " + \
-                    "AND        TaskHandler_ID=" + str(m_Task.TaskHandler_ID)
+            m_SQL = "SELECT    COUNT(*) " \
+                    "FROM      SQLCLI_TASKS " \
+                    "WHERE     ProcessID = " + str(os.getpid()) + " " + \
+                    "AND       Timer_Point = '__READY__' "
             m_db_cursor = self.MetaConn.cursor()
             m_db_cursor.execute(m_SQL)
             m_rs = m_db_cursor.fetchone()
-            if m_rs[0] == '__READY__':
+            if m_rs[0] != 0:
                 m_db_cursor.close()
                 break
             self.MetaConn.commit()
 
+            # 2秒钟之后再检查TASK的状态
             time.sleep(2)
 
         # 离开当前等待，清空READY状态
         m_db_cursor = self.MetaConn.cursor()
         m_SQL = "UPDATE SQLCLI_TASKS " \
                 "SET    Timer_Point = Null " \
-                "WHERE  JOB_ID=" + str(m_Job.id) + " " + \
-                "AND    TaskHandler_ID=" + str(m_Task.TaskHandler_ID)
+                "WHERE  ProcessID =" + str(os.getpid())
         m_db_cursor.execute(m_SQL)
         m_db_cursor.close()
         self.MetaConn.commit()
@@ -1220,6 +1218,101 @@ class JOBManager(object):
         if m_Job is None:
             raise SQLCliException("Invalid JOB name. [" + str(p_JobName) + "]")
         return m_Job.getStatus() == "FINISHED"
+
+    # 将当前Worker注册到指定的JOB上
+    def registerjob(self, p_JobName: str):
+        if self.MetaConn is None:
+            raise SQLCliException("You doesn't have job manager connected.")
+
+        m_Job = self.getJobByName(p_JobName)
+        if m_Job is None:
+            raise SQLCliException("Invalid JOB name. [" + str(p_JobName) + "]")
+        # 判断SQLCLI_TASKS中是否已经存在对应记录，如果没有，插入一条新的
+        m_SQL = "SELECT    COUNT(*) " \
+                "FROM      SQLCLI_TASKS " \
+                "WHERE     ProcessID = " + str(os.getpid())
+        m_db_cursor = self.MetaConn.cursor()
+        m_db_cursor.execute(m_SQL)
+        m_rs = m_db_cursor.fetchone()
+        if m_rs[0] != 0:
+            m_db_cursor.close()
+            raise SQLCliException("You have already registerd this worker.")
+        # 查找当前最大的TaskHandler_ID
+        m_SQL = "SELECT    Max(TaskHandler_ID) " \
+                "FROM      SQLCLI_TASKS " \
+                "WHERE     JOB_ID = " + str(m_Job.getJobID())
+        m_db_cursor = self.MetaConn.cursor()
+        m_db_cursor.execute(m_SQL)
+        m_rs = m_db_cursor.fetchone()
+        if m_rs[0] is None:
+            m_TaskHandler_ID = 1
+        else:
+            m_TaskHandler_ID = m_rs[0] + 1
+        m_db_cursor.close()
+
+        # 在SQLCLI_TASK中创建对应记录
+        m_CurrentTime = int(time.mktime(datetime.datetime.now().timetuple()))
+        m_db_cursor = self.MetaConn.cursor()
+        m_SQL = "Insert into SQLCLI_TASKS(" \
+                "JOB_ID,JOB_Name, JOB_Tag, TaskHandler_ID,ProcessID, Start_Time) " \
+                "VALUES(?,?,?,?,?,?)"
+        m_Data = [
+            m_Job.getJobID(),
+            m_Job.getJobName(),
+            m_Job.getTag(),
+            m_TaskHandler_ID,
+            os.getpid(),
+            m_CurrentTime
+        ]
+        m_db_cursor.execute(m_SQL, parameters=m_Data)
+        m_db_cursor.close()
+
+        m_SQL = "UPDATE     SQLCLI_JOBS " \
+                "SET        Active_JOBS = Active_JOBS + 1 " \
+                "WHERE      JOB_ID = " + str(m_Job.id)
+        m_db_cursor = self.MetaConn.cursor()
+        m_db_cursor.execute(m_SQL)
+        m_db_cursor.close()
+        self.MetaConn.commit()
+
+        # 标记当前进程为手动注册的会话
+        self.isManualRegister = True
+
+    # 退出当前的Worker作业
+    def unregisterjob(self):
+        if not self.isManualRegister:
+            return
+
+        if self.MetaConn is None:
+            raise SQLCliException("You doesn't register this worker 1.")
+
+        m_SQL = "SELECT  JOB_ID " \
+                "FROM    SQLCLI_TASKS " \
+                "WHERE   ProcessID = " + str(os.getpid())
+        m_db_cursor = self.MetaConn.cursor()
+        m_db_cursor.execute(m_SQL)
+        m_rs = m_db_cursor.fetchone()
+        if m_rs is None:
+            m_db_cursor.close()
+            raise SQLCliException("You doesn't register this worker 2.")
+        m_JobID = m_rs[0]
+
+        m_SQL = "DELETE    FROM   SQLCLI_TASKS " \
+                "WHERE     ProcessID = " + str(os.getpid())
+        m_db_cursor = self.MetaConn.cursor()
+        m_db_cursor.execute(m_SQL)
+        m_db_cursor.close()
+
+        m_SQL = "UPDATE     SQLCLI_JOBS " \
+                "SET        Active_JOBS = Active_JOBS -1 " \
+                "WHERE      JOB_ID = " + str(m_JobID)
+        m_db_cursor = self.MetaConn.cursor()
+        m_db_cursor.execute(m_SQL)
+        m_db_cursor.close()
+        self.MetaConn.commit()
+
+        # 取消ManualRegister的标志
+        self.isManualRegister = False
 
     # 判断是否所有有效的子进程都已经退出
     def isAllJobClosed(self):
@@ -1308,6 +1401,21 @@ class JOBManager(object):
             m_JobName = str(matchObj.group(1)).strip()
             nJobAborted = self.abortjob(m_JobName)
             return None, None, None, None, "Total [" + str(nJobAborted) + "] jobs aborted."
+
+        # 注册当前Worker到指定的JOB上
+        matchObj = re.match(r"job\s+register\s+worker\s+to\s+(.*)$",
+                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            m_JobName = str(matchObj.group(1)).strip()
+            self.registerjob(m_JobName)
+            return None, None, None, None, "Register worker to Job [" + str(m_JobName) + "] Successful."
+
+        # 取消当前Worker的注册
+        matchObj = re.match(r"job\s+unregister\s+worker(\s+)?$",
+                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            self.unregisterjob()
+            return None, None, None, None, "Worker has been unregistered Successful."
 
         raise SQLCliException("Invalid JOB Command [" + m_szSQL + "]")
 

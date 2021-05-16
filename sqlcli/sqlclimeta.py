@@ -135,6 +135,8 @@ class SQLCliMeta(object):
             m_SQL = "CREATE TABLE IF Not Exists SQLCLI_TASKS" \
                     "(" \
                     "JOB_ID                     Integer," \
+                    "JOB_Name                   VARCHAR(500)," \
+                    "JOB_TAG                    VARCHAR(500)," \
                     "TaskHandler_ID             Integer," \
                     "ProcessID                  Integer," \
                     "start_time                 BIGINT," \
@@ -147,6 +149,8 @@ class SQLCliMeta(object):
             m_SQL = "CREATE TABLE IF Not Exists SQLCLI_TASKS_HISTORY" \
                     "(" \
                     "JOB_ID                     Integer," \
+                    "JOB_Name                   VARCHAR(500)," \
+                    "JOB_TAG                    VARCHAR(500)," \
                     "TaskHandler_ID             Integer," \
                     "ProcessID                  Integer," \
                     "start_time                 BIGINT," \
@@ -234,3 +238,7 @@ class SQLCliMeta(object):
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
+
+    def DisConnectServer(self):
+        if self.db_conn:
+            self.db_conn.close()
