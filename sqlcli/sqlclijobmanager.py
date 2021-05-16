@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import multiprocessing
 import re
 import threading
 import time
@@ -6,7 +7,6 @@ import os
 import datetime
 import copy
 from multiprocessing import Lock
-from multiprocessing import Process
 
 from .sqlcliexception import SQLCliException
 
@@ -803,8 +803,11 @@ class JOBManager(object):
                                 str(m_JOB_Sequence+1) + "-" + \
                                 str(m_TaskStarter) + ".log"
                         m_args["logfilename"] = m_logfilename
-                        m_Process = Process(target=self.runSQLCli,
-                                            args=(m_args,))
+                        # jpype无法运行在fork机制下的子进程中，linux默认为fork机制，所以这里要强制为spawn
+                        # fork模式下，子进程会继承父进程的一些信息
+                        # spawn模式下，子进程为全新进程
+                        m_ProcessManagerContext = multiprocessing.get_context("spawn")
+                        m_Process = m_ProcessManagerContext.Process(target=self.runSQLCli, args=(m_args,))
                         m_Process.start()
 
                         # 更新TASK字典信息
