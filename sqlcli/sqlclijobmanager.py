@@ -394,8 +394,8 @@ class JOBManager(object):
         # 如果WorkerStatus==WAITINGFOR_STOP 则Worker主动停止
         self.WorkerStatus = "NOT-STARTED"
 
-        # 当前的JOB流水号
-        self.JobID = 1
+        # 当前的JOB流水号, 初始为零，随后开始自增1
+        self.JobID = 0
 
         # 记录当前Agent启动状态
         self.isAgentStarted = False
@@ -794,12 +794,12 @@ class JOBManager(object):
                         if self.getProcessContextInfo("logfilename") is not None:
                             m_logfilename = os.path.join(
                                 os.path.dirname(self.getProcessContextInfo("logfilename")),
-                                m_Job.getScript().split('.')[0] + "_" + str(m_Job.getJobID()) +
+                                m_Job.getScript().split('.')[0] + "_" + str(m_Job.getJobName()) +
                                 str(m_JOB_Sequence+1) + "-" + str(m_TaskStarter) + ".log")
                         else:
                             m_logfilename = \
                                 m_Job.getScript().split('.')[0] + "_" + \
-                                str(m_Job.getJobID()) + "-" + \
+                                str(m_Job.getJobName()) + "-" + \
                                 str(m_JOB_Sequence+1) + "-" + \
                                 str(m_TaskStarter) + ".log"
                         m_args["logfilename"] = m_logfilename

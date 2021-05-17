@@ -258,8 +258,20 @@ class SQLExecute(object):
             try:
                 # 首先尝试这是一个特殊命令，如果返回CommandNotFound，则认为其是一个标准SQL
                 for m_Result in execute(self.SQLCliHandler,  sql):
+                    # 保存之前的运行结果
                     if "type" not in m_Result.keys():
                         m_Result.update({"type": "result"})
+                    if m_Result["type"] == "result":
+                        if m_Result["rows"] is None:
+                            m_Rows = 0
+                        else:
+                            m_Rows = len(m_Result["rows"])
+                        self.LastJsonSQLResult = {"desc": m_Result["headers"],
+                                                  "rows": m_Rows,
+                                                  "elapsed": time.time() - start,
+                                                  "result": m_Result["rows"],
+                                                  "status": 0,
+                                                  "warnings": ""}
                     yield m_Result
             except CommandNotFound:
                 # 进入到SQL执行阶段, 开始执行SQL语句
@@ -387,7 +399,7 @@ class SQLExecute(object):
                                 self.SQLOptions.set("SILENT", "ON")
                                 self.SQLOptions.set("TIMING", "OFF")
                                 self.SQLOptions.set("TIME", "OFF")
-                                for m_nLoopPos in range(0, m_LoopTimes):
+                                for m_nLoopPos in range(1, m_LoopTimes):
                                     # 检查Until条件，如果达到Until条件，退出
                                     m_AssertSuccessful = False
                                     for m_Result in \
