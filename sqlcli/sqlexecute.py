@@ -261,11 +261,15 @@ class SQLExecute(object):
                     # 保存之前的运行结果
                     if "type" not in m_Result.keys():
                         m_Result.update({"type": "result"})
-                    if m_Result["type"] == "result":
+                    if m_Result["type"] == "result" and sql.startswith("__internal__"):
+                        # 对于internal的语句要记录影响的行列信息，同时控制TERMOUT
                         if m_Result["rows"] is None:
                             m_Rows = 0
                         else:
                             m_Rows = len(m_Result["rows"])
+                        if self.SQLOptions.get('TERMOUT').upper() == 'OFF':
+                            m_Result["rows"] = []
+                            m_Result["title"] = ""
                         self.LastJsonSQLResult = {"desc": m_Result["headers"],
                                                   "rows": m_Rows,
                                                   "elapsed": time.time() - start,
@@ -332,7 +336,7 @@ class SQLExecute(object):
                                                       "result": result,
                                                       "status": 0,
                                                       "warnings": m_SQLWarnings}
-                            
+
                             # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
                             if "LogFilter" in m_SQLHint.keys() and result is not None:
                                 for m_SQLFilter in m_SQLHint["LogFilter"]:
