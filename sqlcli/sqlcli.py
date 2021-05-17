@@ -645,7 +645,13 @@ class SQLCli(object):
 
         # 如果连接内容仅仅就一个mem，则连接到内置的memory db
         if arg.strip().upper() == "MEM":
-            arg = "X/X@jdbc:h2:mem://0.0.0.0:0/X"
+            arg = "sa/sa@jdbc:h2mem:mem://0.0.0.0:0/X"
+
+        if arg.strip().upper() == "META":
+            m_MetaConnectionURL = cls.SQLOptions.get("JOBMANAGER_METAURL")
+            if (m_MetaConnectionURL is None) or (len(m_MetaConnectionURL) == 0):
+                raise SQLCliException("You can't connect meta without job manager role or job worker role.")
+            arg = "sa/sa@jdbc:h2tcp:" + str(m_MetaConnectionURL) + "/mem:sqlclimeta"
 
         # 分割字符串，可能用单引号或者双引号包括, 单词中不能包含分割符
         # -- 1 首先找到@符号
