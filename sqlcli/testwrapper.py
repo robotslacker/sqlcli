@@ -142,15 +142,12 @@ class POSIXCompare:
                    S 开头的内容为由于配置规则导致改行被忽略
         """
         # 将比较文件加载到数组
-        try:
-            workfilerawcontent = open(file1, mode='r', encoding=CompareWorkEncoding).readlines()
-            workfilecontent = open(file1, mode='r', encoding=CompareWorkEncoding).readlines()
-        except UnicodeDecodeError:
-            raise DiffException("UnicodeDecodeError('" + CompareWorkEncoding + "') for [" + file1 + "]")
-        try:
-            reffilecontent = open(file2, mode='r', encoding=CompareRefEncoding).readlines()
-        except UnicodeDecodeError:
-            raise DiffException("UnicodeDecodeError('" + CompareRefEncoding + "') for [" + file2 + "]")
+        # 将比较文件加载到数组
+        file1rawcontent = open(file1, mode='r', encoding=CompareWorkEncoding).readlines()
+        reffilerawcontent = open(file2, mode='r', encoding=CompareRefEncoding).readlines()
+
+        workfilecontent = open(file1, mode='r', encoding=CompareWorkEncoding).readlines()
+        reffilecontent = open(file2, mode='r', encoding=CompareRefEncoding).readlines()
 
         lineno1 = []
         lineno2 = []
@@ -232,35 +229,63 @@ class POSIXCompare:
         (m_CompareResult, m_CompareResultList) = self.compare(workfilecontent, reffilecontent, lineno1, lineno2,
                                                               p_compare_maskEnabled=CompareWithMask,
                                                               p_compare_ignorecase=CompareIgnoreCase)
+
         # 首先翻转数组
         # 随后从数组中补充进入被Skip掉的内容
-        m_nLastPos = 0
+        m_nWorkLastPos = 0                                        # 上次Work文件已经遍历到的位置
+        m_nRefLastPos = 0                                         # 上次Ref文件已经遍历到的位置
         m_NewCompareResultList = []
         # 从列表中反向开始遍历， Step=-1
         for row in m_CompareResultList[::-1]:
             if row.startswith('+'):
-                # 当前日志没有，Log中有的，忽略不计
-                m_NewCompareResultList.append(row)
+                # 当前日志没有，Refence Log中有的
+                # 需要注意的是，Ref文件中被跳过的行不会补充进入dif文件
+                m_LineNo = int(row[1:7])
+                m_AppendLine = "+{:>{}} ".format(m_LineNo, 6) + reffilerawcontent[m_LineNo-1]
+                if m_AppendLine.endswith("\n"):
+                    m_AppendLine = m_AppendLine[:-1]
+                m_NewCompareResultList.append(m_AppendLine)
+                m_nRefLastPos = m_LineNo
                 continue
             elif row.startswith('-'):
-                # 记录当前行号
+                # 当前日志有，但是Referencce里头没有的
                 m_LineNo = int(row[1:7])
+                # 补充填写那些已经被忽略规则略掉的内容，只填写LOG文件中的对应信息
+                if m_LineNo > (m_nWorkLastPos + 1):
+                    # 当前日志中存在，但是比较的过程中被Skip掉的内容，要首先补充进来
+                    for m_nPos in range(m_nWorkLastPos + 1, m_LineNo):
+                        m_AppendLine = "S{:>{}} ".format(m_nPos, 6) + file1rawcontent[m_nPos - 1]
+                        if m_AppendLine.endswith("\n"):
+                            m_AppendLine = m_AppendLine[:-1]
+                        m_NewCompareResultList.append(m_AppendLine)
+                m_AppendLine = "-{:>{}} ".format(m_LineNo, 6) + file1rawcontent[m_LineNo - 1]
+                if m_AppendLine.endswith("\n"):
+                    m_AppendLine = m_AppendLine[:-1]
+                m_NewCompareResultList.append(m_AppendLine)
+                m_nWorkLastPos = m_LineNo
+                continue
             elif row.startswith(' '):
-                # 记录当前行号
+                # 两边都有的
                 m_LineNo = int(row[0:7])
+                # 补充填写那些已经被忽略规则略掉的内容，只填写LOG文件中的对应信息
+                if m_LineNo > (m_nWorkLastPos + 1):
+                    # 当前日志中存在，但是比较的过程中被Skip掉的内容，要首先补充进来
+                    for m_nPos in range(m_nWorkLastPos + 1, m_LineNo):
+                        m_AppendLine = "S{:>{}} ".format(m_nPos, 6) + file1rawcontent[m_nPos - 1]
+                        if m_AppendLine.endswith("\n"):
+                            m_AppendLine = m_AppendLine[:-1]
+                        m_NewCompareResultList.append(m_AppendLine)
+                # 完全一样的内容
+                m_AppendLine = " {:>{}} ".format(m_LineNo, 6) + file1rawcontent[m_LineNo-1]
+                if m_AppendLine.endswith("\n"):
+                    m_AppendLine = m_AppendLine[:-1]
+                m_NewCompareResultList.append(m_AppendLine)
+                m_nWorkLastPos = m_LineNo
+                m_nRefLastPos = m_nRefLastPos + 1
+                continue
             else:
                 raise DiffException("Missed line number. Bad compare result. [" + row + "]")
-            if m_LineNo > (m_nLastPos + 1):
-                for m_nPos in range(m_nLastPos + 1, m_LineNo):
-                    m_AppendLine = "S{:>{}} ".format(m_nPos, 6) + workfilerawcontent[m_nPos - 1]
-                    if m_AppendLine.endswith("\n"):
-                        m_AppendLine = m_AppendLine[:-1]
-                    m_NewCompareResultList.append(m_AppendLine)
-                m_NewCompareResultList.append(row)
-                m_nLastPos = m_LineNo
-            else:
-                m_NewCompareResultList.append(row)
-                m_nLastPos = m_LineNo
+
         return m_CompareResult, m_NewCompareResultList
 
 
@@ -605,7 +630,8 @@ class TestWrapper(object):
         except Exception as ae:
             raise SQLCliException('Assert Error: ' + repr(ae))
 
-    def LoadEnv(self, p_EnvFileName, p_EnvSectionName):
+    @staticmethod
+    def LoadEnv(p_EnvFileName, p_EnvSectionName):
         if not os.path.exists(p_EnvFileName):
             raise SQLCliException("Env file [" + p_EnvFileName + "] does not exist!")
 
