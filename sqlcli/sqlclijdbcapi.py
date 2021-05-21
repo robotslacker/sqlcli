@@ -866,8 +866,10 @@ def _java_to_py_array(conn, rs, col):
         return
     m_TypeName = str(java_val.getClass().getTypeName())
     if m_TypeName.upper().find('ARRAY') != -1:
-        java_val = java_val.getArray();
-        return java_val.tolist()
+        java_val = java_val.getArray()
+        m_retVal = []
+        m_retVal.extend(java_val)
+        return m_retVal
     elif m_TypeName.find('Object[]') != -1:
         m_retVal = []
         m_retVal.extend(java_val)

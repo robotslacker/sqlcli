@@ -316,6 +316,7 @@ class SQLExecute(object):
                                 self.get_result(self.cur, rowcount)
                             rowcount = m_FetchedRows
                             if "SQLCLI_DEBUG" in os.environ:
+                                print("!!DEBUG!!  headers=" + str(headers))
                                 if result is not None:
                                     for m_RowPos in range(0, len(result)):
                                         for m_CellPos in range(0, len(result[m_RowPos])):

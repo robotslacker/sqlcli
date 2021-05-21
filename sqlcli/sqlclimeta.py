@@ -132,12 +132,12 @@ class SQLCliMeta(object):
                     "Status                     VARCHAR(500)" \
                     ")"
             m_db_cursor.execute(m_SQL)
-            m_SQL = "CREATE TABLE IF Not Exists SQLCLI_TASKS" \
+            m_SQL = "CREATE TABLE IF Not Exists SQLCLI_WORKERS" \
                     "(" \
                     "JOB_ID                     Integer," \
                     "JOB_Name                   VARCHAR(500)," \
                     "JOB_TAG                    VARCHAR(500)," \
-                    "TaskHandler_ID             Integer," \
+                    "WorkerHandler_ID           Integer," \
                     "ProcessID                  Integer," \
                     "start_time                 BIGINT," \
                     "end_time                   BIGINT," \
@@ -146,12 +146,12 @@ class SQLCliMeta(object):
                     "Timer_Point                VARCHAR(500)" \
                     ")"
             m_db_cursor.execute(m_SQL)
-            m_SQL = "CREATE TABLE IF Not Exists SQLCLI_TASKS_HISTORY" \
+            m_SQL = "CREATE TABLE IF Not Exists SQLCLI_WORKERS_HISTORY" \
                     "(" \
                     "JOB_ID                     Integer," \
                     "JOB_Name                   VARCHAR(500)," \
                     "JOB_TAG                    VARCHAR(500)," \
-                    "TaskHandler_ID             Integer," \
+                    "WorkerHandler_ID           Integer," \
                     "ProcessID                  Integer," \
                     "start_time                 BIGINT," \
                     "end_time                   BIGINT," \
