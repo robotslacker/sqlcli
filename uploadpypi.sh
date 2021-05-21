@@ -4,7 +4,7 @@ PIP_BIN=$PYTHON_HOME/bin/pip
 
 rm -f -r dist
 rm -f -r build
-rm sqlcli/sqlcliodbc*.pyd
+rm sqlcli/sqlcliodbc*.so
 
 $PYTHON_BIN setup.py build_ext
 $PYTHON_BIN setup.py sdist

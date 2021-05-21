@@ -70,7 +70,7 @@ setup(
 
     zip_safe=False,
     packages=['sqlcli'],
-    package_data={'sqlcli': ['jlib/README', '*pyd', 'conf/*ini', 'odbc/*', 'profile/*']},
+    package_data={'sqlcli': ['jlib/README', '*pyd', '*so', 'conf/*ini', 'odbc/*', 'profile/*']},
     python_requires='>=3.6',
     entry_points={
         "console_scripts": ["sqlcli = sqlcli.main:cli"],
