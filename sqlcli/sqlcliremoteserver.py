@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import uvicorn
 import random
 import string

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.17)
-project(SQLCliODBC C CXX)
+project(sqlcliodbc C CXX)
 
 option(BUILD_PYTHON "Build Python binaries" ON)
 set(CMAKE_C_STANDARD 11)

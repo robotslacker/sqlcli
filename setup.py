@@ -31,7 +31,7 @@ depends = [os.path.join(sourceDir, "ceoModule.h")]
 
 # setup the extension
 extension = Extension(
-        name="SQLCliODBC",
+        name="sqlcliodbc",
         libraries=libs,
         define_macros=[("BUILD_VERSION", "3.0")],
         sources=sources,

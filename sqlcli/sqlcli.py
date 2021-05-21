@@ -27,8 +27,8 @@ from prompt_toolkit.shortcuts import PromptSession
 
 # 加载JDBC驱动和ODBC驱动
 from .sqlclijdbcapi import connect as jdbcconnect
-from SQLCliODBC import connect as odbcconnect
-from SQLCliODBC import SQLCliODBCException
+from .sqlcliodbc import connect as odbcconnect
+from .sqlcliodbc import SQLCliODBCException
 import jpype
 
 from .sqlexecute import SQLExecute

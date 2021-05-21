@@ -14,7 +14,7 @@ from .commandanalyze import execute
 from .commandanalyze import CommandNotFound
 from .sqlcliexception import SQLCliException
 from .sqlclijdbcapi import SQLCliJDBCException
-from SQLCliODBC import SQLCliODBCException
+from .sqlcliodbc import SQLCliODBCException
 
 
 class SQLExecute(object):

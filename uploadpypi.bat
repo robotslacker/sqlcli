@@ -1,6 +1,7 @@
 del /s/q dist\*
 del /s/q build\*
-python setup.py build
+del sqlcli\sqlcliodbc*.pyd
+python setup.py build_ext
 python setup.py sdist
 python setup.py bdist_wheel --universal
 pip uninstall --yes robotslacker_sqlcli

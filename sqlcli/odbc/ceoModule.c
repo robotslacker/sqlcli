@@ -136,7 +136,7 @@ static int ceoModule_setException(PyObject *module, PyObject **exception,
 {
     char buffer[100];
 
-    sprintf(buffer, "SQLCliODBC.%s", name);
+    sprintf(buffer, "sqlcliodbc.%s", name);
     *exception = PyErr_NewException(buffer, baseException, NULL);
     if (!*exception)
         return -1;
@@ -180,7 +180,7 @@ static PyMethodDef ceoMethods[] = {
 //-----------------------------------------------------------------------------
 static struct PyModuleDef ceoModuleDef = {
     PyModuleDef_HEAD_INIT,
-    .m_name = "SQLCliODBC",
+    .m_name = "sqlcliodbc",
     .m_size = -1,
     .m_methods = ceoMethods
 };
@@ -189,7 +189,7 @@ static struct PyModuleDef ceoModuleDef = {
 //-----------------------------------------------------------------------------
 // Start routine for the module.
 //-----------------------------------------------------------------------------
-PyMODINIT_FUNC PyInit_SQLCliODBC(void)
+PyMODINIT_FUNC PyInit_sqlcliodbc(void)
 {
     PyObject *module;
 
