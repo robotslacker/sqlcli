@@ -647,14 +647,18 @@ class SQLExecute(object):
                                     m_ColumnValue = m_ColumnValue + \
                                                     self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
                                 elif m_ColumnType.upper().find("DOUBLE") != -1:
-                                    m_ColumnValue = m_ColumnValue + \
-                                                    self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
+                                    m_CellValue = decimal.Decimal(column[m_nPos].toString())
+                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
+                                        m_ColumnValue = m_ColumnValue + \
+                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % m_CellValue)
+                                    else:
+                                        m_ColumnValue = m_ColumnValue + str(m_CellValue)
                                 elif m_ColumnType.upper().find("DECIMAL") != -1:
                                     if self.SQLOptions.get("DECIMAL_FORMAT") != "":
                                         m_ColumnValue = m_ColumnValue + \
-                                                        self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos]
+                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos])
                                     else:
-                                        m_ColumnValue = m_ColumnValue + column[m_nPos]
+                                        m_ColumnValue = m_ColumnValue + str(column[m_nPos])
                                 else:
                                     m_ColumnValue = m_ColumnValue + str(column[m_nPos])
                             else:
@@ -666,14 +670,18 @@ class SQLExecute(object):
                                     m_ColumnValue = m_ColumnValue + "," + \
                                                     self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
                                 elif m_ColumnType.upper().find("DOUBLE") != -1:
-                                    m_ColumnValue = m_ColumnValue + "," + \
-                                                    self.SQLOptions.get("DOUBLE_FORMAT") % column[m_nPos]
+                                    m_CellValue = decimal.Decimal(column[m_nPos].toString())
+                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
+                                        m_ColumnValue = m_ColumnValue + "," + \
+                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % m_CellValue)
+                                    else:
+                                        m_ColumnValue = m_ColumnValue + "," + str(m_CellValue)
                                 elif m_ColumnType.upper().find("DECIMAL") != -1:
                                     if self.SQLOptions.get("DECIMAL_FORMAT") != "":
                                         m_ColumnValue = m_ColumnValue + "," + \
-                                                        self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos]
+                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos])
                                     else:
-                                        m_ColumnValue = m_ColumnValue + "," + column[m_nPos]
+                                        m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
                                 else:
                                     m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
                         m_ColumnValue = m_ColumnValue + "]"
@@ -704,7 +712,7 @@ class SQLExecute(object):
             if cursor.warnings is not None:
                 status = "{0} row{1} affected with warnings."
             else:
-                status = "{0} row{1} affected"
+                status = "{0} row{1} affected."
             rowcount = 0 if cursor.rowcount == -1 else cursor.rowcount
             result = None
             m_FetchStatus = False
