@@ -505,14 +505,18 @@ class SQLExecute(object):
                             if not m_FetchStatus:
                                 break
                     except func_timeout.exceptions.FunctionTimedOut:
+                        # 从SQL语句中超时退出
                         if self.cur is not None:
+                            m_SQL_ErrorMessage = "SQLCLI-0000: SQL timeout when execute script. aborting sql."
+                            yield {"type": "error", "message": m_SQL_ErrorMessage}
                             self.cur.cancel()
+                            m_SQL_ErrorMessage = "SQLCLI-0000: SQL timeout when execute script. aborted sql."
+                            yield {"type": "error", "message": m_SQL_ErrorMessage}
                         if m_ScriptTimeOut > 0:
                             if m_ScriptTimeOut <= time.time() - self.getStartTime():
-                                m_SQL_ErrorMessage = "SQLCLI-0000: Script imeout when execute script. abort it."
+                                m_SQL_ErrorMessage = "SQLCLI-0000: Script timeout when execute script. abort it."
                                 yield {"type": "error", "message": m_SQL_ErrorMessage}
                                 raise EOFError
-                        raise SQLCliException("SQLCLI-0000: SQL imeout when execute script. abort it.")
                     except SQLCliODBCException as oe:
                         m_SQL_Status = 1
                         m_SQL_ErrorMessage = str(oe).strip()
@@ -588,14 +592,14 @@ class SQLExecute(object):
                         else:
                             yield {"type": "error", "message": m_SQL_ErrorMessage}
             except func_timeout.exceptions.FunctionTimedOut:
-                if self.cur is not None:
-                    self.cur.cancel()
+                # 从internal命令中超时退出
                 if m_ScriptTimeOut > 0:
                     if m_ScriptTimeOut <= time.time() - self.getStartTime():
-                        m_SQL_ErrorMessage = "SQLCLI-0000: Script imeout when execute script. abort it."
+                        m_SQL_ErrorMessage = "SQLCLI-0000: Script timeout when execute script. abort it."
                         yield {"type": "error", "message": m_SQL_ErrorMessage}
                         raise EOFError
-                raise SQLCliException("SQLCLI-0000: SQL imeout when execute script. abort it.")
+                m_SQL_ErrorMessage = "SQLCLI-0000: SQL timeout when execute script. abort sql."
+                yield {"type": "error", "message": m_SQL_ErrorMessage}
             except EOFError:
                 # EOFError是程序退出的标志，退出应用程序
                 raise EOFError
