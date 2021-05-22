@@ -113,6 +113,15 @@ class SQLOptions(object):
                                       "Comments": '',
                                       "Hidden": False})
 
+        self.m_SQL_OptionList.append({"Name": "SQLCLI_SCRIPT_TIMEOUT",
+                                      "Value": -1,
+                                      "Comments": '',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "SQLCLI_SQL_TIMEOUT",
+                                      "Value": -1,
+                                      "Comments": '',
+                                      "Hidden": False})
+
     def get(self, p_ParameterName):
         """根据参数名称返回参数，若不存在该参数，返回None."""
         for item in self.m_SQL_OptionList:

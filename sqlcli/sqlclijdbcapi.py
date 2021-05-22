@@ -388,6 +388,7 @@ class Cursor(object):
     rowcount = -1
     _meta = None
     _prep = None
+    _stmt = None
     _rs = None
     _description = None
     warnings = None
@@ -395,6 +396,17 @@ class Cursor(object):
     def __init__(self, connection, converters):
         self._connection = connection
         self._converters = converters
+
+    # 取消当前正在执行的SQL语句
+    def cancel(self):
+        try:
+            if self._prep is not None:
+                self._prep.cancel()
+            if self._stmt is not None:
+                self._stmt.cancel()
+        except:
+            # 并不处理任何cancel时候发生的错误
+            pass
 
     @property
     def description(self):
@@ -425,7 +437,6 @@ class Cursor(object):
             return self._description
 
     #   optional callproc(self, procname, *parameters) unsupported
-
     def close(self):
         self._close_last()
         self._connection = None
@@ -458,11 +469,11 @@ class Cursor(object):
             raise Error()
         self._close_last()
         is_rs = False
-        m_stmt = self._connection.jconn.createStatement()
+        self._stmt = self._connection.jconn.createStatement()
         try:
-            is_rs = m_stmt.execute(operation)
+            is_rs = self._stmt.execute(operation)
             m_SQLWarnMessage = None
-            m_SQLWarnings = m_stmt.getWarnings()
+            m_SQLWarnings = self._stmt.getWarnings()
             while m_SQLWarnings is not None:
                 if m_SQLWarnMessage is None:
                     m_SQLWarnMessage = m_SQLWarnings.getMessage()
@@ -472,17 +483,17 @@ class Cursor(object):
             self.warnings = m_SQLWarnMessage
         except:
             _handle_sql_exception_jpype()
-        self._rs = m_stmt.getResultSet()
+        self._rs = self._stmt.getResultSet()
         if self._rs is not None:
             self._meta = self._rs.getMetaData()
-            self.rowcount = m_stmt.getUpdateCount()
+            self.rowcount = self._stmt.getUpdateCount()
         else:
             self._meta = None
             self.rowcount = -1
         if is_rs:
             self.rowcount = -1
         else:
-            self.rowcount = m_stmt.getUpdateCount()
+            self.rowcount = self._stmt.getUpdateCount()
 
     def execute(self, operation, parameters=None):
         if self._connection._closed:

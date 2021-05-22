@@ -7,6 +7,8 @@ import os
 import re
 import traceback
 import json
+from func_timeout import func_set_timeout
+import func_timeout
 
 from .sqlparse import SQLAnalyze
 from .sqlparse import SQLFormatWithPrefix
@@ -43,6 +45,15 @@ class SQLExecute(object):
 
         # 当前SQL游标
         self.cur = None
+
+        # 脚本启动的时间
+        self.StartTime = None
+
+    def setStartTime(self, p_StartTime):
+        self.StartTime = p_StartTime
+
+    def getStartTime(self):
+        return self.StartTime
 
     def jqparse(self, obj, path='.'):
         class DecimalEncoder(json.JSONEncoder):
@@ -253,11 +264,27 @@ class SQLExecute(object):
 
             # 记录命令开始时间
             start = time.time()
+            m_SQLTimeOut = int(self.SQLOptions.get("SQLCLI_SQL_TIMEOUT"))
+            m_ScriptTimeOut = int(self.SQLOptions.get("SQLCLI_SCRIPT_TIMEOUT"))
 
             # 执行SQL
             try:
+                # 处理超时时间问题
+                if m_ScriptTimeOut > 0:
+                    if m_ScriptTimeOut <= time.time() - self.getStartTime():
+                        m_SQL_ErrorMessage = "SQLCLI-0000: Script imeout when execute script. abort it."
+                        yield {"type": "error", "message": m_SQL_ErrorMessage}
+                        raise EOFError
+                    else:
+                        if m_SQLTimeOut <= 0 or (m_ScriptTimeOut - (time.time() - self.getStartTime()) < m_SQLTimeOut):
+                            # 脚本时间已经不够，剩下的SQL时间变少
+                            m_SQLTimeOut = m_ScriptTimeOut - (time.time() - self.getStartTime())
+                if m_SQLTimeOut > 0:
+                    executeFunc = func_set_timeout(timeout=m_SQLTimeOut)(execute)
+                else:
+                    executeFunc = execute
                 # 首先尝试这是一个特殊命令，如果返回CommandNotFound，则认为其是一个标准SQL
-                for m_Result in execute(self.SQLCliHandler,  sql):
+                for m_Result in executeFunc(self.SQLCliHandler,  sql):
                     # 保存之前的运行结果
                     if "type" not in m_Result.keys():
                         m_Result.update({"type": "result"})
@@ -298,16 +325,35 @@ class SQLExecute(object):
                     try:
                         if "SQLCLI_DEBUG" in os.environ:
                             print("DEBUG-SQL=[" + str(sql) + "]")
+
                         # 执行SQL脚本
-                        if "SQL_DIRECT" in m_SQLHint.keys():
-                            self.cur.execute_direct(sql)
-                        elif "SQL_PREPARE" in m_SQLHint.keys():
-                            self.cur.execute(sql)
-                        else:
-                            if self.SQLOptions.get("SQL_EXECUTE").upper() == "DIRECT":
+                        def executesql():
+                            if "SQL_DIRECT" in m_SQLHint.keys():
                                 self.cur.execute_direct(sql)
-                            else:
+                            elif "SQL_PREPARE" in m_SQLHint.keys():
                                 self.cur.execute(sql)
+                            else:
+                                if self.SQLOptions.get("SQL_EXECUTE").upper() == "DIRECT":
+                                    self.cur.execute_direct(sql)
+                                else:
+                                    self.cur.execute(sql)
+
+                        # 处理超时时间问题
+                        if m_ScriptTimeOut > 0:
+                            if m_ScriptTimeOut <= time.time() - self.getStartTime():
+                                m_SQL_ErrorMessage = "SQLCLI-0000: Script imeout when execute script. abort it."
+                                yield {"type": "error", "message": m_SQL_ErrorMessage}
+                                raise EOFError
+                            else:
+                                if m_SQLTimeOut <= 0 or \
+                                        (m_ScriptTimeOut - (time.time() - self.getStartTime()) < m_SQLTimeOut):
+                                    # 脚本时间已经不够，剩下的SQL时间变少
+                                    m_SQLTimeOut = m_ScriptTimeOut - (time.time() - self.getStartTime())
+                        if m_SQLTimeOut > 0:
+                            executesqlFunc = func_set_timeout(timeout=m_SQLTimeOut)(executesql)
+                        else:
+                            executesqlFunc = executesql
+                        executesqlFunc()
                         rowcount = 0
                         m_SQL_Status = 0
                         while True:
@@ -458,6 +504,15 @@ class SQLExecute(object):
                                     }
                             if not m_FetchStatus:
                                 break
+                    except func_timeout.exceptions.FunctionTimedOut:
+                        if self.cur is not None:
+                            self.cur.cancel()
+                        if m_ScriptTimeOut > 0:
+                            if m_ScriptTimeOut <= time.time() - self.getStartTime():
+                                m_SQL_ErrorMessage = "SQLCLI-0000: Script imeout when execute script. abort it."
+                                yield {"type": "error", "message": m_SQL_ErrorMessage}
+                                raise EOFError
+                        raise SQLCliException("SQLCLI-0000: SQL imeout when execute script. abort it.")
                     except SQLCliODBCException as oe:
                         m_SQL_Status = 1
                         m_SQL_ErrorMessage = str(oe).strip()
@@ -532,6 +587,15 @@ class SQLExecute(object):
                             raise SQLCliException(m_SQL_ErrorMessage)
                         else:
                             yield {"type": "error", "message": m_SQL_ErrorMessage}
+            except func_timeout.exceptions.FunctionTimedOut:
+                if self.cur is not None:
+                    self.cur.cancel()
+                if m_ScriptTimeOut > 0:
+                    if m_ScriptTimeOut <= time.time() - self.getStartTime():
+                        m_SQL_ErrorMessage = "SQLCLI-0000: Script imeout when execute script. abort it."
+                        yield {"type": "error", "message": m_SQL_ErrorMessage}
+                        raise EOFError
+                raise SQLCliException("SQLCLI-0000: SQL imeout when execute script. abort it.")
             except EOFError:
                 # EOFError是程序退出的标志，退出应用程序
                 raise EOFError

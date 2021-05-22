@@ -1139,6 +1139,7 @@ class SQLCli(object):
                     # Scenario等Hint信息不会带入到下一个SQL文件中
                     cls.SQLExecuteHandler.SQLScenario = ''
                     cls.SQLExecuteHandler.SQLTransaction = ''
+                    cls.SQLExecuteHandler.setStartTime(time.time())
 
                     # 执行指定的SQL文件
                     for m_ExecuteResult in \
