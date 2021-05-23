@@ -671,6 +671,11 @@ class SQLExecute(object):
                 for m_nColumnPos in range(0, len(row)):
                     column = row[m_nColumnPos]
                     columntype = columntypes[m_nColumnPos]
+                    # 对于空值直接返回
+                    if column is None:
+                        m_row.append(None)
+                        continue
+                    # 处理各种数据类型
                     if columntypes[m_nColumnPos] == "FLOAT":
                         m_row.append(self.SQLOptions.get("FLOAT_FORMAT") % column)
                     elif columntypes[m_nColumnPos] in ("DECIMAL", "DOUBLE"):
@@ -678,8 +683,8 @@ class SQLExecute(object):
                             m_row.append(self.SQLOptions.get("DECIMAL_FORMAT") % column)
                         else:
                             m_row.append(column)
-                    elif columntypes[m_nColumnPos] == "STRUCTRUE":
-                        m_ColumnValue = "STRUCTRUE("
+                    elif columntypes[m_nColumnPos] == "STRUCT":
+                        m_ColumnValue = "STRUCTURE("
                         for m_nPos in range(0, len(column)):
                             m_ColumnType = str(type(column[m_nPos]))
                             if m_nPos == 0:
@@ -729,6 +734,7 @@ class SQLExecute(object):
                                 else:
                                     m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
                         m_ColumnValue = m_ColumnValue + ")"
+                        print("ADD [" + m_ColumnValue + "]")
                         m_row.append(m_ColumnValue)
                     elif columntypes[m_nColumnPos] == "ARRAY":
                         m_ColumnValue = "ARRAY["
@@ -786,10 +792,7 @@ class SQLExecute(object):
                         # 转换为16进制，并反算成ASCII
                         column = binascii.b2a_hex(column)
                         column = column.decode()
-                        if len(column) != 0:
-                            m_row.append("0x" + column)
-                        else:
-                            m_row.append("")
+                        m_row.append("0x" + column)
                     elif columntype == "BLOB":
                         m_TrimLength = int(self.SQLOptions.get("LOB_LENGTH"))
                         m_isCompleteOutput = True
@@ -799,13 +802,10 @@ class SQLExecute(object):
                         # 转换为16进制，并反算成ASCII
                         column = binascii.b2a_hex(column)
                         column = column.decode()
-                        if len(column) != 0:
-                            if not m_isCompleteOutput:
-                                m_row.append("0x" + column + "...")
-                            else:
-                                m_row.append("0x" + column)
+                        if not m_isCompleteOutput:
+                            m_row.append("0x" + column + "...")
                         else:
-                            m_row.append("")
+                            m_row.append("0x" + column)
                     else:
                         m_row.append(column)
                 m_row = tuple(m_row)

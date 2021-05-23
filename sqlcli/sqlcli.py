@@ -2069,13 +2069,14 @@ class SQLCli(object):
                     else:
                         m_PrintValue = str(m_iter[m_nPos])
                     if columntypes is not None:
-                        if columntypes[m_nPos] == "str":
+                        if columntypes[m_nPos] in \
+                                ("VARCHAR", "LONGVARCHAR", "CHAR", "CLOB", "NCLOB", "STRUCT", "ARRAY", "DATE"):
                             # 字符串左对齐
                             m_TableContentLine = \
                                 m_TableContentLine + ' ' + \
                                 m_PrintValue.ljust(m_ColumnLength[m_nPos] - wide_chars(m_PrintValue)) + ' |'
                         else:
-                            # 数值类型右对齐
+                            # 数值类型右对齐, 不需要考虑wide_chars
                             m_TableContentLine = m_TableContentLine + ' ' + \
                                                  m_PrintValue.rjust(m_ColumnLength[m_nPos]) + ' |'
                     else:
