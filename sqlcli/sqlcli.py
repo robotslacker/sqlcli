@@ -27,6 +27,9 @@ from prompt_toolkit.shortcuts import PromptSession
 
 # 加载JDBC驱动和ODBC驱动
 from .sqlclijdbcapi import connect as jdbcconnect
+from .sqlclijdbcapi import setBlobDefaultFetchSize as setjdbcBlobDefaultFetchSize
+from .sqlclijdbcapi import setClobDefaultFetchSize as setjdbcClobDefaultFetchSize
+from .sqlclijdbcapi import SQLCliJDBCException
 from .sqlcliodbc import connect as odbcconnect
 from .sqlcliodbc import SQLCliODBCException
 import jpype
@@ -812,11 +815,26 @@ class SQLCli(object):
                 cls.SQLOptions.set("CONNPROP", str(m_JDBCProp))
                 if "SQLCLI_DEBUG" in os.environ:
                     print("Connect to [" + m_JDBCURL + "]...")
-                cls.db_conn = jdbcconnect(
-                    jclassname=m_driverclass,
-                    url=m_JDBCURL, driver_args=m_jdbcconn_prop,
-                    jars=m_JarList, sqloptions=cls.SQLOptions)
-
+                setjdbcClobDefaultFetchSize(cls.SQLOptions.get("LOB_LENGTH"))
+                setjdbcBlobDefaultFetchSize(cls.SQLOptions.get("LOB_LENGTH"))
+                retryCount = 0
+                while True:
+                    try:
+                        cls.db_conn = jdbcconnect(
+                            jclassname=m_driverclass,
+                            url=m_JDBCURL, driver_args=m_jdbcconn_prop,
+                            jars=m_JarList)
+                        break
+                    except SQLCliJDBCException as je:
+                        if "SQLCLI_DEBUG" in os.environ:
+                            print('traceback.print_exc():\n%s' % traceback.print_exc())
+                            print('traceback.format_exc():\n%s' % traceback.format_exc())
+                        retryCount = retryCount + 1
+                        if retryCount >= int(cls.SQLOptions.get("CONN_RETRY_TIMES")):
+                            raise je
+                        else:
+                            time.sleep(2)
+                            continue
                 cls.db_url = m_JDBCURL
                 cls.SQLExecuteHandler.conn = cls.db_conn
             if cls.db_conntype == 'ODBC':  # ODBC 连接数据库

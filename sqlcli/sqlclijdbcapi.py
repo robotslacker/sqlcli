@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 
-'''
+"""
 http://www.python.org/topics/database/DatabaseAPI-2.0.html
-'''
+"""
 
 import datetime
 import glob
 import os
 import sys
 import time
-import traceback
 import warnings
 import decimal
 import jpype
@@ -47,6 +46,11 @@ _jdbc_const_to_name = []
 
 _sqloptions = SQLOptions()
 
+# 默认情况下blob字段内容输出的最大长度
+_blobdefaultfetchsize = 20
+# 默认情况下clob字段内容输出的最大长度
+_clobdefaultfetchsize = 20
+
 
 def _handle_sql_exception_jpype():
     import jpype
@@ -64,7 +68,7 @@ def _handle_sql_exception_jpype():
 
 def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
     import jpype
-    if not jpype.isJVMStarted():
+    if not getattr(jpype, "isJVMStarted")():
         args = []
         class_path = []
         if jars:
@@ -77,10 +81,10 @@ def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
             # path to shared libraries
             libs_path = os.path.pathsep.join(libs)
             args.append('-Djava.library.path=%s' % libs_path)
-        jvm_path = jpype.getDefaultJVMPath()
-        jpype.startJVM(jvm_path, *args, ignoreUnrecognized=True, convertStrings=True)
-    if not jpype.isThreadAttachedToJVM():
-        jpype.attachThreadToJVM()
+        jvm_path = getattr(jpype, "getDefaultJVMPath")()
+        getattr(jpype, "startJVM")(jvm_path, *args, ignoreUnrecognized=True, convertStrings=True)
+    if not getattr(jpype, "isThreadAttachedToJVM")():
+        getattr(jpype, "attachThreadToJVM")()
         jpype.java.lang.Thread.currentThread().setContextClassLoader(jpype.java.lang.ClassLoader.getSystemClassLoader())
     if _jdbc_name_to_const is None:
         types = jpype.java.sql.Types
@@ -108,10 +112,9 @@ def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
     try:
         return jpype.java.sql.DriverManager.getConnection(url, *dargs)
     except jpype.java.sql.SQLException as je:
-        raise SQLCliJDBCException(je.toString().
-                              replace("java.sql.SQLException: ", "").
-                              replace("java.sql.SQLTransientConnectionException: ", "").
-                              replace("java.sql.SQLInvalidAuthorizationSpecException: ", ""))
+        raise SQLCliJDBCException(je.toString().replace("java.sql.SQLException: ", "").
+                                  replace("java.sql.SQLTransientConnectionException: ", "").
+                                  replace("java.sql.SQLInvalidAuthorizationSpecException: ", ""))
 
 
 def _get_classpath():
@@ -208,10 +211,6 @@ class Error(Exception):
     pass
 
 
-class Warning(Exception):
-    pass
-
-
 class InterfaceError(Error):
     pass
 
@@ -263,8 +262,20 @@ Time = _str_func(datetime.time)
 Timestamp = _str_func(datetime.datetime)
 
 
+def setBlobDefaultFetchSize(p_nBlobDefaultFetchSize):
+    # 程序用到的各种会话控制参数
+    global _blobdefaultfetchsize
+    _blobdefaultfetchsize = p_nBlobDefaultFetchSize
+
+
+def setClobDefaultFetchSize(p_nClobDefaultFetchSize):
+    # 程序用到的各种会话控制参数
+    global _clobdefaultfetchsize
+    _clobdefaultfetchsize = p_nClobDefaultFetchSize
+
+
 # DB-API 2.0 Module Interface connect constructor
-def connect(jclassname, url, driver_args=None, jars=None, libs=None, sqloptions=None):
+def connect(jclassname, url, driver_args=None, jars=None, libs=None):
     """Open a connection to a database using a JDBC driver and return
     a Connection instance.
 
@@ -296,29 +307,8 @@ def connect(jclassname, url, driver_args=None, jars=None, libs=None, sqloptions=
     else:
         libs = []
 
-    # 程序用到的各种会话控制参数
-    global _sqloptions
-    _sqloptions = sqloptions
-
     # 如果无法连接，则尝试3次，间隔等待2秒
-    jconn = None
-    retryCount = 0
-    while True:
-        try:
-            jconn = _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs)
-            break
-        except SQLCliJDBCException as je:
-            if jconn is None:
-                # jconn 为空，可能是网络错误，这里重复尝试
-                if "SQLCLI_DEBUG" in os.environ:
-                    print('traceback.print_exc():\n%s' % traceback.print_exc())
-                    print('traceback.format_exc():\n%s' % traceback.format_exc())
-                retryCount = retryCount + 1
-                if retryCount >= int(_sqloptions.get("CONN_RETRY_TIMES")):
-                    raise je
-                else:
-                    time.sleep(2)
-                    continue
+    jconn = _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs)
     return Connection(jconn, _converters)
 
 
@@ -352,6 +342,9 @@ class Connection(object):
         self._closed = False
         self._converters = converters
 
+    def isClosed(self):
+        return self._closed
+
     def close(self):
         if self.jconn is not None:
             self.jconn.close()
@@ -360,13 +353,13 @@ class Connection(object):
     def commit(self):
         try:
             self.jconn.commit()
-        except:
+        except Exception:
             _handle_sql_exception_jpype()
 
     def rollback(self):
         try:
             self.jconn.rollback()
-        except:
+        except Exception:
             _handle_sql_exception_jpype()
 
     def cursor(self):
@@ -403,7 +396,7 @@ class Cursor(object):
                 self._prep.cancel()
             if self._stmt is not None:
                 self._stmt.cancel()
-        except:
+        except Exception:
             # 并不处理任何cancel时候发生的错误
             pass
 
@@ -453,6 +446,8 @@ class Cursor(object):
         self._description = None
 
     def _set_stmt_parms(self, prep_stmt, parameters):
+        if self:
+            pass
         for i in range(len(parameters)):
             if type(parameters[i]) == list:
                 m_JavaObject = None
@@ -464,7 +459,7 @@ class Cursor(object):
                 prep_stmt.setObject(i + 1, parameters[i])
 
     def execute_direct(self, operation):
-        if self._connection._closed:
+        if self._connection.isClosed():
             raise Error()
         self._close_last()
         is_rs = False
@@ -480,7 +475,7 @@ class Cursor(object):
                     m_SQLWarnMessage = m_SQLWarnMessage + "\n" + m_SQLWarnings.getMessage()
                 m_SQLWarnings = m_SQLWarnings.getNextWarning()
             self.warnings = m_SQLWarnMessage
-        except:
+        except Exception:
             _handle_sql_exception_jpype()
         self._rs = self._stmt.getResultSet()
         if self._rs is not None:
@@ -495,7 +490,7 @@ class Cursor(object):
             self.rowcount = self._stmt.getUpdateCount()
 
     def execute(self, operation, parameters=None):
-        if self._connection._closed:
+        if self._connection.isClosed():
             raise Error()
         if not parameters:
             parameters = ()
@@ -514,7 +509,7 @@ class Cursor(object):
                     m_SQLWarnMessage = m_SQLWarnMessage + "\n" + m_SQLWarnings.getMessage()
                 m_SQLWarnings = m_SQLWarnings.getNextWarning()
             self.warnings = m_SQLWarnMessage
-        except:
+        except Exception:
             _handle_sql_exception_jpype()
         # 忽略对execute的返回判断，总是恒定的去调用getResultSet
         self._rs = self._prep.getResultSet()
@@ -559,7 +554,7 @@ class Cursor(object):
             if m_ColumnClassName is None:
                 # NULL值
                 converter = _DEFAULT_CONVERTERS["VARCHAR"]
-            elif m_ColumnClassName in ('org.postgresql.util.PGmoney'):
+            elif m_ColumnClassName in 'org.postgresql.util.PGmoney':
                 converter = _DEFAULT_CONVERTERS["VARCHAR"]
             elif m_ColumnClassName in ('oracle.sql.TIMESTAMPTZ', 'oracle.sql.TIMESTAMPLTZ'):
                 converter = _DEFAULT_CONVERTERS["TIMESTAMP_WITH_TIMEZONE"]
@@ -629,6 +624,8 @@ class Cursor(object):
 
 
 def _unknownSqlTypeConverter(conn, rs, col):
+    if conn:
+        pass
     java_val = rs.getObject(col)
     if java_val is None:
         return
@@ -636,18 +633,23 @@ def _unknownSqlTypeConverter(conn, rs, col):
 
 
 def _to_datetime(conn, rs, col):
+    if conn:
+        pass
     java_val = rs.getTimestamp(col)
     if not java_val:
         return
     try:
         d = datetime.datetime.strptime(str(java_val)[:19], "%Y-%m-%d %H:%M:%S")
         d = d.replace(microsecond=int(str(java_val.getNanos())[:6]))
-    except ValueError as ve:
+    except ValueError:
+        # 处理一些超过Python数据类型限制的时间类型
         d = str(java_val)
     return str(d)
 
 
 def _to_time(conn, rs, col):
+    if conn:
+        pass
     try:
         java_val = rs.getTime(col)
     except Exception:
@@ -659,6 +661,8 @@ def _to_time(conn, rs, col):
 
 
 def _to_year(conn, rs, col):
+    if conn:
+        pass
     try:
         java_val = rs.getDate(col)
     except Exception:
@@ -672,6 +676,8 @@ def _to_year(conn, rs, col):
 
 
 def _to_date(conn, rs, col):
+    if conn:
+        pass
     try:
         java_val = rs.getDate(col)
     except Exception:
@@ -688,6 +694,8 @@ def _to_date(conn, rs, col):
 
 
 def _to_bit(conn, rs, col):
+    if conn:
+        pass
     try:
         java_val = rs.getObject(col)
     except Exception:
@@ -720,6 +728,8 @@ def _to_bit(conn, rs, col):
 
 
 def _to_binary(conn, rs, col):
+    if conn:
+        pass
     java_val = rs.getObject(col)
     if java_val is None:
         return
@@ -738,7 +748,7 @@ def _to_binary(conn, rs, col):
     elif m_TypeName.upper().find("BLOB") != -1:
         m_Length = java_val.length()
         # 总是返回比LOB_LENGTH大1的字节数，后续的显示中将根据LOB_LENGTH是否超长做出是否打印省略号的标志
-        m_TrimLength = int(_sqloptions.get("LOB_LENGTH")) + 1
+        m_TrimLength = _blobdefaultfetchsize + 1
         if m_TrimLength > m_Length:
             m_TrimLength = m_Length
         m_Bytes = java_val.getBytes(1, int(m_TrimLength))
@@ -760,6 +770,8 @@ def _to_binary(conn, rs, col):
 
 def _java_to_py(java_method):
     def to_py(conn, rs, col):
+        if conn:
+            pass
         java_val = rs.getObject(col)
         if java_val is None:
             return
@@ -770,6 +782,8 @@ def _java_to_py(java_method):
 
 
 def _java_to_py_bigdecimal(conn, rs, col):
+    if conn:
+        pass
     java_val = rs.getObject(col)
     if java_val is None:
         return
@@ -800,7 +814,7 @@ def _java_to_py_timestampwithtimezone(conn, rs, col):
     elif m_TypeName in ('oracle.sql.TIMESTAMPTZ', 'oracle.sql.TIMESTAMPLTZ'):
         return java_val.offsetDateTimeValue(conn).format(
             jpype.java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS Z"))
-    elif m_TypeName in ('org.h2.api.TimestampWithTimeZone'):
+    elif m_TypeName in 'org.h2.api.TimestampWithTimeZone':
         return java_val.toString()
     else:
         raise SQLCliJDBCException(
@@ -809,13 +823,15 @@ def _java_to_py_timestampwithtimezone(conn, rs, col):
 
 
 def _java_to_py_clob(conn, rs, col):
+    if conn:
+        pass
     java_val = rs.getObject(col)
     if java_val is None:
         return
     m_TypeName = str(java_val.getClass().getTypeName())
     if m_TypeName.upper().find('CLOB') != -1:
         m_Length = java_val.length()
-        m_TrimLength = int(_sqloptions.get("LOB_LENGTH"))
+        m_TrimLength = _clobdefaultfetchsize
         if m_TrimLength > m_Length:
             m_TrimLength = m_Length
         m_ColumnValue = java_val.getSubString(1, int(m_TrimLength))
@@ -829,6 +845,8 @@ def _java_to_py_clob(conn, rs, col):
 
 
 def _java_to_py_stru(conn, rs, col):
+    if conn:
+        pass
     java_val = rs.getObject(col)
     if java_val is None:
         return
@@ -843,6 +861,8 @@ def _java_to_py_stru(conn, rs, col):
 
 
 def _java_to_py_array(conn, rs, col):
+    if conn:
+        pass
     java_val = rs.getObject(col)
     if java_val is None:
         return
@@ -863,6 +883,8 @@ def _java_to_py_array(conn, rs, col):
 
 
 def _java_to_py_str(conn, rs, col):
+    if conn:
+        pass
     try:
         java_val = rs.getObject(col)
         if java_val is None:

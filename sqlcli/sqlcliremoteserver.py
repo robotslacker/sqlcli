@@ -89,12 +89,13 @@ class SQLCliRemoteServer:
     @app.post("/DoLogin")
     def Process_LoginRequest(p_RequestData: LoginData):
         # 用户登录，返回一个随机生成的token
-        # m_ClientID = str(uuid.uuid4())
-        m_ClientID = ''.join(random.choice(string.digits) for i in range(4))
+        m_ClientID = ''.join(random.choice(string.digits) for _ in range(4))
         m_SQLCli = SQLCli(
             HeadlessMode=True,
             WorkerName=m_ClientID
         )
+        if p_RequestData:
+            pass
         m_SQLCli.ClientID = m_ClientID
         sga[m_ClientID] = m_SQLCli
 

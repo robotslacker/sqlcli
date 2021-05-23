@@ -670,7 +670,7 @@ class JOBManager(object):
                                 m_Job.finished_jobs = m_Job.finished_jobs + 1
                                 m_Job.active_jobs = m_Job.active_jobs - 1
                                 m_Job.FinishWorker(self.MetaConn, m_Worker.WorkerHandler_ID,
-                                                 m_Process.exitcode, "")
+                                                   m_Process.exitcode, "")
                                 self.SaveJob(m_Job)
                                 # 从当前保存的进程信息中释放该进程
                                 self.ProcessID.pop(m_ProcessID)
@@ -681,7 +681,7 @@ class JOBManager(object):
                                     if m_Worker.start_time + m_Job.getTimeOut() < currenttime:
                                         m_Process.terminate()
                                         m_Job.FinishWorker(self.MetaConn, m_Worker.WorkerHandler_ID,
-                                                         m_Process.exitcode, "TIMEOUT")
+                                                           m_Process.exitcode, "TIMEOUT")
                                         m_Job.failed_jobs = m_Job.failed_jobs + 1
                                         m_Job.finished_jobs = m_Job.finished_jobs + 1
                                         m_Job.active_jobs = m_Job.active_jobs - 1
@@ -692,7 +692,7 @@ class JOBManager(object):
                                         if m_Job.getStatus() == "WAITINGFOR_ABORT":
                                             m_Process.terminate()
                                             m_Job.FinishWorker(self.MetaConn, m_Worker.WorkerHandler_ID,
-                                                             m_Process.exitcode, "ABORTED")
+                                                               m_Process.exitcode, "ABORTED")
                                             m_Job.failed_jobs = m_Job.failed_jobs + 1
                                             m_Job.finished_jobs = m_Job.finished_jobs + 1
                                             m_Job.active_jobs = m_Job.active_jobs - 1
@@ -704,7 +704,7 @@ class JOBManager(object):
                                     if m_Job.getStatus() == "WAITINGFOR_ABORT":
                                         m_Process.terminate()
                                         m_Job.FinishWorker(self.MetaConn, m_Worker.WorkerHandler_ID,
-                                                         m_Process.exitcode, "ABORTED")
+                                                           m_Process.exitcode, "ABORTED")
                                         m_Job.failed_jobs = m_Job.failed_jobs + 1
                                         m_Job.finished_jobs = m_Job.finished_jobs + 1
                                         m_Job.active_jobs = m_Job.active_jobs - 1

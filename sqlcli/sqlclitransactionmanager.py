@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import re
-import os
 import time
 import datetime
 from .sqlcliexception import SQLCliException

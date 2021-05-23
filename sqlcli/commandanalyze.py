@@ -95,6 +95,8 @@ def execute(cls, sql):
 
 @special_command("help", "Show this help.")
 def show_help(cls, arg):
+    if cls and arg:
+        pass
     headers = ["Command", "Description"]
     result = []
 
@@ -113,4 +115,6 @@ def show_help(cls, arg):
 
 @special_command("quit", "Quit.")
 def quit_sqlcli(cls, arg):
+    if cls and arg:
+        pass
     raise EOFError

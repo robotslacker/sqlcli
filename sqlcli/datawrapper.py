@@ -747,7 +747,7 @@ class DataWrapper(object):
             if p_srcfileType.upper() == "MEM":
                 m_srcFSType = "MEM"
                 if self.g_MemoryFSHandler is None:
-                    g_MemoryFSHandler = fs.open_fs('mem://')
+                    self.g_MemoryFSHandler = fs.open_fs('mem://')
                     m_srcFS = self.g_MemoryFSHandler
                 else:
                     m_srcFS = self.g_MemoryFSHandler
@@ -772,7 +772,7 @@ class DataWrapper(object):
             if p_dstfileType.upper() == "MEM":
                 m_dstFSType = "MEM"
                 if self.g_MemoryFSHandler is None:
-                    g_MemoryFSHandler = fs.open_fs('mem://')
+                    self.g_MemoryFSHandler = fs.open_fs('mem://')
                     m_dstFS = self.g_MemoryFSHandler
                 else:
                     m_dstFS = self.g_MemoryFSHandler

@@ -168,7 +168,6 @@ class HDFSWrapper(object):
                 m_ReturnFileList = self.HDFS_status(m_TargetFileList)
                 m_Result = []
                 for (m_FileName, m_FileProperties) in m_ReturnFileList:
-                    m_PermissionMask = ""
                     if m_FileProperties["type"] == "FILE":
                         m_PermissionMask = "-"
                     elif m_FileProperties["type"] == "DIRECTORY":
@@ -283,7 +282,6 @@ class HDFSWrapper(object):
                 m_ReturnFileList = self.HDFS_list(m_TargetFileList, recusive=True)
                 m_Result = []
                 for (m_FileName, m_FileProperties) in m_ReturnFileList:
-                    m_PermissionMask = ""
                     if m_FileProperties["type"] == "FILE":
                         m_PermissionMask = "-"
                     elif m_FileProperties["type"] == "DIRECTORY":

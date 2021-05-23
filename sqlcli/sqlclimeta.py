@@ -7,7 +7,6 @@ import socket
 from multiprocessing import Lock
 from .sqlclijdbcapi import connect as jdbcconnect
 from .sqlcliexception import SQLCliException
-from .sqloption import SQLOptions
 
 
 # SQLCli的Meta管理，使用H2数据库作为管理方式
@@ -59,7 +58,7 @@ class SQLCliMeta(object):
             m_MetaDriverURL = m_AppOptions.get("meta_driver", "jdbcurl")
             self.db_conn = jdbcconnect(jclassname=m_MetaClass, url=m_MetaDriverURL,
                                        driver_args={'user': 'sa', 'password': 'sa'},
-                                       jars=self.JarList, sqloptions=SQLOptions())
+                                       jars=self.JarList)
             if self.db_conn is None:
                 raise SQLCliException("SQLCLI-00000: "
                                       "SQLCliMeta:: Connect to meta failed! JobManager Aborted!")
@@ -229,7 +228,7 @@ class SQLCliMeta(object):
             m_MetaDriverURL = m_MetaDriverURL.replace("mem", p_MetaServerURL + "/mem")
             self.db_conn = jdbcconnect(jclassname=m_MetaClass, url=m_MetaDriverURL,
                                        driver_args={'user': 'sa', 'password': 'sa'},
-                                       jars=self.JarList, sqloptions=SQLOptions())
+                                       jars=self.JarList)
             if self.db_conn is None:
                 if "SQLCLI_DEBUG" in os.environ:
                     print("DEBUG:: SQLCliMeta:: Connect to meta failed! JobManager Connect Failed!")
