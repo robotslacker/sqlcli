@@ -726,12 +726,15 @@ def _to_binary(conn, rs, col):
     m_TypeName = str(java_val.getClass().getTypeName())
     if m_TypeName == "byte[]":
         # 截断所有后面为0的字节数组内容
-        m_TrimPos = len(java_val) - 1
+        m_TrimPos = -1
         for m_nPos in range(len(java_val) - 1, 0, -1):
             if java_val[m_nPos] != 0:
                 m_TrimPos = m_nPos
                 break
-        return java_val[:m_TrimPos]
+        if m_TrimPos == -1:
+            return java_val
+        else:
+            return java_val[:m_TrimPos + 1]
     elif m_TypeName.upper().find("BLOB") != -1:
         m_Length = java_val.length()
         # 总是返回比LOB_LENGTH大1的字节数，后续的显示中将根据LOB_LENGTH是否超长做出是否打印省略号的标志
