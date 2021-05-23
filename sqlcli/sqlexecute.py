@@ -7,6 +7,7 @@ import os
 import re
 import traceback
 import json
+import binascii
 from func_timeout import func_set_timeout
 import func_timeout
 
@@ -658,6 +659,7 @@ class SQLExecute(object):
         columntypes = []
         if cursor.description is not None:
             headers = [x[0] for x in cursor.description]
+            columntypes = [x[1] for x in cursor.description]
             if cursor.warnings is not None:
                 status = "{0} row{1} selected with warnings."
             else:
@@ -666,43 +668,69 @@ class SQLExecute(object):
             rowset = cursor.fetchmany(m_arraysize)
             for row in rowset:
                 m_row = []
-                # 记录字段类型
-                if len(columntypes) == 0:
-                    for column in row:
-                        if "SQLCLI_DEBUG" in os.environ:
-                            print("DEBUG: COLUMN TYPE TYPE: [" + str(type(column)) + "]")
-                        if type(column) == int:
-                            m_ColumnType = "int"
-                        elif type(column) == str:
-                            m_ColumnType = "str"
-                        elif type(column) == bool:
-                            m_ColumnType = "bool"
-                        elif type(column) == float:
-                            m_ColumnType = "float"
-                        else:
-                            m_ColumnType = str(type(column))
-                        columntypes.append(m_ColumnType)
-                        if "SQLCLI_DEBUG" in os.environ:
-                            print("DEBUG: COLUMN TYPE STR : [" + m_ColumnType + "]")
-                for column in row:
-                    if str(type(column)).upper().find('JDBCBLOBCLIENT') != -1:
-                        # 对于二进制数据，用16进制数来显示
-                        # 2: 意思是去掉Hex前面的0x字样
-                        m_Length = column.length()
-                        m_ColumnValue = "".join([hex(int(i))[2:]
-                                                 for i in column.getBytes(1,
-                                                                          int(self.SQLOptions.get("LOB_LENGTH")))])
-                        if m_Length > int(self.SQLOptions.get("LOB_LENGTH")):
-                            m_ColumnValue = m_ColumnValue + "..."
-                        m_row.append(m_ColumnValue)
-                    elif str(type(column)).upper().find("FLOAT") != -1:
+                for m_nColumnPos in range(0, len(row)):
+                    column = row[m_nColumnPos]
+                    columntype = columntypes[m_nColumnPos]
+                    if columntypes[m_nColumnPos] == "FLOAT":
                         m_row.append(self.SQLOptions.get("FLOAT_FORMAT") % column)
-                    elif type(column) == decimal.Decimal:
+                    elif columntypes[m_nColumnPos] in ("DECIMAL", "DOUBLE"):
                         if self.SQLOptions.get("DECIMAL_FORMAT") != "":
                             m_row.append(self.SQLOptions.get("DECIMAL_FORMAT") % column)
                         else:
                             m_row.append(column)
-                    elif type(column) == list:
+                    elif columntypes[m_nColumnPos] == "STRUCTRUE":
+                        m_ColumnValue = "STRUCTRUE("
+                        for m_nPos in range(0, len(column)):
+                            m_ColumnType = str(type(column[m_nPos]))
+                            if m_nPos == 0:
+                                if m_ColumnType.upper().find('STR') != -1:
+                                    m_ColumnValue = m_ColumnValue + "'" + str(column[m_nPos]) + "'"
+                                elif m_ColumnType.upper().find('SQLDATE') != -1:
+                                    m_ColumnValue = m_ColumnValue + "DATE'" + str(column[m_nPos]) + "'"
+                                elif m_ColumnType.upper().find("FLOAT") != -1:
+                                    m_ColumnValue = m_ColumnValue + \
+                                                    self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
+                                elif m_ColumnType.upper().find("DOUBLE") != -1:
+                                    m_CellValue = decimal.Decimal(column[m_nPos].toString())
+                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
+                                        m_ColumnValue = m_ColumnValue + \
+                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % m_CellValue)
+                                    else:
+                                        m_ColumnValue = m_ColumnValue + str(m_CellValue)
+                                elif m_ColumnType.upper().find("DECIMAL") != -1:
+                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
+                                        m_ColumnValue = m_ColumnValue + \
+                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos])
+                                    else:
+                                        m_ColumnValue = m_ColumnValue + str(column[m_nPos])
+                                else:
+                                    m_ColumnValue = m_ColumnValue + str(column[m_nPos])
+                            else:
+                                if m_ColumnType.upper().find('STR') != -1:
+                                    m_ColumnValue = m_ColumnValue + ",'" + str(column[m_nPos]) + "'"
+                                elif m_ColumnType.upper().find('SQLDATE') != -1:
+                                    m_ColumnValue = m_ColumnValue + ",DATE'" + str(column[m_nPos]) + "'"
+                                elif m_ColumnType.upper().find("FLOAT") != -1:
+                                    m_ColumnValue = m_ColumnValue + "," + \
+                                                    self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
+                                elif m_ColumnType.upper().find("DOUBLE") != -1:
+                                    m_CellValue = decimal.Decimal(column[m_nPos].toString())
+                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
+                                        m_ColumnValue = m_ColumnValue + "," + \
+                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % m_CellValue)
+                                    else:
+                                        m_ColumnValue = m_ColumnValue + "," + str(m_CellValue)
+                                elif m_ColumnType.upper().find("DECIMAL") != -1:
+                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
+                                        m_ColumnValue = m_ColumnValue + "," + \
+                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos])
+                                    else:
+                                        m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
+                                else:
+                                    m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
+                        m_ColumnValue = m_ColumnValue + ")"
+                        m_row.append(m_ColumnValue)
+                    elif columntypes[m_nColumnPos] == "ARRAY":
                         m_ColumnValue = "ARRAY["
                         for m_nPos in range(0, len(column)):
                             m_ColumnType = str(type(column[m_nPos]))
@@ -754,18 +782,28 @@ class SQLExecute(object):
                                     m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
                         m_ColumnValue = m_ColumnValue + "]"
                         m_row.append(m_ColumnValue)
-                    elif type(column) == bytes:
-                        # 对于二进制数据，其末尾用0x00表示，这里进行截断
+                    elif columntype in ("BINARY", "VARBINARY", "LONGVARBINARY"):
+                        # 转换为16进制，并反算成ASCII
+                        column = binascii.b2a_hex(column)
                         column = column.decode()
-                        m_TrimPos = 0
-                        for m_nPos in range(len(column), 0, -2):
-                            if column[m_nPos - 2] != '0' or column[m_nPos - 1] != '0':
-                                m_TrimPos = m_nPos
-                                break
-                        if m_TrimPos != -1:
-                            column = column[0:m_TrimPos]
                         if len(column) != 0:
                             m_row.append("0x" + column)
+                        else:
+                            m_row.append("")
+                    elif columntype == "BLOB":
+                        m_TrimLength = int(self.SQLOptions.get("LOB_LENGTH"))
+                        m_isCompleteOutput = True
+                        if len(column) > m_TrimLength:
+                            m_isCompleteOutput = False
+                            column = column[:m_TrimLength]
+                        # 转换为16进制，并反算成ASCII
+                        column = binascii.b2a_hex(column)
+                        column = column.decode()
+                        if len(column) != 0:
+                            if not m_isCompleteOutput:
+                                m_row.append("0x" + column + "...")
+                            else:
+                                m_row.append("0x" + column)
                         else:
                             m_row.append("")
                     else:

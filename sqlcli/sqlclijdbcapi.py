@@ -12,7 +12,6 @@ import time
 import traceback
 import warnings
 import decimal
-import binascii
 import jpype
 from .sqloption import SQLOptions
 
@@ -422,11 +421,11 @@ class Cursor(object):
                 if jdbc_type == 0:
                     # PEP-0249: SQL NULL values are represented by the
                     # Python None singleton
-                    dbapi_type = None
+                    column_type = None
                 else:
-                    dbapi_type = DBAPITypeObject._map_jdbc_type_to_dbapi(jdbc_type)
+                    column_type = str(_jdbc_const_to_name[jdbc_type])
                 col_desc = (m.getColumnLabel(col),
-                            dbapi_type,
+                            column_type,
                             size,
                             size,
                             m.getPrecision(col),
@@ -535,7 +534,15 @@ class Cursor(object):
             self._set_stmt_parms(self._prep, parameters)
             self._prep.addBatch()
         update_counts = self._prep.executeBatch()
-        # self._prep.getWarnings() ???
+        m_SQLWarnMessage = None
+        m_SQLWarnings = self._prep.getWarnings()
+        while m_SQLWarnings is not None:
+            if m_SQLWarnMessage is None:
+                m_SQLWarnMessage = m_SQLWarnings.getMessage()
+            else:
+                m_SQLWarnMessage = m_SQLWarnMessage + "\n" + m_SQLWarnings.getMessage()
+            m_SQLWarnings = m_SQLWarnings.getNextWarning()
+        self.warnings = m_SQLWarnMessage
         self.rowcount = sum(update_counts)
         self._close_last()
 
@@ -718,19 +725,21 @@ def _to_binary(conn, rs, col):
         return
     m_TypeName = str(java_val.getClass().getTypeName())
     if m_TypeName == "byte[]":
-        # 转换为16进制字符串后返回
-        return binascii.b2a_hex(java_val)
+        # 截断所有后面为0的字节数组内容
+        m_TrimPos = len(java_val) - 1
+        for m_nPos in range(len(java_val) - 1, 0, -1):
+            if java_val[m_nPos] != 0:
+                m_TrimPos = m_nPos
+                break
+        return java_val[:m_TrimPos]
     elif m_TypeName.upper().find("BLOB") != -1:
         m_Length = java_val.length()
-        m_TrimLength = int(_sqloptions.get("LOB_LENGTH"))
+        # 总是返回比LOB_LENGTH大1的字节数，后续的显示中将根据LOB_LENGTH是否超长做出是否打印省略号的标志
+        m_TrimLength = int(_sqloptions.get("LOB_LENGTH")) + 1
         if m_TrimLength > m_Length:
             m_TrimLength = m_Length
         m_Bytes = java_val.getBytes(1, int(m_TrimLength))
-        if m_Bytes is not None:
-            # 转换为16进制字符串后返回
-            return binascii.b2a_hex(java_val.getBytes(1, int(m_TrimLength)))
-        else:
-            return ""
+        return m_Bytes
     elif m_TypeName.find("BFILE") != -1:
         return "bfilename(" + java_val.getDirAlias() + ":" + java_val.getName() + ")"
     elif m_TypeName.find("Boolean") != -1:
@@ -821,50 +830,9 @@ def _java_to_py_stru(conn, rs, col):
     if java_val is None:
         return
     m_TypeName = str(java_val.getClass().getTypeName())
-    if (m_TypeName == "java.lang.Object[]"):
-        m_ColumnValue = "STRUCTURE("
-        for m_nPos in range(0, len(java_val)):
-            m_ColumnType = str(type(java_val[m_nPos]))
-            if m_nPos == 0:
-                if m_ColumnType.upper().find('STR') != -1:
-                    m_ColumnValue = m_ColumnValue + "'" + str(java_val[m_nPos]) + "'"
-                elif m_ColumnType.upper().find('SQLDATE') != -1:
-                    m_ColumnValue = m_ColumnValue + "DATE'" + str(java_val[m_nPos]) + "'"
-                elif str(type(java_val)).upper().find("FLOAT") != -1:
-                    m_ColumnValue = m_ColumnValue + \
-                                    _sqloptions.get("FLOAT_FORMAT") % java_val[m_nPos]
-                elif str(type(java_val)).upper().find("DOUBLE") != -1:
-                    m_ColumnValue = m_ColumnValue + \
-                                    _sqloptions.get("DOUBLE_FORMAT") % java_val[m_nPos]
-                elif type(java_val) == decimal.Decimal:
-                    if _sqloptions.get("DECIMAL_FORMAT") != "":
-                        m_ColumnValue = m_ColumnValue + \
-                                        _sqloptions.get("DECIMAL_FORMAT") % java_val[m_nPos]
-                    else:
-                        m_ColumnValue = m_ColumnValue + java_val[m_nPos]
-                else:
-                    m_ColumnValue = m_ColumnValue + str(java_val[m_nPos])
-            else:
-                if m_ColumnType.upper().find('STR') != -1:
-                    m_ColumnValue = m_ColumnValue + ",'" + str(java_val[m_nPos]) + "'"
-                elif m_ColumnType.upper().find('SQLDATE') != -1:
-                    m_ColumnValue = m_ColumnValue + ",DATE'" + str(java_val[m_nPos]) + "'"
-                elif str(type(java_val)).upper().find("FLOAT") != -1:
-                    m_ColumnValue = m_ColumnValue + "," + \
-                                    _sqloptions.get("FLOAT_FORMAT") % java_val[m_nPos]
-                elif str(type(java_val)).upper().find("DOUBLE") != -1:
-                    m_ColumnValue = m_ColumnValue + "," + \
-                                    _sqloptions.get("DOUBLE_FORMAT") % java_val[m_nPos]
-                elif type(java_val) == decimal.Decimal:
-                    if _sqloptions.get("DECIMAL_FORMAT") != "":
-                        m_ColumnValue = m_ColumnValue + "," + \
-                                        _sqloptions.get("DECIMAL_FORMAT") % java_val[m_nPos]
-                    else:
-                        m_ColumnValue = m_ColumnValue + "," + java_val[m_nPos]
-                else:
-                    m_ColumnValue = m_ColumnValue + "," + str(java_val[m_nPos])
-        m_ColumnValue = m_ColumnValue + ")"
-        return m_ColumnValue
+    if m_TypeName == "java.lang.Object[]":
+        m_retVal = tuple(java_val)
+        return m_retVal
     else:
         raise SQLCliJDBCException(
             "SQLCLI-00000: Unknown java class type [" + m_TypeName +

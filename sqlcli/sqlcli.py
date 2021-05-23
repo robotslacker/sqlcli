@@ -1885,13 +1885,13 @@ class SQLCli(object):
             for m_nPos in range(0, len(row)):
                 if row[m_nPos] is None:
                     if columntypes is not None:
-                        if columntypes[m_nPos] == "str":
+                        if columntypes[m_nPos] in ("VARCHAR", "LONGVARCHAR", "CHAR", "CLOB", "NCLOB"):
                             m_row = m_row + m_csv_quotechar + m_csv_quotechar
                 else:
                     if columntypes is None:
                         m_row = m_row + str(row[m_nPos])
                     else:
-                        if columntypes[m_nPos] == "str":
+                        if columntypes[m_nPos] in ("VARCHAR", "LONGVARCHAR", "CHAR", "CLOB", "NCLOB"):
                             m_row = m_row + m_csv_quotechar + str(row[m_nPos]) + m_csv_quotechar
                         else:
                             m_row = m_row + str(row[m_nPos])
