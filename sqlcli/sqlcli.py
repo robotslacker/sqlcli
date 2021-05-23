@@ -1672,7 +1672,6 @@ class SQLCli(object):
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
             # 用户执行的SQL出了错误, 由于SQLExecute已经打印了错误消息，这里直接退出
             self.output(None, e.message)
-            print("DoSQL With SQLCliException ....")
             if self.SQLOptions.get("WHENEVER_SQLERROR").upper() == "EXIT":
                 raise e
         except Exception as e:
