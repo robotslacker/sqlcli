@@ -52,6 +52,14 @@ SQLCli 目前支持的数据类型有：
 需要进行各种数据库功能测试、压力测试的。  
 需要用统一的方式来连接各种不同数据库的。    
 
+### 为什么要设计这个工具
+这个工具的存在目的不是为了替代各种数据库的命令行工具，如Oracle的SQLPlus，MYSQL的mysql等  
+这个工具的存在目的是在尽可能地兼容这些命令行工具的同时提供测试工作需要的相关特性。  
+这些特性包括：  
+1：并发脚本的支持，通过在脚本中使用JOBManager，可以同时执行多个脚本，同时利用时间戳还可以同步脚本之前的行为。  
+2：一些internal的命令，可以完成数据库之外的相关操作。  
+
+
 ***
 ### 安装
 安装的前提有：
@@ -77,9 +85,9 @@ SQLCli 目前支持的数据类型有：
    * requests                 ：HTTP客户端请求协议
    * websockets               : HTTP客户端请求协议
    * pydantic                 : FastAPI服务端支持
-   * uvicorn[standard]       : FastAPI服务端支持
+   * uvicorn[standard]        : FastAPI服务端支持
    * fastapi                  : FastAPI服务端支持
-
+   * func_timeout             : 控制脚本的延时机制
 其他：
    对于Linux和MAC，在安装后需要手工加载confluent_kafka来保证kafka操作的正常
    * pip install confluent_kafka
@@ -87,7 +95,7 @@ SQLCli 目前支持的数据类型有：
    对于Windows，由于confluent_kafka目前不支持Windows，所以无需安装，也不能使用该功能
    
 
-安装命令：
+利用PIP来安装：
 ```
    pip install -U robotslacker-sqlcli
 ```
@@ -230,7 +238,7 @@ user/pass : 数据库连接的用户名和口令
 成功执行这个命令的前提是你已经在环境变量中设置了数据库连接的必要信息。  
 这里的必要信息包括：
 环境变量：  SQLCLI_CONNECTION_URL  
-    参数格式是： jdbc:[数据库类型]:[数据库通讯协议]://[数据库主机地址]:[数据库端口号]/[数据库服务名]  
+参数格式：  jdbc:[数据库类型]:[数据库通讯协议]://[数据库主机地址]:[数据库端口号]/[数据库服务名]  
 ```
 --logfile   用来记录本次命令行操作的所有过程信息  
 这里的操作过程信息包含你随后在命令行里头的所有输出信息。  
@@ -666,27 +674,33 @@ Mapping file loaded.
 ```
     SQL> set
     Current set options: 
-    +-------------------+----------+------------------------+
-    | Name              | Value    | Comments               |
-    +-------------------+----------+------------------------+
-    | WHENEVER_SQLERROR | CONTINUE |                        |
-    | PAGE              | OFF      |                        |
-    | ECHO              | ON       |                        |
-    | TIMING            | OFF      |                        |
-    | TIME              | OFF      |                        |
-    | OUTPUT_FORMAT     | ASCII    | TAB|CSV|LEGACY         |
-    | CSV_HEADER        | OFF      | ON|OFF                 |
-    | CSV_DELIMITER     | ,        |                        |
-    | CSV_QUOTECHAR     |          |                        |
-    | FEEDBACK          | ON       | ON|OFF                 |
-    | TERMOUT           | ON       | ON|OFF                 |
-    | ARRAYSIZE         | 10000    |                        |
-    | SQLREWRITE        | OFF      | ON|OFF                 |
-    | LOB_LENGTH        | 20       |                        |
-    | FLOAT_FORMAT      | %.7g     |                        |
-    | DECIMAL_FORMAT    |          |                        |
-    | CONN_RETRY_TIMES  | 1        | Connect retry times.   |
-    +-------------------+----------+------------------------+
+    +-----------------------+----------+----------------------+
+    | Name                  | Value    | Comments             |
+    +-----------------------+----------+----------------------+
+    | WHENEVER_SQLERROR     | CONTINUE |                      |
+    | PAGE                  | OFF      |                      |
+    | ECHO                  | ON       |                      |
+    | TIMING                | OFF      |                      |
+    | TIME                  | OFF      |                      |
+    | OUTPUT_FORMAT         | LEGACY   | TAB|CSV|LEGACY       |
+    | CSV_HEADER            | OFF      | ON|OFF               |
+    | CSV_DELIMITER         | ,        |                      |
+    | CSV_QUOTECHAR         |          |                      |
+    | FEEDBACK              | ON       | ON|OFF               |
+    | TERMOUT               | ON       | ON|OFF               |
+    | ARRAYSIZE             | 10000    |                      |
+    | SQLREWRITE            | OFF      | ON|OFF               |
+    | LOB_LENGTH            | 20       |                      |
+    | FLOAT_FORMAT          | %.7g     |                      |
+    | DECIMAL_FORMAT        |          |                      |
+    | CONN_RETRY_TIMES      | 1        | Connect retry times. |
+    | OUTPUT_PREFIX         |          | Output Prefix        |
+    | SQL_EXECUTE           | PREPARE  | DIRECT|PREPARE       |
+    | JOBMANAGER            | OFF      | ON|OFF               |
+    | JOBMANAGER_METAURL    |          |                      |
+    | SCRIPT_TIMEOUT | -1       |                      |
+    | SQL_TIMEOUT    | -1       |                      |
+    +-----------------------+----------+----------------------+
   没有任何参数的set将会列出程序所有的配置情况。
 
 ```
@@ -882,7 +896,47 @@ Mapping file loaded.
     控制是否启用SQL重写，默认是ON。
     当设置为OFF的时候，无论运行是否指定了SQLMAP，映射都不会工作
 ```
+#### 控制参数解释-SQL_EXECUTE
+&emsp; &emsp; 14. SQL_EXECUTE  
+```
+    控制Jpype调用JDBC测试的时候，使用的具体行为方式。有两个可能的选项，分别是DIRECT和PREPARE
+    对于DIRECT的行为类似：
+        conn.createStatement().execute("sql ...")
+    对于PREPARE的行为类似：
+        PrepareStatement m_pstmt == conn.PrepareStatement(sql)
+        m_pstmt.execute()
+    在某些特定的情况下，这个参数将影响显示输出效果。目前正在测试中。
+```
 
+#### 控制参数解释-JOBManager, JOBManager_MetaURL
+&emsp; &emsp; 15. SQL脚本并发控制  
+```
+   程序实现了并发的脚本运行，以及对脚本运行中的聚合点支持
+   并发运行的时候， 应用程序的角色分为主调度程序和Worker工作程序
+   
+   通过 SET JOBManager ON的方式可以启用本机的主调度程序。
+   在SET JOBManager ON后，通过SET命令查看当前设置，可以看到如下信息：
+   | JOBMANAGER         | on                        | ON|OFF               |
+   | JOBMANAGER_METAURL | tcp://192.168.3.155:50869 |                      |
+   此时的JOBMANAGER_METAURL就是主调度程序所工作的地址
+   
+   Worker工作程序可以通过手工的方式注册到主调度程序上，也可以通过主调度程序利用JOB的相关命令来启动
+   具体的使用方法随后的章节将详细介绍   
+```
+
+#### 控制参数-SQL_TIMEOUT，SCRIPT_TIMEOUT
+&emsp; &emsp; 15. SQL脚本超时控制
+```
+   程序实现了超时管理，默认的超时时间为无限制，即不做任何控制
+   SCRIPT_TIMEOUT    脚本的最大运行时间，单位为秒，当脚本运行超过这个时间后，脚本将失败，程序将退出
+   SQL_TIMEOUT       单个语句的最大运行时间，单位为秒，当单个语句运行超过这个时间后，当前语句将失败，程序将继续
+   两个参数可以同时设置，同时生效，也可以根据需要设置其中一个
+   
+   注意： 
+   1： 当发生SQL超时中断后，程序将会启动调用数据库的cancel机制来回退当前运行状态，但不是每个数据库都能支持cancel机制
+      所以，不要对超时退出后，数据库的连接状态有所预期，可能（非常可能）会导致后续的所有SQL执行失败
+   
+```
 
 ### 在SQL中使用Hint信息
 &emsp; &emsp; 在一些场景中，我们通过Hint隐含提示符来控制SQL的具体行为
@@ -923,6 +977,7 @@ Mapping file loaded.
     循环执行的次数是LoopTimes，每次循环的间隔是INTERVAL(秒作为单位)
     
 ```
+
 ### 在SQL中使用变量信息
 &emsp; &emsp; 在一些场景中，我们需要通过变量来变化SQL的运行  
 &emsp; &emsp; 这里提供的解决办法是：   
@@ -1214,6 +1269,13 @@ Mapping file loaded.
     Hdfs Server set successful.
     这里的/user/testuser/abcd将作为后续HDFS操作的根目录
 
+    SQL> __internal__ hdfs cd [hdfs new dir]
+    切换当前HDFS的主目录到新的目录上
+    例子：
+    SQL> __internal__  hdfs cd testuser/abcd;
+    Hdfs root dir change successful.
+    这里的testuser/abcd将作为后续HDFS操作的根目录
+
     SQL> __internal__ hdfs status [hdfs path]
     获取指定的HDFS文件信息
     例子：
@@ -1407,6 +1469,7 @@ SQLCli被设计为支持并发执行脚本，支持后台执行脚本。
 5：  abort          放弃正在执行的JOB，当前正在运行的SQL将被强制中断    
 6：  shutdown       停止当前正在执行的JOB，但等待当前SQL正常结束    
 7：  waitJob        等待作业队列完成相关工作    
+8：  timer          相关Worker进程等待聚合点
 
 #### 创建后台任务脚本
 在很多时候，我们需要SQLCli来帮我们来运行数据库脚本，但是又不想等待脚本的运行结束。    
@@ -1438,7 +1501,7 @@ starter_maxprocess       ：  为减少首次启动的负载压力。每次启�
 starter_interval         ：  为减少首次启动的负载压力。每次启动作业时，单个批次的间隔时间，默认是0，即不等待
 think_time               ：  每一次作业完成后，启动下一个作业中间需要的时间间隔，默认是0，即不等待
 blowout_threshold_count  ：  完全失败阈值，若失败次数已经达到该次数，认为后续作业已经没必要运行。默认是0，即不限制   
-
+tag                      ：  程序组标识，所有具有相同tag的Worker进程在判断聚合点的时候将保持同步
 例子： 
 SQL> __internal__ job set jobtest parallel 2;
 JOB [jobtest] set successful.
@@ -1484,6 +1547,7 @@ Detail Tasks:
 #### 如何启动后台任务脚本
 通过start的方式，我可以启动全部的后台任务或者只启动部分后台任务
 ```
+SQL> set jobmanager on
 SQL> __internal__ job start all;
 1 Jobs Started.
 这里会将你之前提交的所有后台脚本都一次性的启动起来
@@ -1522,7 +1586,28 @@ SQL> __internal__ job wait jobtest;
 All jobs [jobtest] finished.
 waitjob不会退出，而是会一直等待相关脚本结束后再退出
 ```
+#### 如何让若干的Worker应用程序保持聚合点
+主调度程序脚本：
+```
+SQL> set jobmanager on
+SQL> __internal__ job create mytest loop 2 parallel 2 script slave1.sql tag group1;
+SQL> __internal__ job create mytest2 loop 2 parallel 2 script slave2.sql tag group1;
+SQL> __internal__ job start mytest;
+SQL> __internal__ job start mytest2;
+SQL> __internal__ job wait all;
+```
 
+Worker应用程序脚本(slave1.sql, slave2.sql)：
+```
+-- 两个Worker程序(slave1.sql,slave2.sql)将会同时结束all_slave_started的聚合点
+SQL> __internal__ job timer all_slave_started;
+SQL> do some sql
+SQL> __internal__ job timer slave_point1;
+SQL> do some sql
+SQL> __internal__ job timer slave_finished;
+```
+
+***
 #### 后台执行脚本在主程序退出时候的影响
 如果当前有后台程序运行：  
 1： 控制台应用：EXIT将不会退出，而是会提示你需要等待后台进程完成工作  
@@ -1548,25 +1633,29 @@ waitjob不会退出，而是会一直等待相关脚本结束后再退出
 ---------- sqlcli
 --------------- __init__.py                   # 包标识文件，用来记录版本信息
 --------------- commandanalyze.py             # 对用户或者脚本输入的命令进行判断，判断是否需要后续解析，或者执行内部命令
+--------------- datawrapper.py                # 程序中对测试数据文件的相关支持
 --------------- testwrapper.py                # 程序中对测试命令的相关支持
 --------------- kafkawrapper.py               # 程序中对kafka操作的相关支持
 --------------- hdfswrapper.py                # 程序中对HDFS文件操作的相关支持
---------------- main.py                       # 主程序
+--------------- main.py                       # 主程序，命令行控制界面，参数输入控制
+--------------- sqlcli.py                     # 主程序
 --------------- sqlcliexception.py            # 自定义程序异常类
 --------------- sqlclijdbcapi.py              # 数据库操作封装，JDBC模式
---------------- sqlcliodbcapi.py              # 数据库操作封装，ODBC模式
---------------- sqlclijob.py                  # 后台作业管理实现
+--------------- sqlcliodbcapi.py              # 数据库操作封装，ODBC模式，这里只是一个封装，用来完成编译器检测，具体实现逻辑在odbc目录
+--------------- sqlclitransactionmanager.py   # 后台作业中的业务统计管理
 --------------- sqlclijobmanager.py           # 后台作业管理实现
---------------- sqlclisga.py                  # 全局共享内存协同，用来在父子进程间通信
---------------- sqlclitransactionmanager.py   # 全局共享内存协同，用来在父子进程间通信
 --------------- sqlexecute.py                 # 程序主要逻辑文件，具体执行SQL语句
 --------------- sqlinternal.py                # 执行internal命令
 --------------- sqloption.py                  # 程序运行参数显示及控制实现
 --------------- sqlparse.py                   # 用来解析SQL语句，判断注释部分，语句的分段、分行等
+--------------- sqlremoteserver.py            # 用来支持SQLCli作为一个远程服务器启动时的相关支持
 ---------- setup.py                           # Python打包发布程序
+---------- setup.cfg                          # Python打包发布程序配置
 ---------- README.md                          # 应用程序说明
 ---------- conf                               # 配置文件目录
 --------------  sqlcli.conf                   # 程序配置文件
+---------- profile                            # 程序初始化脚本存放目录
+--------------  default                       # 默认的程序初始化脚本
 ---------- jlib                               # 应用程序连接数据库需要的各种jar包
 --------------  Dm7JdbcDriver17.jar
 --------------  gbase-connector-java-8.3-bin.jar

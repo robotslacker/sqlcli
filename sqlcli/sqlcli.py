@@ -102,7 +102,8 @@ class SQLCli(object):
             logger=None,                            # 程序输出日志句柄
             clientcharset='UTF-8',                  # 客户端字符集，在读取SQL文件时，采纳这个字符集，默认为UTF-8
             resultcharset='UTF-8',                  # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
-            profile=None                            # 程序初始化执行脚本
+            profile=None,                           # 程序初始化执行脚本
+            scripttimeout=-1                        # 程序的脚本超时时间，默认为不限制
     ):
         self.db_saved_conn = {}                         # 数据库Session备份
         self.SQLMappingHandler = SQLMapping()           # 函数句柄，处理SQLMapping信息
@@ -178,6 +179,9 @@ class SQLCli(object):
         if "SQLCLI_DEBUG" in os.environ:
             for m_Profile in self.profile:
                 print("Profile = [" + str(m_Profile) + "]")
+
+        # 设置脚本的超时时间
+        self.SQLOptions.set("SCRIPT_TIMEOUT", scripttimeout)
 
         # 设置self.JobHandler， 默认情况下，子进程启动的进程进程信息来自于父进程
         self.JobHandler.setProcessContextInfo("logon", self.logon)

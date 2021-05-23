@@ -21,6 +21,7 @@ from .sqlcliexception import SQLCliException
 @click.option("--clientcharset", type=str, help="Set client charset. Default is UTF-8.")
 @click.option("--resultcharset", type=str, help="Set result charset. Default is same to clientcharset.")
 @click.option("--profile", type=str, help="Init profile.")
+@click.option("--scripttimeout", type=int, help="Script Timeout(Seconds)")
 @click.option("--server", type=int, help="Set server port, will run it with server mode.")
 def cli(
         version,
@@ -34,6 +35,7 @@ def cli(
         clientcharset,
         resultcharset,
         profile,
+        scripttimeout,
         server
 ):
     if version:
@@ -58,6 +60,11 @@ def cli(
         sqlcli.syncdriver()
         sys.exit(0)
 
+    # 程序脚本超时时间设置
+    m_ScriptTimeout = -1
+    if scripttimeout:
+        m_ScriptTimeout = scripttimeout
+
     sqlcli = SQLCli(
         logfilename=logfile,
         logon=logon,
@@ -67,7 +74,8 @@ def cli(
         sqlperf=sqlperf,
         clientcharset=clientcharset,
         resultcharset=resultcharset,
-        profile=profile
+        profile=profile,
+        scripttimeout=m_ScriptTimeout
     )
 
     # 运行主程序

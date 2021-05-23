@@ -47,7 +47,7 @@ class SQLExecute(object):
         self.cur = None
 
         # 脚本启动的时间
-        self.StartTime = None
+        self.StartTime = time.time()
 
     def setStartTime(self, p_StartTime):
         self.StartTime = p_StartTime
@@ -264,8 +264,8 @@ class SQLExecute(object):
 
             # 记录命令开始时间
             start = time.time()
-            m_SQLTimeOut = int(self.SQLOptions.get("SQLCLI_SQL_TIMEOUT"))
-            m_ScriptTimeOut = int(self.SQLOptions.get("SQLCLI_SCRIPT_TIMEOUT"))
+            m_SQLTimeOut = int(self.SQLOptions.get("SQL_TIMEOUT"))
+            m_ScriptTimeOut = int(self.SQLOptions.get("SCRIPT_TIMEOUT"))
 
             # 执行SQL
             try:

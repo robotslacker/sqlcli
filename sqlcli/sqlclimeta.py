@@ -54,7 +54,8 @@ class SQLCliMeta(object):
                                             "jlib", m_AppOptions.get("meta_driver", "filename"))
             if not os.path.exists(m_MetaDriverFile):
                 raise SQLCliException("SQLCLI-00000: "
-                                      "SQLCliMeta:: Driver file does not exist! JobManager Aborted!")
+                                      "SQLCliMeta:: Driver file [" + m_MetaDriverFile +
+                                      "] does not exist! JobManager Aborted!")
             m_MetaDriverURL = m_AppOptions.get("meta_driver", "jdbcurl")
             self.db_conn = jdbcconnect(jclassname=m_MetaClass, url=m_MetaDriverURL,
                                        driver_args={'user': 'sa', 'password': 'sa'},
@@ -193,12 +194,14 @@ class SQLCliMeta(object):
 
             # 任务调度管理只有在Meta能够成功连接的情况下才可以使用
             self.JobManagerEnabled = False
+        except SQLCliException as se:
+            raise se
         except Exception as e:
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
             raise SQLCliException("SQLCLI-00000: "
-                                  "SQLCliMeta:: " + repr(e) + " JobManager Aborted!")
+                                  "SQLCliMeta:: " + str(e) + " JobManager Aborted!")
 
     def ConnectServer(self, p_MetaServerURL):
         if p_MetaServerURL is None:

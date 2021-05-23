@@ -113,11 +113,11 @@ class SQLOptions(object):
                                       "Comments": '',
                                       "Hidden": False})
 
-        self.m_SQL_OptionList.append({"Name": "SQLCLI_SCRIPT_TIMEOUT",
+        self.m_SQL_OptionList.append({"Name": "SCRIPT_TIMEOUT",
                                       "Value": -1,
                                       "Comments": '',
                                       "Hidden": False})
-        self.m_SQL_OptionList.append({"Name": "SQLCLI_SQL_TIMEOUT",
+        self.m_SQL_OptionList.append({"Name": "SQL_TIMEOUT",
                                       "Value": -1,
                                       "Comments": '',
                                       "Hidden": False})
@@ -140,7 +140,7 @@ class SQLOptions(object):
                 if p_ParameterValue is None:
                     m_ParameterValue = None
                 else:
-                    m_ParameterValue = p_ParameterValue.strip()
+                    m_ParameterValue = str(p_ParameterValue).strip()
                     if m_ParameterValue.upper().startswith("${ENV(") and m_ParameterValue.upper().endswith(")}"):
                         m_EnvName = m_ParameterValue[6:-2]
                         if m_EnvName in os.environ:
