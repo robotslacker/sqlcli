@@ -291,13 +291,63 @@ class SQLExecute(object):
                         m_Result.update({"type": "result"})
                     if m_Result["type"] == "result" and sql.startswith("__internal__"):
                         # 对于internal的语句要记录影响的行列信息，同时控制TERMOUT
+                        if self.SQLOptions.get('TERMOUT').upper() == 'OFF':
+                            m_Result["rows"] = []
+                            m_Result["title"] = ""
+
+                        result = m_Result["rows"]
+                        # 如果Hints中有order字样，对结果进行排序后再输出
+                        if "Order" in m_SQLHint.keys() and result is not None:
+                            for i in range(1, len(result)):
+                                for j in range(0, len(result) - i):
+                                    if str(result[j]) > str(result[j + 1]):
+                                        result[j], result[j + 1] = result[j + 1], result[j]
+
+                        # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
+                        if "LogFilter" in m_SQLHint.keys() and result is not None:
+                            for m_SQLFilter in m_SQLHint["LogFilter"]:
+                                for item in result[:]:
+                                    if "SQLCLI_DEBUG" in os.environ:
+                                        print("Apply Filter: " + str(''.join(str(item))) + " with " + m_SQLFilter)
+                                    if re.match(m_SQLFilter, ''.join(str(item)), re.IGNORECASE):
+                                        result.remove(item)
+                                        continue
+
+                        # 如果Hint中存在LogMask,则掩码指定的输出信息
+                        if "LogMask" in m_SQLHint.keys() and result is not None:
+                            for i in range(0, len(result)):
+                                m_Output = None
+                                for j in range(0, len(result[i])):
+                                    if m_Output is None:
+                                        m_Output = str(result[i][j])
+                                    else:
+                                        m_Output = m_Output + "|||" + str(result[i][j])
+                                for m_SQLMaskString in m_SQLHint["LogMask"]:
+                                    m_SQLMask = m_SQLMaskString.split("=>")
+                                    if len(m_SQLMask) == 2:
+                                        m_SQLMaskPattern = m_SQLMask[0]
+                                        m_SQLMaskTarget = m_SQLMask[1]
+                                        if "SQLCLI_DEBUG" in os.environ:
+                                            print("Apply Mask: " + m_Output +
+                                                  " with " + m_SQLMaskPattern + "=>" + m_SQLMaskTarget)
+                                        try:
+                                            m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget, m_Output,
+                                                                 re.IGNORECASE)
+                                            if m_NewOutput != m_Output:
+                                                result[i] = tuple(m_NewOutput.split('|||'))
+                                                m_Output = m_NewOutput
+                                        except re.error:
+                                            if "SQLCLI_DEBUG" in os.environ:
+                                                print('traceback.print_exc():\n%s' % traceback.print_exc())
+                                                print('traceback.format_exc():\n%s' % traceback.format_exc())
+                                    else:
+                                        if "SQLCLI_DEBUG" in os.environ:
+                                            print("LogMask Hint Error: " + m_SQLHint["LogMask"])
+                        m_Result["rows"] = result
                         if m_Result["rows"] is None:
                             m_Rows = 0
                         else:
                             m_Rows = len(m_Result["rows"])
-                        if self.SQLOptions.get('TERMOUT').upper() == 'OFF':
-                            m_Result["rows"] = []
-                            m_Result["title"] = ""
                         self.LastJsonSQLResult = {"desc": m_Result["headers"],
                                                   "rows": m_Rows,
                                                   "elapsed": time.time() - start,
@@ -377,14 +427,6 @@ class SQLExecute(object):
                                         if str(result[j]) > str(result[j + 1]):
                                             result[j], result[j + 1] = result[j + 1], result[j]
 
-                            # 保存之前的运行结果
-                            self.LastJsonSQLResult = {"desc": headers,
-                                                      "rows": rowcount,
-                                                      "elapsed": time.time() - start,
-                                                      "result": result,
-                                                      "status": 0,
-                                                      "warnings": m_SQLWarnings}
-
                             # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
                             if "LogFilter" in m_SQLHint.keys() and result is not None:
                                 for m_SQLFilter in m_SQLHint["LogFilter"]:
@@ -425,6 +467,18 @@ class SQLExecute(object):
                                         else:
                                             if "SQLCLI_DEBUG" in os.environ:
                                                 print("LogMask Hint Error: " + m_SQLHint["LogMask"])
+
+                            # 保存之前的运行结果
+                            if result is None:
+                                m_Rows = 0
+                            else:
+                                m_Rows = len(result)
+                            self.LastJsonSQLResult = {"desc": headers,
+                                                      "rows": m_Rows,
+                                                      "elapsed": time.time() - start,
+                                                      "result": result,
+                                                      "status": 0,
+                                                      "warnings": m_SQLWarnings}
 
                             # 如果存在SQL_LOOP信息，则需要反复执行上一个SQL
                             if "SQL_LOOP" in m_SQLHint.keys():
@@ -734,7 +788,6 @@ class SQLExecute(object):
                                 else:
                                     m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
                         m_ColumnValue = m_ColumnValue + ")"
-                        print("ADD [" + m_ColumnValue + "]")
                         m_row.append(m_ColumnValue)
                     elif columntypes[m_nColumnPos] == "ARRAY":
                         m_ColumnValue = "ARRAY["

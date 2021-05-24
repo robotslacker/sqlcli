@@ -628,7 +628,7 @@ class TestWrapper(object):
             else:
                 raise SQLCliException('Assert Failed.')
         except Exception as ae:
-            raise SQLCliException('Assert Error: ' + repr(ae))
+            raise SQLCliException(str(ae))
 
     @staticmethod
     def LoadEnv(p_EnvFileName, p_EnvSectionName):
