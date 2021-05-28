@@ -290,11 +290,6 @@ class SQLExecute(object):
                     if "type" not in m_Result.keys():
                         m_Result.update({"type": "result"})
                     if m_Result["type"] == "result" and sql.startswith("__internal__"):
-                        # 对于internal的语句要记录影响的行列信息，同时控制TERMOUT
-                        if self.SQLOptions.get('TERMOUT').upper() == 'OFF':
-                            m_Result["rows"] = []
-                            m_Result["title"] = ""
-
                         result = m_Result["rows"]
                         # 如果Hints中有order字样，对结果进行排序后再输出
                         if "Order" in m_SQLHint.keys() and result is not None:
@@ -354,6 +349,10 @@ class SQLExecute(object):
                                                   "result": m_Result["rows"],
                                                   "status": 0,
                                                   "warnings": ""}
+                        # 如果TERMOUT为关闭，不在返回结果信息
+                        if self.SQLOptions.get('TERMOUT').upper() == 'OFF':
+                            m_Result["rows"] = []
+                            m_Result["title"] = ""
                     yield m_Result
             except CommandNotFound:
                 # 进入到SQL执行阶段, 开始执行SQL语句
