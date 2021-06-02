@@ -716,10 +716,14 @@ def _to_bit(conn, rs, col):
         if str_val is None:
             return
         else:
-            if java_val == 0:
-                return "False"
+            if len(str_val) > 1:
+                # 这不是一个标准的Boolean，按照字节内容返回
+                return "0b" + str(str_val)
             else:
-                return "True"
+                if java_val == 0:
+                    return "False"
+                else:
+                    return "True"
     elif m_TypeName.find("BinaryData") != -1:
         m_Byte = java_val.getBytes()
         return "0b" + str(bin(int.from_bytes(m_Byte, sys.byteorder))).lstrip("0b").zfill(len(m_Byte)*8)
