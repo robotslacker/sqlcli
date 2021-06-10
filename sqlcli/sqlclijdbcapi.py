@@ -734,7 +734,7 @@ def _to_bit(conn, rs, col):
         raise SQLCliJDBCException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_bit")
 
 
-def _to_binary(conn, rs, col):
+def _to_varbinary(conn, rs, col):
     if conn:
         pass
     java_val = rs.getObject(col)
@@ -752,6 +752,38 @@ def _to_binary(conn, rs, col):
             return java_val
         else:
             return java_val[:m_TrimPos + 1]
+    elif m_TypeName.upper().find("BLOB") != -1:
+        m_Length = java_val.length()
+        # 总是返回比LOB_LENGTH大1的字节数，后续的显示中将根据LOB_LENGTH是否超长做出是否打印省略号的标志
+        m_TrimLength = _blobdefaultfetchsize + 1
+        if m_TrimLength > m_Length:
+            m_TrimLength = m_Length
+        m_Bytes = java_val.getBytes(1, int(m_TrimLength))
+        return m_Bytes
+    elif m_TypeName.find("BFILE") != -1:
+        return "bfilename(" + java_val.getDirAlias() + ":" + java_val.getName() + ")"
+    elif m_TypeName.find("Boolean") != -1:
+        str_val = rs.getString(col)
+        if str_val is None:
+            return
+        else:
+            if java_val == 0:
+                return "False"
+            else:
+                return "True"
+    else:
+        raise SQLCliJDBCException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_binary")
+
+
+def _to_binary(conn, rs, col):
+    if conn:
+        pass
+    java_val = rs.getObject(col)
+    if java_val is None:
+        return
+    m_TypeName = str(java_val.getClass().getTypeName())
+    if m_TypeName == "byte[]":
+        return java_val
     elif m_TypeName.upper().find("BLOB") != -1:
         m_Length = java_val.length()
         # 总是返回比LOB_LENGTH大1的字节数，后续的显示中将根据LOB_LENGTH是否超长做出是否打印省略号的标志
@@ -938,7 +970,7 @@ _DEFAULT_CONVERTERS = {
     'TIME':                         _to_time,
     'DATE':                         _to_date,
     'YEAR':                         _to_year,
-    'VARBINARY':                    _to_binary,
+    'VARBINARY':                    _to_varbinary,
     'BINARY':                       _to_binary,
     'LONGVARBINARY':                _to_binary,
     'BLOB':                         _to_binary,
