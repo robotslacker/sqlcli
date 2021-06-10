@@ -416,7 +416,10 @@ class Cursor(object):
                     # Python None singleton
                     column_type = None
                 else:
-                    column_type = str(_jdbc_const_to_name[jdbc_type])
+                    if jdbc_type not in _jdbc_const_to_name:
+                        column_type = "UNKNOWN"
+                    else:
+                        column_type = str(_jdbc_const_to_name[jdbc_type])
                 col_desc = (m.getColumnLabel(col),
                             column_type,
                             size,
