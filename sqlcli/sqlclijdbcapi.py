@@ -11,6 +11,7 @@ import sys
 import time
 import warnings
 import decimal
+
 import jpype
 from .sqloption import SQLOptions
 
@@ -66,55 +67,24 @@ def _handle_sql_exception_jpype():
     reraise(exc_type, exc_info[1], exc_info[2])
 
 
-def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
-    import jpype
-    if not getattr(jpype, "isJVMStarted")():
-        args = []
-        class_path = []
-        if jars:
-            class_path.extend(jars)
-        class_path.extend(_get_classpath())
-        if class_path:
-            args.append('-Djava.class.path=%s' %
-                        os.path.pathsep.join(class_path))
-        if libs:
-            # path to shared libraries
-            libs_path = os.path.pathsep.join(libs)
-            args.append('-Djava.library.path=%s' % libs_path)
-        jvm_path = getattr(jpype, "getDefaultJVMPath")()
-        getattr(jpype, "startJVM")(jvm_path, *args, ignoreUnrecognized=True, convertStrings=True)
-    if not getattr(jpype, "isThreadAttachedToJVM")():
-        getattr(jpype, "attachThreadToJVM")()
-        jpype.java.lang.Thread.currentThread().setContextClassLoader(jpype.java.lang.ClassLoader.getSystemClassLoader())
-    if _jdbc_name_to_const is None:
-        types = jpype.java.sql.Types
-        types_map = {}
-        for i in types.class_.getFields():
-            if jpype.java.lang.reflect.Modifier.isStatic(i.getModifiers()):
-                const = i.get(None)
-                types_map[i.getName()] = const
-        _init_types(types_map)
-
-    # register driver for DriverManager
-    try:
-        jpype.JClass(jclassname)
-    except TypeError:
-        raise SQLCliJDBCException("SQLCLI-00000: Load java class failed. [" + str(jclassname) + "]")
-    if isinstance(driver_args, dict):
-        Properties = jpype.java.util.Properties
-        info = Properties()
-        for k, v in driver_args.items():
-            info.setProperty(k, v)
-        dargs = [info]
-    else:
-        dargs = driver_args
-
-    try:
-        return jpype.java.sql.DriverManager.getConnection(url, *dargs)
-    except jpype.java.sql.SQLException as je:
-        raise SQLCliJDBCException(je.toString().replace("java.sql.SQLException: ", "").
-                                  replace("java.sql.SQLTransientConnectionException: ", "").
-                                  replace("java.sql.SQLInvalidAuthorizationSpecException: ", ""))
+def limit(method, timeout):
+    """ Convert a Java method to asynchronous call with a specified timeout. """
+    """ 这里不使用func_timeout， 是因为funct_timeout的函数内部如果启动新的线程，会导致Python进程最后无法退出的问题"""
+    def f(*args):
+        @jpype.JImplements(jpype.java.util.concurrent.Callable)
+        class g:
+            @jpype.JOverride
+            def call(self):
+                return method(*args)
+        future = jpype.java.util.concurrent.FutureTask(g())
+        jpype.java.lang.Thread(future).start()
+        try:
+            timeunit = jpype.java.util.concurrent.TimeUnit.SECONDS
+            return future.get(int(timeout), timeunit)
+        except jpype.java.util.concurrent.TimeoutException as ex:
+            future.cancel(True)
+            raise RuntimeError("canceled", ex)
+    return f
 
 
 def _get_classpath():
@@ -274,8 +244,7 @@ def setClobDefaultFetchSize(p_nClobDefaultFetchSize):
     _clobdefaultfetchsize = p_nClobDefaultFetchSize
 
 
-# DB-API 2.0 Module Interface connect constructor
-def connect(jclassname, url, driver_args=None, jars=None, libs=None):
+def AttachJVM(jars=None, libs=None):
     """Open a connection to a database using a JDBC driver and return
     a Connection instance.
 
@@ -292,10 +261,6 @@ def connect(jclassname, url, driver_args=None, jars=None, libs=None):
     libs: Dll/so filenames or sequence of dlls/sos used as shared
           library by the JDBC driver
     """
-    if isinstance(driver_args, string_type):
-        driver_args = [driver_args]
-    if not driver_args:
-        driver_args = []
     if jars:
         if isinstance(jars, string_type):
             jars = [jars]
@@ -307,8 +272,98 @@ def connect(jclassname, url, driver_args=None, jars=None, libs=None):
     else:
         libs = []
 
-    # 如果无法连接，则尝试3次，间隔等待2秒
-    jconn = _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs)
+    import jpype
+    if not getattr(jpype, "isJVMStarted")():
+        args = []
+        class_path = []
+        if jars:
+            class_path.extend(jars)
+        class_path.extend(_get_classpath())
+        if class_path:
+            args.append('-Djava.class.path=%s' %
+                        os.path.pathsep.join(class_path))
+        if libs:
+            # path to shared libraries
+            libs_path = os.path.pathsep.join(libs)
+            args.append('-Djava.library.path=%s' % libs_path)
+        jvm_path = getattr(jpype, "getDefaultJVMPath")()
+        getattr(jpype, "startJVM")(jvm_path, *args, ignoreUnrecognized=True, convertStrings=True)
+
+    if not getattr(jpype, "isThreadAttachedToJVM")():
+        getattr(jpype, "attachThreadToJVM")()
+        jpype.java.lang.Thread.currentThread().setContextClassLoader(jpype.java.lang.ClassLoader.getSystemClassLoader())
+    if _jdbc_name_to_const is None:
+        types = jpype.java.sql.Types
+        types_map = {}
+        for i in types.class_.getFields():
+            if jpype.java.lang.reflect.Modifier.isStatic(i.getModifiers()):
+                const = i.get(None)
+                types_map[i.getName()] = const
+        _init_types(types_map)
+
+
+def DetachJVM():
+    try:
+        if getattr(jpype, "isThreadAttachedToJVM")():
+            jpype.java.lang.Thread.detach()
+    except ImportError:
+        # JPype可能已经被卸载，不再重复操作
+        pass
+
+
+# DB-API 2.0 Module Interface connect constructor
+def connect(jclassname, url, driver_args=None, jars=None, libs=None, TimeOutLimit=-1):
+    """Open a connection to a database using a JDBC driver and return
+    a Connection instance.
+
+    jclassname: Full qualified Java class name of the JDBC driver.
+    url: Database url as required by the JDBC driver.
+    driver_args: Dictionary or sequence of arguments to be passed to
+           the Java DriverManager.getConnection method. Usually
+           sequence of username and password for the db. Alternatively
+           a dictionary of connection arguments (where `user` and
+           `password` would probably be included). See
+           http://docs.oracle.com/javase/7/docs/api/java/sql/DriverManager.html
+           for more details
+    jars: Jar filename or sequence of filenames for the JDBC driver
+    libs: Dll/so filenames or sequence of dlls/sos used as shared
+          library by the JDBC driver
+    """
+    # 连接到JVM上
+    AttachJVM(jars=jars, libs=libs)
+
+    if isinstance(driver_args, string_type):
+        driver_args = [driver_args]
+    if not driver_args:
+        driver_args = []
+
+    # register driver for DriverManager
+    try:
+        jpype.JClass(jclassname)
+    except TypeError:
+        raise SQLCliJDBCException("SQLCLI-00000: Load java class failed. [" + str(jclassname) + "]")
+    if isinstance(driver_args, dict):
+        Properties = jpype.java.util.Properties
+        info = Properties()
+        for k, v in driver_args.items():
+            info.setProperty(k, v)
+        dargs = [info]
+    else:
+        dargs = driver_args
+
+    try:
+        if TimeOutLimit != -1:
+            connect_jdbc = limit(jpype.java.sql.DriverManager.getConnection, TimeOutLimit)
+        else:
+            connect_jdbc = jpype.java.sql.DriverManager.getConnection
+        jconn = connect_jdbc(url, *dargs)
+    except RuntimeError as re:
+        raise SQLCliJDBCException("SQLCLI-0000:: Timeout expired. Abort this Command.")
+    except jpype.java.sql.SQLException as je:
+        raise SQLCliJDBCException(je.toString().replace("java.sql.SQLException: ", "").
+                                  replace("java.sql.SQLTransientConnectionException: ", "").
+                                  replace("java.sql.SQLInvalidAuthorizationSpecException: ", ""))
+
     return Connection(jconn, _converters)
 
 

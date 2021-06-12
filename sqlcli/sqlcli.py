@@ -24,9 +24,12 @@ from multiprocessing import Lock
 from time import strftime, localtime
 from urllib.error import URLError
 from prompt_toolkit.shortcuts import PromptSession
+from func_timeout import func_set_timeout
+import func_timeout
 
 # 加载JDBC驱动和ODBC驱动
 from .sqlclijdbcapi import connect as jdbcconnect
+from .sqlclijdbcapi import DetachJVM as jdbcdetach
 from .sqlclijdbcapi import setBlobDefaultFetchSize as setjdbcBlobDefaultFetchSize
 from .sqlclijdbcapi import setClobDefaultFetchSize as setjdbcClobDefaultFetchSize
 from .sqlclijdbcapi import SQLCliJDBCException
@@ -375,6 +378,9 @@ class SQLCli(object):
             self.MetaHandler.ShutdownServer()
             self.MetaHandler = None
 
+        # 关闭SQLJDBC的JVM句柄
+        jdbcdetach()
+
     # 加载CLI的各种特殊命令集
     def register_special_commands(self):
 
@@ -623,7 +629,7 @@ class SQLCli(object):
 
     # 连接数据库
     @staticmethod
-    def connect_db(cls, arg, **_):
+    def connect_db(cls, arg, **kwargs):
         # 如果当前的连接存在，且当前连接没有被保存，则断开当前的连接
         if cls.db_conn is not None:
             if cls.SessionName is None:
@@ -820,11 +826,15 @@ class SQLCli(object):
                 retryCount = 0
                 while True:
                     try:
+                        m_TimeOutLimit = int(kwargs.get('Timeout'))
                         cls.db_conn = jdbcconnect(
                             jclassname=m_driverclass,
                             url=m_JDBCURL, driver_args=m_jdbcconn_prop,
-                            jars=m_JarList)
+                            jars=m_JarList,
+                            TimeOutLimit=m_TimeOutLimit)
                         break
+                    except func_timeout.exceptions.FunctionTimedOut:
+                        raise SQLCliException("SQLCLI-0000:: Timeout expired. Abort this Command.")
                     except SQLCliJDBCException as je:
                         if "SQLCLI_DEBUG" in os.environ:
                             print('traceback.print_exc():\n%s' % traceback.print_exc())
@@ -1068,7 +1078,7 @@ class SQLCli(object):
 
     # 休息一段时间, 如果收到SHUTDOWN信号的时候，立刻终止SLEEP
     @staticmethod
-    def sleep(cls, arg, **_):
+    def sleep(cls, arg, **kwargs):
         if cls:
             pass
         if not arg:
@@ -1091,7 +1101,19 @@ class SQLCli(object):
                     "columntypes": None,
                     "status": message
                 }]
-            time.sleep(m_Sleep_Time)
+            m_TimeOutLimit = int(kwargs.get('Timeout'))
+            if m_TimeOutLimit != -1 and m_TimeOutLimit < m_Sleep_Time:
+                # 有超时限制，最多休息道超时的时间
+                time.sleep(m_TimeOutLimit)
+                return [{
+                    "title": None,
+                    "rows": None,
+                    "headers": None,
+                    "columntypes": None,
+                    "status": "SQLCLI-0000:: Timeout expired. Abort this Command."
+                }]
+            else:
+                time.sleep(m_Sleep_Time)
         except ValueError:
             message = "Parameter must be a number, sleep [seconds]."
             return [{
@@ -1799,6 +1821,9 @@ class SQLCli(object):
         if self.MetaHandler is not None:
             self.MetaHandler.ShutdownServer()
             self.MetaHandler = None
+
+        # 关闭SQLJDBC的JVM句柄
+        jdbcdetach()
 
     def echo(self, s,
              Flags=OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL | OFLAG_ECHO,

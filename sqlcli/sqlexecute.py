@@ -280,12 +280,8 @@ class SQLExecute(object):
                         if m_SQLTimeOut <= 0 or (m_ScriptTimeOut - (time.time() - self.getStartTime()) < m_SQLTimeOut):
                             # 脚本时间已经不够，剩下的SQL时间变少
                             m_SQLTimeOut = m_ScriptTimeOut - (time.time() - self.getStartTime())
-                if m_SQLTimeOut > 0:
-                    executeFunc = func_set_timeout(timeout=m_SQLTimeOut)(execute)
-                else:
-                    executeFunc = execute
                 # 首先尝试这是一个特殊命令，如果返回CommandNotFound，则认为其是一个标准SQL
-                for m_Result in executeFunc(self.SQLCliHandler,  sql):
+                for m_Result in execute(self.SQLCliHandler,  sql, p_nTimeout=m_SQLTimeOut):
                     # 保存之前的运行结果
                     if "type" not in m_Result.keys():
                         m_Result.update({"type": "result"})

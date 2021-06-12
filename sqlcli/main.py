@@ -40,12 +40,12 @@ def cli(
 ):
     if version:
         print("Version:", __version__)
-        sys.exit(0)
+        return
 
     if server:
         # 在Server模式下启动应用程序
         SQLCliRemoteServer().Start_SQLCliServer(server)
-        sys.exit(0)
+        return
 
     # 从服务器下下载程序需要的各种jar包
     if syncdriver:
@@ -58,7 +58,7 @@ def cli(
             sqlperf=sqlperf
         )
         sqlcli.syncdriver()
-        sys.exit(0)
+        return
 
     # 程序脚本超时时间设置
     m_ScriptTimeout = -1
