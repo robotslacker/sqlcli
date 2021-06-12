@@ -87,7 +87,6 @@ SQLCli 目前支持的数据类型有：
    * pydantic                 : FastAPI服务端支持
    * uvicorn[standard]        : FastAPI服务端支持
    * fastapi                  : FastAPI服务端支持
-   * func_timeout             : 控制脚本的延时机制
 其他：
    对于Linux和MAC，在安装后需要手工加载confluent_kafka来保证kafka操作的正常
    * pip install confluent_kafka
@@ -935,6 +934,7 @@ Mapping file loaded.
    注意： 
    1： 当发生SQL超时中断后，程序将会启动调用数据库的cancel机制来回退当前运行状态，但不是每个数据库都能支持cancel机制
       所以，不要对超时退出后，数据库的连接状态有所预期，可能（非常可能）会导致后续的所有SQL执行失败
+   2： 目前TimeOut仅用于如下函数， Connect,  Execute
    
 ```
 
@@ -951,6 +951,11 @@ Mapping file loaded.
     ....
     加入这个提示符后，SQLCli将不再显示随后输出中任何包含Error字样的行
     .*Error.* 是一个正则表达式写法
+
+    SQL> -- [Hint] LogFilter  ^((?!Error).)*$
+    SQL> Select ID,Name From TestTab;
+    ....
+    加入这个提示符后，SQLCli仅显示输出中包含Error字样的行
 
     SQL> -- [Hint] LogMask  Password:.*=>Password:******
     SQL> Select ID,Name From TestTab;
