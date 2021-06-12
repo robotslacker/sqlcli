@@ -128,8 +128,7 @@ class HDFSWrapper(object):
                     m_hdfs_filename = os.path.basename(hdfs_path)
             try:
                 remote_status = self.__m_HDFS_Handler__.status(
-                    hdfs_path=
-                    os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath).replace('\\', '/'),
+                    hdfs_path=os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath).replace('\\', '/'),
                     strict=True)
                 if remote_status['type'] == "FILE":
                     # 远程以为是目录的地方其实放了一个奇怪的文件，于是删掉它

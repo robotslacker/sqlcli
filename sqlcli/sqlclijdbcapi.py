@@ -357,7 +357,7 @@ def connect(jclassname, url, driver_args=None, jars=None, libs=None, TimeOutLimi
         else:
             connect_jdbc = jpype.java.sql.DriverManager.getConnection
         jconn = connect_jdbc(url, *dargs)
-    except RuntimeError as re:
+    except RuntimeError:
         raise SQLCliJDBCException("SQLCLI-0000:: Timeout expired. Abort this Command.")
     except jpype.java.sql.SQLException as je:
         raise SQLCliJDBCException(je.toString().replace("java.sql.SQLException: ", "").
@@ -516,14 +516,18 @@ class Cursor(object):
             else:
                 prep_stmt.setObject(i + 1, parameters[i])
 
-    def execute_direct(self, operation):
+    def execute_direct(self, operation, TimeOutLimit=-1):
         if self._connection.isClosed():
             raise Error()
         self._close_last()
         is_rs = False
         self._stmt = self._connection.jconn.createStatement()
         try:
-            is_rs = self._stmt.execute(operation)
+            if TimeOutLimit != -1:
+                execute = limit(self._stmt.execute, TimeOutLimit)
+            else:
+                execute = self._stmt.execute
+            is_rs = execute(operation)
             m_SQLWarnMessage = None
             m_SQLWarnings = self._stmt.getWarnings()
             while m_SQLWarnings is not None:
@@ -533,6 +537,8 @@ class Cursor(object):
                     m_SQLWarnMessage = m_SQLWarnMessage + "\n" + m_SQLWarnings.getMessage()
                 m_SQLWarnings = m_SQLWarnings.getNextWarning()
             self.warnings = m_SQLWarnMessage
+        except RuntimeError:
+            raise SQLCliJDBCException("SQLCLI-0000:: Timeout expired. Abort this Command.")
         except Exception:
             _handle_sql_exception_jpype()
         self._rs = self._stmt.getResultSet()
@@ -547,7 +553,7 @@ class Cursor(object):
         else:
             self.rowcount = self._stmt.getUpdateCount()
 
-    def execute(self, operation, parameters=None):
+    def execute(self, operation, parameters=None, TimeOutLimit=-1):
         if self._connection.isClosed():
             raise Error()
         if not parameters:
@@ -557,7 +563,11 @@ class Cursor(object):
         self._set_stmt_parms(self._prep, parameters)
         is_rs = False
         try:
-            is_rs = self._prep.execute()
+            if TimeOutLimit != -1:
+                execute = limit(self._prep.execute, TimeOutLimit)
+            else:
+                execute = self._prep.execute
+            is_rs = execute()
             m_SQLWarnMessage = None
             m_SQLWarnings = self._prep.getWarnings()
             while m_SQLWarnings is not None:
@@ -567,6 +577,8 @@ class Cursor(object):
                     m_SQLWarnMessage = m_SQLWarnMessage + "\n" + m_SQLWarnings.getMessage()
                 m_SQLWarnings = m_SQLWarnings.getNextWarning()
             self.warnings = m_SQLWarnMessage
+        except RuntimeError:
+            raise SQLCliJDBCException("SQLCLI-0000:: Timeout expired. Abort this Command.")
         except Exception:
             _handle_sql_exception_jpype()
         # 忽略对execute的返回判断，总是恒定的去调用getResultSet

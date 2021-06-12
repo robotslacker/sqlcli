@@ -24,7 +24,6 @@ from multiprocessing import Lock
 from time import strftime, localtime
 from urllib.error import URLError
 from prompt_toolkit.shortcuts import PromptSession
-from func_timeout import func_set_timeout
 import func_timeout
 
 # 加载JDBC驱动和ODBC驱动

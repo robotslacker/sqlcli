@@ -69,7 +69,7 @@ setup(
     platforms='any',
     install_requires=['JPype1', 'setproctitle', 'pathlib', 'urllib3',
                       'pyparsing', 'click', 'prompt_toolkit',
-                      'fs', 'hdfs', 'wget', 'func_timeout',
+                      'fs', 'hdfs', 'wget',
                       'requests', 'websockets==8.*', 'pydantic', 'uvicorn[standard]', 'fastapi'],
 
     author='RobotSlacker',
