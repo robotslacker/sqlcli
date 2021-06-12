@@ -4,6 +4,8 @@ import sys
 import traceback
 import re
 import time
+from xml.sax import saxutils
+
 import setproctitle
 import shlex
 import click
@@ -23,8 +25,10 @@ import shutil
 from multiprocessing import Lock
 from time import strftime, localtime
 from urllib.error import URLError
+
+from prompt_toolkit.history import FileHistory
 from prompt_toolkit.shortcuts import PromptSession
-import func_timeout
+from prompt_toolkit.formatted_text import HTML
 
 # 加载JDBC驱动和ODBC驱动
 from .sqlclijdbcapi import connect as jdbcconnect
@@ -832,8 +836,6 @@ class SQLCli(object):
                             jars=m_JarList,
                             TimeOutLimit=m_TimeOutLimit)
                         break
-                    except func_timeout.exceptions.FunctionTimedOut:
-                        raise SQLCliException("SQLCLI-0000:: Timeout expired. Abort this Command.")
                     except SQLCliJDBCException as je:
                         if "SQLCLI_DEBUG" in os.environ:
                             print('traceback.print_exc():\n%s' % traceback.print_exc())
@@ -1531,6 +1533,14 @@ class SQLCli(object):
             while True:
                 # 用户一行一行的输入SQL语句
                 try:
+                    m_Bottom_Toolbar = HTML('<b><style bg="ansired">' + saxutils.escape(
+                                            'Version: ' + self.Version + ' | ' +
+                                            (
+                                                "Not Connected." if self.db_conn is None
+                                                else "Connected with " + self.db_username + "/******@" + self.db_url
+                                            )) + ' | ' +
+                                            '</style></b>')
+                    self.prompt_app.bottom_toolbar = m_Bottom_Toolbar
                     if full_text is None:
                         text = self.prompt_app.prompt('SQL> ')
                     else:
@@ -1768,7 +1778,20 @@ class SQLCli(object):
         # 运行在无终端的模式下，也不会调用PromptSession, 调用PromptSession会导致程序出现Console错误
         # 对于脚本程序，在执行脚本完成后就会自动退出
         if self.sqlscript is None and not self.HeadlessMode:
-            self.prompt_app = PromptSession()
+            # 如果可能，在用户的当前目录下生成sqlcli-history.txt隐含文件
+            user_home = os.path.expanduser('~')
+            m_HistoryFile = os.path.join(user_home, '.sqlcli-history.txt')
+            if os.access(m_HistoryFile, os.W_OK):
+                history = FileHistory(m_HistoryFile)
+                enable_history_search = True
+            else:
+                if "SQLCLI_DEBUG" in os.environ:
+                    print("No write access to [" + str(m_HistoryFile) + "]. Ignore SQL History.")
+                history = None
+                enable_history_search = False
+
+            self.prompt_app = PromptSession(history=history,
+                                            enable_history_search=enable_history_search)
 
         # 设置主程序的标题，随后开始运行程序
         m_Cli_ProcessTitleBak = setproctitle.getproctitle()
