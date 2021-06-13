@@ -25,6 +25,10 @@ class SQLCliJDBCException(Exception):
         return self.message
 
 
+class SQLCliJDBCTimeOutException(SQLCliJDBCException):
+    pass
+
+
 def reraise(tp, value, tb=None):
     if value is None:
         value = tp()
@@ -83,7 +87,7 @@ def limit(method, timeout):
             return future.get(int(timeout), timeunit)
         except jpype.java.util.concurrent.TimeoutException as ex:
             future.cancel(True)
-            raise RuntimeError("canceled", ex)
+            raise SQLCliJDBCTimeOutException("TimeOut")
     return f
 
 
@@ -357,8 +361,8 @@ def connect(jclassname, url, driver_args=None, jars=None, libs=None, TimeOutLimi
         else:
             connect_jdbc = jpype.java.sql.DriverManager.getConnection
         jconn = connect_jdbc(url, *dargs)
-    except RuntimeError:
-        raise SQLCliJDBCException("SQLCLI-0000:: Timeout expired. Abort this Command.")
+    except SQLCliJDBCTimeOutException:
+        raise SQLCliJDBCException("SQLCLI-0000:: Timeout expired. Abort this command.")
     except jpype.java.sql.SQLException as je:
         raise SQLCliJDBCException(je.toString().replace("java.sql.SQLException: ", "").
                                   replace("java.sql.SQLTransientConnectionException: ", "").
@@ -537,8 +541,8 @@ class Cursor(object):
                     m_SQLWarnMessage = m_SQLWarnMessage + "\n" + m_SQLWarnings.getMessage()
                 m_SQLWarnings = m_SQLWarnings.getNextWarning()
             self.warnings = m_SQLWarnMessage
-        except RuntimeError:
-            raise SQLCliJDBCException("SQLCLI-0000:: Timeout expired. Abort this Command.")
+        except SQLCliJDBCTimeOutException:
+            raise SQLCliJDBCTimeOutException("SQLCLI-0000:: Timeout expired. Abort this command.")
         except Exception:
             _handle_sql_exception_jpype()
         self._rs = self._stmt.getResultSet()
@@ -577,8 +581,8 @@ class Cursor(object):
                     m_SQLWarnMessage = m_SQLWarnMessage + "\n" + m_SQLWarnings.getMessage()
                 m_SQLWarnings = m_SQLWarnings.getNextWarning()
             self.warnings = m_SQLWarnMessage
-        except RuntimeError:
-            raise SQLCliJDBCException("SQLCLI-0000:: Timeout expired. Abort this Command.")
+        except SQLCliJDBCTimeOutException:
+            raise SQLCliJDBCTimeOutException("SQLCLI-0000:: Timeout expired. Abort this command.")
         except Exception:
             _handle_sql_exception_jpype()
         # 忽略对execute的返回判断，总是恒定的去调用getResultSet

@@ -1111,7 +1111,7 @@ class SQLCli(object):
                     "rows": None,
                     "headers": None,
                     "columntypes": None,
-                    "status": "SQLCLI-0000:: Timeout expired. Abort this Command."
+                    "status": "SQLCLI-0000:: Timeout expired. Abort this command."
                 }]
             else:
                 time.sleep(m_Sleep_Time)

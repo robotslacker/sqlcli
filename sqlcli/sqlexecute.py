@@ -15,6 +15,7 @@ from .commandanalyze import execute
 from .commandanalyze import CommandNotFound
 from .sqlcliexception import SQLCliException
 from .sqlclijdbcapi import SQLCliJDBCException
+from .sqlclijdbcapi import SQLCliJDBCTimeOutException
 from .sqlcliodbc import SQLCliODBCException
 
 
@@ -271,7 +272,9 @@ class SQLExecute(object):
                 # 处理超时时间问题
                 if m_ScriptTimeOut > 0:
                     if m_ScriptTimeOut <= time.time() - self.getStartTime():
-                        m_SQL_ErrorMessage = "SQLCLI-0000: Script imeout when execute script. abort it."
+                        m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout " \
+                                             "(" + str(round(time.time() - self.getStartTime(), 2)) + \
+                                             ") expired. Abort this Script."
                         yield {"type": "error", "message": m_SQL_ErrorMessage}
                         raise EOFError
                     else:
@@ -348,6 +351,18 @@ class SQLExecute(object):
                             m_Result["rows"] = []
                             m_Result["title"] = ""
                     yield m_Result
+            except SQLCliJDBCTimeOutException:
+                # 处理超时时间问题
+                if m_ScriptTimeOut > 0:
+                    if m_ScriptTimeOut <= time.time() - self.getStartTime():
+                        m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout " \
+                                             "(" + str(round(time.time() - self.getStartTime(), 2)) + \
+                                             ") expired. Abort this Script."
+                        yield {"type": "error", "message": m_SQL_ErrorMessage}
+                        raise EOFError
+                m_SQL_ErrorMessage = "SQLCLI-0000: SQL Timeout (" + str(time.time() - self.getStartTime()) + \
+                                     ") expired. Abort this command."
+                yield {"type": "error", "message": m_SQL_ErrorMessage}
             except CommandNotFound:
                 # 进入到SQL执行阶段, 开始执行SQL语句
                 if self.conn:
@@ -372,7 +387,9 @@ class SQLExecute(object):
                         # 处理超时时间问题
                         if m_ScriptTimeOut > 0:
                             if m_ScriptTimeOut <= time.time() - self.getStartTime():
-                                m_SQL_ErrorMessage = "SQLCLI-0000: Script imeout when execute script. abort it."
+                                m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout (" + \
+                                                     str(round(time.time() - self.getStartTime(), 2)) + \
+                                                     ") expired. Abort this Script."
                                 yield {"type": "error", "message": m_SQL_ErrorMessage}
                                 raise EOFError
                             else:
@@ -543,6 +560,19 @@ class SQLExecute(object):
                                     }
                             if not m_FetchStatus:
                                 break
+                    except SQLCliJDBCTimeOutException:
+                        # 处理超时时间问题
+                        if m_ScriptTimeOut > 0:
+                            if m_ScriptTimeOut <= time.time() - self.getStartTime():
+                                m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout (" + \
+                                                     str(round(time.time() - self.getStartTime(), 2)) + \
+                                                     ") expired. Abort this script."
+                                yield {"type": "error", "message": m_SQL_ErrorMessage}
+                                raise EOFError
+                        m_SQL_ErrorMessage = "SQLCLI-0000: SQL Timeout (" + \
+                                             str(round(time.time() - self.getStartTime(), 2)) + \
+                                             ") expired. Abort this command."
+                        yield {"type": "error", "message": m_SQL_ErrorMessage}
                     except SQLCliODBCException as oe:
                         m_SQL_Status = 1
                         m_SQL_ErrorMessage = str(oe).strip()
@@ -562,6 +592,9 @@ class SQLExecute(object):
                     except (SQLCliJDBCException, Exception) as je:
                         m_SQL_Status = 1
                         m_SQL_ErrorMessage = str(je).strip()
+                        for m_ErrorPrefix in "java.util.concurrent.ExecutionException:":
+                            if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
+                                m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
                         for m_ErrorPrefix in ('java.sql.SQLSyntaxErrorException:',
                                               "java.sql.SQLException:",
                                               "java.sql.SQLInvalidAuthorizationSpecException:",
