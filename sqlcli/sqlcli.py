@@ -33,6 +33,7 @@ from prompt_toolkit.formatted_text import HTML
 # 加载JDBC驱动和ODBC驱动
 from .sqlclijdbcapi import connect as jdbcconnect
 from .sqlclijdbcapi import DetachJVM as jdbcdetach
+from .sqlclijdbcapi import SQLCliJDBCTimeOutException
 from .sqlclijdbcapi import setBlobDefaultFetchSize as setjdbcBlobDefaultFetchSize
 from .sqlclijdbcapi import setClobDefaultFetchSize as setjdbcClobDefaultFetchSize
 from .sqlclijdbcapi import SQLCliJDBCException
@@ -836,6 +837,8 @@ class SQLCli(object):
                             jars=m_JarList,
                             TimeOutLimit=m_TimeOutLimit)
                         break
+                    except SQLCliJDBCTimeOutException as je:
+                        raise je
                     except SQLCliJDBCException as je:
                         if "SQLCLI_DEBUG" in os.environ:
                             print('traceback.print_exc():\n%s' % traceback.print_exc())
@@ -1106,13 +1109,7 @@ class SQLCli(object):
             if m_TimeOutLimit != -1 and m_TimeOutLimit < m_Sleep_Time:
                 # 有超时限制，最多休息道超时的时间
                 time.sleep(m_TimeOutLimit)
-                return [{
-                    "title": None,
-                    "rows": None,
-                    "headers": None,
-                    "columntypes": None,
-                    "status": "SQLCLI-0000:: Timeout expired. Abort this command."
-                }]
+                raise SQLCliJDBCTimeOutException("TimeOut")
             else:
                 time.sleep(m_Sleep_Time)
         except ValueError:
