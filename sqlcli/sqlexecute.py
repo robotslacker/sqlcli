@@ -592,17 +592,17 @@ class SQLExecute(object):
                     except (SQLCliJDBCException, Exception) as je:
                         m_SQL_Status = 1
                         m_SQL_ErrorMessage = str(je).strip()
-                        for m_ErrorPrefix in "java.util.concurrent.ExecutionException:":
+                        for m_ErrorPrefix in ["java.util.concurrent.ExecutionException:", ]:
                             if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
                                 m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
-                        for m_ErrorPrefix in ('java.sql.SQLSyntaxErrorException:',
+                        for m_ErrorPrefix in ['java.sql.SQLSyntaxErrorException:',
                                               "java.sql.SQLException:",
                                               "java.sql.SQLInvalidAuthorizationSpecException:",
                                               "java.sql.SQLDataException:",
                                               "java.sql.SQLTransactionRollbackException:",
                                               "java.sql.SQLTransientConnectionException:",
                                               "java.sql.SQLFeatureNotSupportedException",
-                                              "com.microsoft.sqlserver.jdbc."):
+                                              "com.microsoft.sqlserver.jdbc.", ]:
                             if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
                                 m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
 
