@@ -272,10 +272,11 @@ class SQLExecute(object):
                 # 处理超时时间问题
                 if m_ScriptTimeOut > 0:
                     if m_ScriptTimeOut <= time.time() - self.getStartTime():
-                        m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout " \
-                                             "(" + str(round(time.time() - self.getStartTime(), 2)) + \
-                                             ") expired. Abort this Script."
-                        yield {"type": "error", "message": m_SQL_ErrorMessage}
+                        if sql.upper() not in ["EXIT", "QUIT"]:
+                            m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout " \
+                                                 "(" + str(round(time.time() - self.getStartTime(), 2)) + \
+                                                 ") expired. Abort this Script."
+                            yield {"type": "error", "message": m_SQL_ErrorMessage}
                         raise EOFError
                     else:
                         if m_SQLTimeOut <= 0 or (m_ScriptTimeOut - (time.time() - self.getStartTime()) < m_SQLTimeOut):
@@ -355,10 +356,11 @@ class SQLExecute(object):
                 # 处理超时时间问题
                 if m_ScriptTimeOut > 0:
                     if m_ScriptTimeOut <= time.time() - self.getStartTime():
-                        m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout " \
-                                             "(" + str(round(time.time() - self.getStartTime(), 2)) + \
-                                             ") expired. Abort this Script."
-                        yield {"type": "error", "message": m_SQL_ErrorMessage}
+                        if sql.upper() not in ["EXIT", "QUIT"]:
+                            m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout " \
+                                                 "(" + str(round(time.time() - self.getStartTime(), 2)) + \
+                                                 ") expired. Abort this Script."
+                            yield {"type": "error", "message": m_SQL_ErrorMessage}
                         raise EOFError
                 m_SQL_ErrorMessage = "SQLCLI-0000: SQL Timeout (" + str(time.time() - self.getStartTime()) + \
                                      ") expired. Abort this command."
@@ -387,10 +389,11 @@ class SQLExecute(object):
                         # 处理超时时间问题
                         if m_ScriptTimeOut > 0:
                             if m_ScriptTimeOut <= time.time() - self.getStartTime():
-                                m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout (" + \
-                                                     str(round(time.time() - self.getStartTime(), 2)) + \
-                                                     ") expired. Abort this Script."
-                                yield {"type": "error", "message": m_SQL_ErrorMessage}
+                                if sql.upper() not in ["EXIT", "QUIT"]:
+                                    m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout (" + \
+                                                         str(round(time.time() - self.getStartTime(), 2)) + \
+                                                         ") expired. Abort this Script."
+                                    yield {"type": "error", "message": m_SQL_ErrorMessage}
                                 raise EOFError
                             else:
                                 if m_SQLTimeOut <= 0 or \
@@ -564,10 +567,11 @@ class SQLExecute(object):
                         # 处理超时时间问题
                         if m_ScriptTimeOut > 0:
                             if m_ScriptTimeOut <= time.time() - self.getStartTime():
-                                m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout (" + \
-                                                     str(round(time.time() - self.getStartTime(), 2)) + \
-                                                     ") expired. Abort this script."
-                                yield {"type": "error", "message": m_SQL_ErrorMessage}
+                                if sql.upper() not in ["EXIT", "QUIT"]:
+                                    m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout (" + \
+                                                         str(round(time.time() - self.getStartTime(), 2)) + \
+                                                         ") expired. Abort this script."
+                                    yield {"type": "error", "message": m_SQL_ErrorMessage}
                                 raise EOFError
                         m_SQL_ErrorMessage = "SQLCLI-0000: SQL Timeout (" + \
                                              str(round(time.time() - self.getStartTime(), 2)) + \
@@ -836,6 +840,16 @@ class SQLExecute(object):
                                     m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
                         m_ColumnValue = m_ColumnValue + "]"
                         m_row.append(m_ColumnValue)
+                    elif columntype in ("DATE", ):
+                        if isinstance(column, str):
+                            m_row.append(column)
+                        else:
+                            m_row.append(column.strftime(self.SQLOptions.get("DATE_FORMAT")))
+                    elif columntype in ("DATETIME", "TIMESTAMP"):
+                        if isinstance(column, str):
+                            m_row.append(column)
+                        else:
+                            m_row.append(column.strftime(self.SQLOptions.get("DATETIME_FORMAT")))
                     elif columntype in ("BINARY", "VARBINARY", "LONGVARBINARY"):
                         # 转换为16进制，并反算成ASCII
                         column = binascii.b2a_hex(column)

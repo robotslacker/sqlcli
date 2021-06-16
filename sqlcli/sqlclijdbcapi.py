@@ -13,7 +13,7 @@ import warnings
 import decimal
 
 import jpype
-from .sqloption import SQLOptions
+from datetime import date
 
 
 class SQLCliJDBCException(Exception):
@@ -49,8 +49,6 @@ _jdbc_name_to_const = None
 # Mapping from java.sql.Types attribute constant value to it's attribute name
 _jdbc_const_to_name = []
 
-_sqloptions = SQLOptions()
-
 # 默认情况下blob字段内容输出的最大长度
 _blobdefaultfetchsize = 20
 # 默认情况下clob字段内容输出的最大长度
@@ -85,7 +83,7 @@ def limit(method, timeout):
         try:
             timeunit = jpype.java.util.concurrent.TimeUnit.SECONDS
             return future.get(int(timeout), timeunit)
-        except jpype.java.util.concurrent.TimeoutException as ex:
+        except jpype.java.util.concurrent.TimeoutException:
             future.cancel(True)
             raise SQLCliJDBCTimeOutException("TimeOut")
     return f
@@ -710,15 +708,20 @@ def _to_datetime(conn, rs, col):
     if conn:
         pass
     java_val = rs.getTimestamp(col)
+
     if not java_val:
         return
     try:
-        d = datetime.datetime.strptime(str(java_val)[:19], "%Y-%m-%d %H:%M:%S")
-        d = d.replace(microsecond=int(str(java_val.getNanos())[:6]))
+        ld = java_val.toLocalDateTime()
+        d = datetime.datetime.strptime(str(ld.getYear()) + "-" + str(ld.getMonthValue()) + "-" +
+                                       str(ld.getDayOfMonth()) + " " +
+                                       str(ld.getHour()) + ":" + str(ld.getMinute()) + ":" + str(ld.getSecond()) +
+                                       " " + str(ld.getNano()), "%Y-%m-%d %H:%M:%S %f")
+        return d
     except ValueError:
         # 处理一些超过Python数据类型限制的时间类型
         d = str(java_val)
-    return str(d)
+    return d
 
 
 def _to_time(conn, rs, col):
@@ -759,12 +762,9 @@ def _to_date(conn, rs, col):
         return rs.getString(col)
     if not java_val:
         return
-    # The following code requires Python 3.3+ on dates before year 1900.
-    # d = datetime.datetime.strptime(str(java_val)[:10], "%Y-%m-%d")
-    # return d.strftime("%Y-%m-%d")
-    # Workaround / simpler soltution (see
-    # https://github.com/baztian/jaydebeapi/issues/18):
-    return str(java_val)[:10]
+    d = date.fromisocalendar(java_val.toLocalDate().getYear(), java_val.toLocalDate().getMonthValue(),
+                             java_val.toLocalDate().getDayOfMonth())
+    return d
 
 
 def _to_bit(conn, rs, col):
@@ -1043,8 +1043,8 @@ _DEFAULT_CONVERTERS = {
     'YEAR':                         _to_year,
     'VARBINARY':                    _to_varbinary,
     'BINARY':                       _to_binary,
-    'LONGVARBINARY':                _to_binary,
-    'BLOB':                         _to_binary,
+    'LONGVARBINARY':                _to_varbinary,
+    'BLOB':                         _to_varbinary,
     'BFILE':                        _to_binary,
     'DECIMAL':                      _java_to_py_bigdecimal,
     'NUMERIC':                      _java_to_py_bigdecimal,

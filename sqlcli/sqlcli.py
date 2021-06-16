@@ -1424,7 +1424,7 @@ class SQLCli(object):
                     "status": None
                 }
             elif cls.SQLOptions.get(options_parameters[0].upper()) is not None:
-                cls.SQLOptions.set(options_parameters[0].upper(), options_parameters[1])
+                cls.SQLOptions.set(options_parameters[0].upper(), " ".join(options_parameters[1:]))
                 yield {
                     "title": None,
                     "rows": None,
