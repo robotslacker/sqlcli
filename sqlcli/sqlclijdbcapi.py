@@ -729,12 +729,15 @@ def _to_time(conn, rs, col):
         pass
     try:
         java_val = rs.getTime(col)
+        if not java_val:
+            return
+        lt = java_val.toLocalTime()
+        t = datetime.time().replace(
+            hour=lt.getHour(), minute=lt.getMinute(), second=lt.getSecond(), microsecond=lt.getNano())
+        return t
     except Exception:
         # 处理一些超过Python数据类型限制的时间类型
         return rs.getString(col)
-    if not java_val:
-        return
-    return str(java_val)
 
 
 def _to_year(conn, rs, col):
@@ -757,14 +760,14 @@ def _to_date(conn, rs, col):
         pass
     try:
         java_val = rs.getDate(col)
+        if not java_val:
+            return
+        d = date.fromisocalendar(java_val.toLocalDate().getYear(), java_val.toLocalDate().getMonthValue(),
+                                 java_val.toLocalDate().getDayOfMonth())
+        return d
     except Exception:
         # 处理一些超过Python数据类型限制的时间类型
         return rs.getString(col)
-    if not java_val:
-        return
-    d = date.fromisocalendar(java_val.toLocalDate().getYear(), java_val.toLocalDate().getMonthValue(),
-                             java_val.toLocalDate().getDayOfMonth())
-    return d
 
 
 def _to_bit(conn, rs, col):

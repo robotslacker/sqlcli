@@ -83,6 +83,10 @@ class SQLOptions(object):
                                       "Value": "%Y-%m-%d %H:%M:%S %f",
                                       "Comments": '',
                                       "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "TIME_FORMAT",
+                                      "Value": "%H:%M:%S %f",
+                                      "Comments": '',
+                                      "Hidden": False})
         self.m_SQL_OptionList.append({"Name": "CONN_RETRY_TIMES",
                                       "Value": "1",
                                       "Comments": 'Connect retry times.',

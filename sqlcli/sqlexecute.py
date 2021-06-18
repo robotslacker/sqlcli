@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import datetime
 import decimal
 
 import click
@@ -840,16 +841,12 @@ class SQLExecute(object):
                                     m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
                         m_ColumnValue = m_ColumnValue + "]"
                         m_row.append(m_ColumnValue)
-                    elif columntype in ("DATE", ):
-                        if isinstance(column, str):
-                            m_row.append(column)
-                        else:
-                            m_row.append(column.strftime(self.SQLOptions.get("DATE_FORMAT")))
-                    elif columntype in ("DATETIME", "TIMESTAMP"):
-                        if isinstance(column, str):
-                            m_row.append(column)
-                        else:
-                            m_row.append(column.strftime(self.SQLOptions.get("DATETIME_FORMAT")))
+                    elif isinstance(column, datetime.date):
+                        m_row.append(column.strftime(self.SQLOptions.get("DATE_FORMAT")))
+                    elif isinstance(column, datetime.datetime):
+                        m_row.append(column.strftime(self.SQLOptions.get("DATETIME_FORMAT")))
+                    elif isinstance(column, datetime.time):
+                        m_row.append(column.strftime(self.SQLOptions.get("TIME_FORMAT")))
                     elif columntype in ("BINARY", "VARBINARY", "LONGVARBINARY"):
                         # 转换为16进制，并反算成ASCII
                         column = binascii.b2a_hex(column)
