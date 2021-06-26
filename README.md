@@ -20,29 +20,33 @@ SQLCli 目前可以支持的数据库有：
    
 SQLCli 目前支持的数据类型有：
 ```  
-    CHAR
-    VARCHAR
-    LONGVARCHAR  
-    TIMESTAMP_WITH_TIMEZONE  
-    TIMESTAMP  
-    TIME  
-    DATE  
-    VARBINARY  
-    BINARY  
-    LONGVARBINARY  
-    DECIMAL  
-    NUMERIC  
-    DOUBLE  
-    FLOAT 
-    REAL 
-    TINYINT  
-    INTEGER  
-    SMALLINT  
-    BIGINT
-    BOOLEAN  
-    BIT
-    STRUCT
-    ARRAY
+    CHAR                                  ====>     str
+    VARCHAR                               ====>     str
+    LONGVARCHAR                           ====>     str
+    TIMESTAMP_WITH_TIMEZONE               ====>     datetime.datetime
+    TIMESTAMP                             ====>     datetime.datetime
+    TIME                                  ====>     datetime.time
+    DATE                                  ====>     datetime.date
+    BINARY                                ====>     bytearray  
+    VARBINARY                             ====>     bytearray
+    LONGVARBINARY                         ====>     bytearray
+    DECIMAL                               ====>     decimal.Decimal  
+    NUMERIC                               ====>     decimal.Decimal
+    DOUBLE                                ====>     decimal.Decimal
+    REAL                                  ====>     decimal.Decimal
+    FLOAT                                 ====>     float
+    TINYINT                               ====>     int
+    INTEGER                               ====>     int
+    SMALLINT                              ====>     int  
+    INTEGER                               ====>     int
+    BOOLEAN                               ====>     bool
+    BFILE                                 ====>     str "bfilename(dirpath:filename)"
+    BIGINT                                ====>     decimal.Decimal
+    BIT                                   ====>     decimal.Decimal
+    STRUCT                                ====>     tuple()
+    ARRAY                                 ====>     list()
+    CLOB                                  ====>     SQLCliLargeObject.getData() ==> str
+    BLOB                                  ====>     SQLCliLargeObject.getData() ==> bytearray
 ```
 ***
 
@@ -673,34 +677,37 @@ Mapping file loaded.
 ```
     SQL> set
     Current set options: 
-    +-----------------------+----------+----------------------+
-    | Name                  | Value    | Comments             |
-    +-----------------------+----------+----------------------+
-    | WHENEVER_SQLERROR     | CONTINUE |                      |
-    | PAGE                  | OFF      |                      |
-    | ECHO                  | ON       |                      |
-    | TIMING                | OFF      |                      |
-    | TIME                  | OFF      |                      |
-    | OUTPUT_FORMAT         | LEGACY   | TAB|CSV|LEGACY       |
-    | CSV_HEADER            | OFF      | ON|OFF               |
-    | CSV_DELIMITER         | ,        |                      |
-    | CSV_QUOTECHAR         |          |                      |
-    | FEEDBACK              | ON       | ON|OFF               |
-    | TERMOUT               | ON       | ON|OFF               |
-    | ARRAYSIZE             | 10000    |                      |
-    | SQLREWRITE            | OFF      | ON|OFF               |
-    | LOB_LENGTH            | 20       |                      |
-    | FLOAT_FORMAT          | %.7g     |                      |
-    | DECIMAL_FORMAT        |          |                      |
-    | CONN_RETRY_TIMES      | 1        | Connect retry times. |
-    | OUTPUT_PREFIX         |          | Output Prefix        |
-    | SQL_EXECUTE           | PREPARE  | DIRECT|PREPARE       |
-    | JOBMANAGER            | OFF      | ON|OFF               |
-    | JOBMANAGER_METAURL    |          |                      |
-    | SCRIPT_TIMEOUT | -1       |                      |
-    | SQL_TIMEOUT    | -1       |                      |
-    +-----------------------+----------+----------------------+
-  没有任何参数的set将会列出程序所有的配置情况。
+    +--------------------+----------------------+----------------------+
+    | Name               | Value                | Comments             |
+    +--------------------+----------------------+----------------------+
+    | WHENEVER_SQLERROR  | CONTINUE             |                      |
+    | PAGE               | OFF                  |                      |
+    | ECHO               | ON                   |                      |
+    | TIMING             | OFF                  |                      |
+    | TIME               | OFF                  |                      |
+    | OUTPUT_FORMAT      | LEGACY               | TAB|CSV|LEGACY       |
+    | CSV_HEADER         | OFF                  | ON|OFF               |
+    | CSV_DELIMITER      | ,                    |                      |
+    | CSV_QUOTECHAR      |                      |                      |
+    | FEEDBACK           | ON                   | ON|OFF               |
+    | TERMOUT            | ON                   | ON|OFF               |
+    | ARRAYSIZE          | 10000                |                      |
+    | SQLREWRITE         | OFF                  | ON|OFF               |
+    | LOB_LENGTH         | 20                   |                      |
+    | FLOAT_FORMAT       | %.7g                 |                      |
+    | DECIMAL_FORMAT     |                      |                      |
+    | DATE_FORMAT        | %Y-%m-%d             |                      |
+    | DATETIME_FORMAT    | %Y-%m-%d %H:%M:%S %f |                      |
+    | TIME_FORMAT        | %H:%M:%S %f          |                      |
+    | CONN_RETRY_TIMES   | 1                    | Connect retry times. |
+    | OUTPUT_PREFIX      |                      | Output Prefix        |
+    | SQL_EXECUTE        | PREPARE              | DIRECT|PREPARE       |
+    | JOBMANAGER         | OFF                  | ON|OFF               |
+    | JOBMANAGER_METAURL |                      |                      |
+    | SCRIPT_TIMEOUT     | -1                   |                      |
+    | SQL_TIMEOUT        | -1                   |                      |
+    +--------------------+----------------------+----------------------+
+    没有任何参数的set将会列出程序所有的配置情况。
 
 ```
 #### 控制参数解释-ECHO
@@ -826,7 +833,7 @@ Mapping file loaded.
        2 rows selected.
 
 ```
-#### 控制参数解释-FLOAT_FORMAT/DECIMAL_FORMAT
+#### 控制参数解释-FLOAT_FORMAT/DECIMAL_FORMAT/DATE_FORMAT/DATETIME_FORMAT/TIME_FORMAT
 &emsp; &emsp; 8. FLOAT_FORMAT    控制浮点数字的显示格式，默认是%.7g
 ```
     SQL>  select abs(1.234567891234) from dual;
@@ -837,15 +844,24 @@ Mapping file loaded.
     +----------+
     1 row selected.
     SQL> set FLOAT_FORMAT %0.10g
-    SQL>  select abs(1.234567891234) from dual;
+    SQL> select abs(1.234567891234) from dual;
     +-------------+
     | C1          |
     +-------------+
     | 1.234567891 |
     +-------------+
     1 row selected.
-
     类似的参数还有DECIMAL_FORMAT
+    
+    SQL> set DATE_FORMAT %Y%m%d
+    SQL> select CAST('2000-02-02' AS DATE) from dual;
+    +-------------+
+    | C1          |
+    +-------------+
+    | 20000111    |
+    +-------------+
+    1 row selected.
+    类似的参数还有DATETIME_FORMAT, TIME_FORMAT
 ```
 #### 控制参数解释-CSV_HEADER/CSV_DELIMITER/CSV_QUOTECHAR
 &emsp; &emsp; 9. CSV格式控制  

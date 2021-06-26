@@ -13,7 +13,6 @@ import warnings
 import decimal
 
 import jpype
-from datetime import date
 
 
 class SQLCliJDBCException(Exception):
@@ -27,6 +26,40 @@ class SQLCliJDBCException(Exception):
 
 class SQLCliJDBCTimeOutException(SQLCliJDBCException):
     pass
+
+
+class SQLCliJDBCLargeObject:
+    def __init__(self):
+        self._object = None
+        self._ObjectLength = 0
+        self._ColumnTypeName = None
+
+    def setObject(self, p_Object):
+        self._object = p_Object
+
+    def getObjectLength(self):
+        return self._ObjectLength
+
+    def setObjectLength(self, p_ObjectLength: int):
+        self._ObjectLength = p_ObjectLength
+
+    def getData(self, p_nStartPos: int, p_nLength: int):
+        if self._object is None:
+            return None
+        else:
+            m_ObjectType = str(type(self._object))
+            if m_ObjectType.upper().find("CLOB") != -1:
+                return self._object.getSubString(p_nStartPos, int(p_nLength))
+            elif m_ObjectType.upper().find("BLOB") != -1:
+                return bytearray(self._object.getBytes(p_nStartPos, int(p_nLength)))
+            else:
+                raise SQLCliJDBCException("SQLCLI-00000: Unknown LargeObjectType [" + m_ObjectType + "]")
+
+    def getColumnTypeName(self):
+        return self._ColumnTypeName
+
+    def setColumnTypeName(self, p_ColumnTypeName: str):
+        self._ColumnTypeName = p_ColumnTypeName
 
 
 def reraise(tp, value, tb=None):
@@ -48,11 +81,6 @@ _jdbc_name_to_const = None
 
 # Mapping from java.sql.Types attribute constant value to it's attribute name
 _jdbc_const_to_name = []
-
-# 默认情况下blob字段内容输出的最大长度
-_blobdefaultfetchsize = 20
-# 默认情况下clob字段内容输出的最大长度
-_clobdefaultfetchsize = 20
 
 
 def _handle_sql_exception_jpype():
@@ -217,10 +245,6 @@ class NotSupportedError(DatabaseError):
 
 # DB-API 2.0 Type Objects and Constructors
 
-def _java_sql_blob(data):
-    return jpype.JArray(jpype.JByte, 1)(data)
-
-
 def _str_func(func):
     def to_str(*parms):
         return str(func(*parms))
@@ -228,22 +252,9 @@ def _str_func(func):
     return to_str
 
 
-Binary = _java_sql_blob
 Date = _str_func(datetime.date)
 Time = _str_func(datetime.time)
 Timestamp = _str_func(datetime.datetime)
-
-
-def setBlobDefaultFetchSize(p_nBlobDefaultFetchSize):
-    # 程序用到的各种会话控制参数
-    global _blobdefaultfetchsize
-    _blobdefaultfetchsize = p_nBlobDefaultFetchSize
-
-
-def setClobDefaultFetchSize(p_nClobDefaultFetchSize):
-    # 程序用到的各种会话控制参数
-    global _clobdefaultfetchsize
-    _clobdefaultfetchsize = p_nClobDefaultFetchSize
 
 
 def AttachJVM(jars=None, libs=None):
@@ -474,7 +485,8 @@ class Cursor(object):
                     column_type = None
                 else:
                     if jdbc_type not in _jdbc_const_to_name:
-                        column_type = "UNKNOWN"
+                        # 如果列表中没法找到jdbc_type, 则将JDBC_TYPE_NAME直接返回
+                        column_type = m.getColumnTypeName(col)
                     else:
                         column_type = str(_jdbc_const_to_name[jdbc_type])
                 col_desc = (m.getColumnLabel(col),
@@ -628,12 +640,16 @@ class Cursor(object):
                 converter = _DEFAULT_CONVERTERS["VARCHAR"]
             elif m_ColumnClassName in 'org.postgresql.util.PGmoney':
                 converter = _DEFAULT_CONVERTERS["VARCHAR"]
-            elif m_ColumnClassName in ('oracle.sql.TIMESTAMPTZ', 'oracle.sql.TIMESTAMPLTZ'):
+            elif m_ColumnClassName in ['oracle.sql.TIMESTAMPTZ']:
                 converter = _DEFAULT_CONVERTERS["TIMESTAMP_WITH_TIMEZONE"]
+            elif m_ColumnClassName in ['oracle.sql.TIMESTAMPLTZ']:
+                converter = _DEFAULT_CONVERTERS["TIMESTAMP WITH LOCAL TIME ZONE"]
             elif m_ColumnClassName.upper().find("BFILE") != -1:
                 converter = _DEFAULT_CONVERTERS["BFILE"]
-            elif m_ColumnTypeName in ['YEAR']:  # mysql数据类型
+            elif m_ColumnTypeName in ['YEAR']:              # mysql数据类型
                 converter = _DEFAULT_CONVERTERS["YEAR"]
+            elif m_ColumnTypeName in ['timestamptz']:       # PG数据类型
+                converter = _DEFAULT_CONVERTERS["TIMESTAMP_WITH_TIMEZONE"]
             else:
                 if sqltype in self._converters.keys():
                     converter = self._converters.get(sqltype)
@@ -645,7 +661,7 @@ class Cursor(object):
             if "SQLCLI_DEBUG" in os.environ:
                 print("JDBC SQLType=[" + str(converter.__name__) + "] for col [" + str(col) + "]. " +
                       "sqltype=[" + str(sqltype) + ":" + str(m_ColumnClassName) + ":" + m_ColumnTypeName + "]")
-            v = converter(self._connection.jconn, self._rs, col)
+            v = converter(self._connection.jconn, self._rs, col, m_ColumnClassName)
             row.append(v)
         return tuple(row)
 
@@ -695,8 +711,8 @@ class Cursor(object):
         self.close()
 
 
-def _unknownSqlTypeConverter(conn, rs, col):
-    if conn:
+def _unknownSqlTypeConverter(conn, rs, col, p_objColumnSQLType=None):
+    if conn or p_objColumnSQLType:
         pass
     java_val = rs.getObject(col)
     if java_val is None:
@@ -704,28 +720,8 @@ def _unknownSqlTypeConverter(conn, rs, col):
     return str(java_val)
 
 
-def _to_datetime(conn, rs, col):
-    if conn:
-        pass
-    java_val = rs.getTimestamp(col)
-
-    if not java_val:
-        return
-    try:
-        ld = java_val.toLocalDateTime()
-        d = datetime.datetime.strptime(str(ld.getYear()) + "-" + str(ld.getMonthValue()) + "-" +
-                                       str(ld.getDayOfMonth()) + " " +
-                                       str(ld.getHour()) + ":" + str(ld.getMinute()) + ":" + str(ld.getSecond()) +
-                                       " " + str(ld.getNano()), "%Y-%m-%d %H:%M:%S %f")
-        return d
-    except ValueError:
-        # 处理一些超过Python数据类型限制的时间类型
-        d = str(java_val)
-    return d
-
-
-def _to_time(conn, rs, col):
-    if conn:
+def _to_time(conn, rs, col, p_objColumnSQLType=None):
+    if conn or p_objColumnSQLType:
         pass
     try:
         java_val = rs.getTime(col)
@@ -740,8 +736,8 @@ def _to_time(conn, rs, col):
         return rs.getString(col)
 
 
-def _to_year(conn, rs, col):
-    if conn:
+def _to_year(conn, rs, col, p_objColumnSQLType=None):
+    if conn or p_objColumnSQLType:
         pass
     try:
         java_val = rs.getDate(col)
@@ -755,23 +751,8 @@ def _to_year(conn, rs, col):
     return java_cal.get(1)
 
 
-def _to_date(conn, rs, col):
-    if conn:
-        pass
-    try:
-        java_val = rs.getDate(col)
-        if not java_val:
-            return
-        d = date.fromisocalendar(java_val.toLocalDate().getYear(), java_val.toLocalDate().getMonthValue(),
-                                 java_val.toLocalDate().getDayOfMonth())
-        return d
-    except Exception:
-        # 处理一些超过Python数据类型限制的时间类型
-        return rs.getString(col)
-
-
-def _to_bit(conn, rs, col):
-    if conn:
+def _to_bit(conn, rs, col, p_objColumnSQLType=None):
+    if conn or p_objColumnSQLType:
         pass
     try:
         java_val = rs.getObject(col)
@@ -808,8 +789,8 @@ def _to_bit(conn, rs, col):
         raise SQLCliJDBCException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_bit")
 
 
-def _to_varbinary(conn, rs, col):
-    if conn:
+def _to_varbinary(conn, rs, col, p_objColumnSQLType=None):
+    if conn or p_objColumnSQLType:
         pass
     java_val = rs.getObject(col)
     if java_val is None:
@@ -823,190 +804,235 @@ def _to_varbinary(conn, rs, col):
                 m_TrimPos = m_nPos
                 break
         if m_TrimPos == -1:
-            return java_val
+            return bytearray(java_val)
         else:
-            return java_val[:m_TrimPos + 1]
-    elif m_TypeName.upper().find("BLOB") != -1:
-        m_Length = java_val.length()
-        # 总是返回比LOB_LENGTH大1的字节数，后续的显示中将根据LOB_LENGTH是否超长做出是否打印省略号的标志
-        m_TrimLength = _blobdefaultfetchsize + 1
-        if m_TrimLength > m_Length:
-            m_TrimLength = m_Length
-        m_Bytes = java_val.getBytes(1, int(m_TrimLength))
-        return m_Bytes
-    elif m_TypeName.find("BFILE") != -1:
-        return "bfilename(" + java_val.getDirAlias() + ":" + java_val.getName() + ")"
+            return bytearray(java_val[:m_TrimPos + 1])
     elif m_TypeName.find("Boolean") != -1:
         str_val = rs.getString(col)
         if str_val is None:
             return
         else:
             if java_val == 0:
-                return "False"
+                return False
             else:
-                return "True"
+                return True
     else:
         raise SQLCliJDBCException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_binary")
 
 
-def _to_binary(conn, rs, col):
-    if conn:
+def _to_bfile(conn, rs, col, p_objColumnSQLType=None):
+    if conn or p_objColumnSQLType:
+        pass
+    java_val = rs.getObject(col)
+    if java_val is None:
+        return
+    m_TypeName = str(java_val.getClass().getTypeName())
+    if m_TypeName.find("BFILE") != -1:
+        return "bfilename(" + java_val.getDirAlias() + ":" + java_val.getName() + ")"
+    else:
+        raise SQLCliJDBCException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_bfile")
+
+
+def _to_binary(conn, rs, col, p_objColumnSQLType=None):
+    if conn or p_objColumnSQLType:
         pass
     java_val = rs.getObject(col)
     if java_val is None:
         return
     m_TypeName = str(java_val.getClass().getTypeName())
     if m_TypeName == "byte[]":
-        return java_val
-    elif m_TypeName.upper().find("BLOB") != -1:
-        m_Length = java_val.length()
-        # 总是返回比LOB_LENGTH大1的字节数，后续的显示中将根据LOB_LENGTH是否超长做出是否打印省略号的标志
-        m_TrimLength = _blobdefaultfetchsize + 1
-        if m_TrimLength > m_Length:
-            m_TrimLength = m_Length
-        m_Bytes = java_val.getBytes(1, int(m_TrimLength))
-        return m_Bytes
-    elif m_TypeName.find("BFILE") != -1:
-        return "bfilename(" + java_val.getDirAlias() + ":" + java_val.getName() + ")"
+        return bytearray(java_val)
     elif m_TypeName.find("Boolean") != -1:
         str_val = rs.getString(col)
         if str_val is None:
             return
         else:
             if java_val == 0:
-                return "False"
+                return False
             else:
-                return "True"
+                return True
     else:
         raise SQLCliJDBCException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_binary")
 
 
-def _java_to_py(java_method):
-    def to_py(conn, rs, col):
-        if conn:
-            pass
-        java_val = rs.getObject(col)
-        if java_val is None:
-            return
-        if isinstance(java_val, (string_type, int, float, bool)):
-            return java_val
-        return getattr(java_val, java_method)()
-    return to_py
+def _javaobj_to_pyobj(p_javaobj, p_objColumnSQLType=None):
+    if type(p_javaobj) == str:
+        return p_javaobj
+    m_TypeName = str(p_javaobj.getClass().getTypeName())
+    if m_TypeName == "java.lang.Float":
+        m_FloatValue = float(p_javaobj.floatValue())
+        return m_FloatValue
+    elif m_TypeName == "java.lang.Short":
+        m_ShortValue = int(p_javaobj.shortValue())
+        return m_ShortValue
+    elif m_TypeName == "java.lang.Integer":
+        m_IntValue = int(p_javaobj.intValue())
+        return m_IntValue
+    elif m_TypeName == "java.lang.Boolean":
+        m_BoolValue = bool(p_javaobj.booleanValue())
+        return m_BoolValue
+    elif m_TypeName == "java.lang.Long":
+        return decimal.Decimal(p_javaobj.toString())
+    elif m_TypeName == "java.math.BigInteger":
+        return decimal.Decimal(p_javaobj.toString())
+    elif m_TypeName == "java.lang.Double":
+        return decimal.Decimal(p_javaobj.toString())
+    elif m_TypeName == "java.lang.Float":
+        return decimal.Decimal(p_javaobj.toString())
+    elif m_TypeName == "java.math.BigDecimal":
+        return decimal.Decimal(p_javaobj.toPlainString())
+    elif m_TypeName == "java.sql.Timestamp":
+        ld = p_javaobj.toLocalDateTime()
+        d = datetime.datetime.strptime(str(ld.getYear()).zfill(4) + "-" + str(ld.getMonthValue()).zfill(2) + "-" +
+                                       str(ld.getDayOfMonth()).zfill(2) + " " + str(ld.getHour()).zfill(2) + ":" +
+                                       str(ld.getMinute()).zfill(2) + ":" + str(ld.getSecond()).zfill(2) + " " +
+                                       str(ld.getNano() // 1000), "%Y-%m-%d %H:%M:%S %f")
+        return d
+    elif m_TypeName == "oracle.sql.TIMESTAMP":
+        ld = p_javaobj.toJdbc().toLocalDateTime()
+        d = datetime.datetime.strptime(str(ld.getYear()).zfill(4) + "-" + str(ld.getMonthValue()).zfill(2) + "-" +
+                                       str(ld.getDayOfMonth()).zfill(2) + " " + str(ld.getHour()).zfill(2) + ":" +
+                                       str(ld.getMinute()).zfill(2) + ":" + str(ld.getSecond()).zfill(2) + " " +
+                                       str(ld.getNano() // 1000), "%Y-%m-%d %H:%M:%S %f")
+        return d
+    elif m_TypeName.upper().find('SQLDATE') != -1:
+        d = datetime.date(year=p_javaobj.toLocalDate().getYear(),
+                          month=p_javaobj.toLocalDate().getMonthValue(),
+                          day=p_javaobj.toLocalDate().getDayOfMonth())
+        return d
+    elif m_TypeName == "byte[]":
+        if p_objColumnSQLType in ["VARBINARY", "LONGVARBINARY"]:
+            # 截断所有后面为0的字节数组内容
+            m_TrimPos = -1
+            for m_nPos in range(len(p_javaobj) - 1, 0, -1):
+                if p_javaobj[m_nPos] != 0:
+                    m_TrimPos = m_nPos
+                    break
+            if m_TrimPos == -1:
+                return bytearray(p_javaobj)
+            else:
+                return bytearray(p_javaobj[:m_TrimPos + 1])
+        else:
+            return bytearray(p_javaobj)
+    elif m_TypeName.upper().find('CLOB') != -1:
+        m_Length = p_javaobj.length()
+        m_LargeObject = SQLCliJDBCLargeObject()
+        m_LargeObject.setColumnTypeName(p_objColumnSQLType)
+        m_LargeObject.setObjectLength(m_Length)
+        m_LargeObject.setObject(p_javaobj)
+        return m_LargeObject
+    elif m_TypeName.upper().find('BLOB') != -1:
+        m_Length = p_javaobj.length()
+        m_LargeObject = SQLCliJDBCLargeObject()
+        m_LargeObject.setColumnTypeName(p_objColumnSQLType)
+        m_LargeObject.setObjectLength(m_Length)
+        m_LargeObject.setObject(p_javaobj)
+        return m_LargeObject
+    else:
+        raise SQLCliJDBCException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _javaobj_to_pyobj")
 
 
-def _java_to_py_bigdecimal(conn, rs, col):
+def _java_to_py(conn, rs, col, p_objColumnSQLType=None):
     if conn:
         pass
     java_val = rs.getObject(col)
     if java_val is None:
         return
-    m_TypeName = str(java_val.getClass().getTypeName())
-    if m_TypeName == "java.math.BigDecimal":
-        return decimal.Decimal(java_val.toPlainString())
-    elif m_TypeName == "java.lang.Long":
-        return decimal.Decimal(java_val.toString())
-    elif m_TypeName == "java.math.BigInteger":
-        return decimal.Decimal(java_val.toString())
-    elif m_TypeName == "java.lang.Double":
-        return decimal.Decimal(java_val.toString())
-    elif m_TypeName == "java.lang.Float":
-        return decimal.Decimal(java_val.toString())
-    else:
-        raise SQLCliJDBCException(
-            "SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _java_to_py_bigdecimal")
+    return _javaobj_to_pyobj(java_val, p_objColumnSQLType)
 
 
-def _java_to_py_timestampwithtimezone(conn, rs, col):
+def _java_to_py_timestampwithtimezone(conn, rs, col, p_objColumnSQLType=None):
+    if p_objColumnSQLType:
+        pass
     java_val = rs.getObject(col)
     if java_val is None:
         return
     m_TypeName = str(java_val.getClass().getTypeName())
     if m_TypeName == "java.time.OffsetDateTime":
-        return java_val.format(
-            jpype.java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS Z"))
+        ld = java_val.toLocalDateTime()
+        d = datetime.datetime.strptime(str(ld.getYear()).zfill(4) + "-" + str(ld.getMonthValue()).zfill(2) + "-" +
+                                       str(ld.getDayOfMonth()).zfill(2) + " " + str(ld.getHour()).zfill(2) + ":" +
+                                       str(ld.getMinute()).zfill(2) + ":" + str(ld.getSecond()).zfill(2) + " " +
+                                       str(ld.getNano() // 1000) + " " + java_val.getOffset().getId(),
+                                       "%Y-%m-%d %H:%M:%S %f %z")
+        return d
+    elif m_TypeName == "java.sql.Timestamp":
+        ld = java_val.toLocalDateTime()
+        d = datetime.datetime.strptime(str(ld.getYear()).zfill(4) + "-" + str(ld.getMonthValue()).zfill(2) + "-" +
+                                       str(ld.getDayOfMonth()).zfill(2) + " " + str(ld.getHour()).zfill(2) + ":" +
+                                       str(ld.getMinute()).zfill(2) + ":" + str(ld.getSecond()).zfill(2) + " " +
+                                       str(ld.getNano() // 1000), "%Y-%m-%d %H:%M:%S %f")
+        return d
     elif m_TypeName in ('oracle.sql.TIMESTAMPTZ', 'oracle.sql.TIMESTAMPLTZ'):
-        return java_val.offsetDateTimeValue(conn).format(
-            jpype.java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS Z"))
+        java_val = java_val.offsetDateTimeValue(conn)
+        ld = java_val.toLocalDateTime()
+        d = datetime.datetime.strptime(str(ld.getYear()).zfill(4) + "-" + str(ld.getMonthValue()).zfill(2) + "-" +
+                                       str(ld.getDayOfMonth()).zfill(2) + " " + str(ld.getHour()).zfill(2) + ":" +
+                                       str(ld.getMinute()).zfill(2) + ":" + str(ld.getSecond()).zfill(2) + " " +
+                                       str(ld.getNano() // 1000) + " " + java_val.getOffset().getId(),
+                                       "%Y-%m-%d %H:%M:%S %f %z")
+        return d
     elif m_TypeName in 'org.h2.api.TimestampWithTimeZone':
-        return java_val.toString()
+        java_val = rs.getObject(col, jpype.JClass("java.time.OffsetDateTime"))
+        ld = java_val.toLocalDateTime()
+        d = datetime.datetime.strptime(str(ld.getYear()).zfill(4) + "-" + str(ld.getMonthValue()).zfill(2) + "-" +
+                                       str(ld.getDayOfMonth()).zfill(2) + " " + str(ld.getHour()).zfill(2) + ":" +
+                                       str(ld.getMinute()).zfill(2) + ":" + str(ld.getSecond()).zfill(2) + " " +
+                                       str(ld.getNano() // 1000) + " " + java_val.getOffset().getId(),
+                                       "%Y-%m-%d %H:%M:%S %f %z")
+        return d
     else:
         raise SQLCliJDBCException(
             "SQLCLI-00000: Unknown java class type [" + m_TypeName +
             "] in _java_to_py_timestampwithtimezone")
 
 
-def _java_to_py_clob(conn, rs, col):
-    if conn:
-        pass
-    java_val = rs.getObject(col)
-    if java_val is None:
-        return
-    m_TypeName = str(java_val.getClass().getTypeName())
-    if m_TypeName.upper().find('CLOB') != -1:
-        m_Length = java_val.length()
-        m_TrimLength = _clobdefaultfetchsize
-        if m_TrimLength > m_Length:
-            m_TrimLength = m_Length
-        m_ColumnValue = java_val.getSubString(1, int(m_TrimLength))
-        if m_Length > int(m_TrimLength):
-            m_ColumnValue = m_ColumnValue + "..."
-        return m_ColumnValue
-    else:
-        raise SQLCliJDBCException(
-            "SQLCLI-00000: Unknown java class type [" + m_TypeName +
-            "] in _java_to_py_clob")
-
-
-def _java_to_py_stru(conn, rs, col):
-    if conn:
+def _java_to_py_stru(conn, rs, col, p_objColumnSQLType=None):
+    if conn or p_objColumnSQLType:
         pass
     java_val = rs.getObject(col)
     if java_val is None:
         return
     m_TypeName = str(java_val.getClass().getTypeName())
     if m_TypeName == "java.lang.Object[]":
-        m_retVal = tuple(java_val)
-        return m_retVal
+        m_retVal = []
+        for java_item in java_val:
+            m_retVal.append(_javaobj_to_pyobj(java_item))
+        return tuple(m_retVal)
+    elif m_TypeName in ["oracle.sql.STRUCT", "java.sql.Struct"]:
+        m_retVal = []
+        for java_item in java_val.getAttributes():
+            m_retVal.append(_javaobj_to_pyobj(java_item))
+        return tuple(m_retVal)
     else:
         raise SQLCliJDBCException(
             "SQLCLI-00000: Unknown java class type [" + m_TypeName +
             "] in _java_to_py_stru")
 
 
-def _java_to_py_array(conn, rs, col):
-    if conn:
+def _java_to_py_array(conn, rs, col, p_objColumnSQLType=None):
+    if conn or p_objColumnSQLType:
         pass
     java_val = rs.getObject(col)
     if java_val is None:
         return
     m_TypeName = str(java_val.getClass().getTypeName())
     if m_TypeName.upper().find('ARRAY') != -1:
+        m_BaseTypeName = java_val.getBaseTypeName()
         java_val = java_val.getArray()
         m_retVal = []
-        m_retVal.extend(java_val)
+        for java_item in java_val:
+            m_retVal.append(_javaobj_to_pyobj(java_item, m_BaseTypeName))
         return m_retVal
     elif m_TypeName.find('Object[]') != -1:
         m_retVal = []
-        m_retVal.extend(java_val)
+        for java_item in java_val:
+            m_retVal.append(_javaobj_to_pyobj(java_item))
         return m_retVal
     else:
         raise SQLCliJDBCException(
             "SQLCLI-00000: Unknown java class type [" + m_TypeName +
             "] in _java_to_py_array")
-
-
-def _java_to_py_str(conn, rs, col):
-    if conn:
-        pass
-    try:
-        java_val = rs.getObject(col)
-        if java_val is None:
-            return
-    except Exception:
-        java_val = rs.getString(col)
-        if java_val is None:
-            return
-    return str(java_val)
 
 
 def _init_types(types_map):
@@ -1034,32 +1060,33 @@ _DEFAULT_CONVERTERS = {
     # see
     # http://download.oracle.com/javase/8/docs/api/java/sql/Types.html
     # for possible keys
-    'CHAR':                         _java_to_py_str,
-    'LONGVARCHAR':                  _java_to_py_str,
-    'VARCHAR':                      _java_to_py_str,
-    'NCLOB':                        _java_to_py_clob,
-    'CLOB':                         _java_to_py_clob,
-    'TIMESTAMP_WITH_TIMEZONE':      _java_to_py_timestampwithtimezone,
-    'TIMESTAMP':                    _to_datetime,
-    'TIME':                         _to_time,
-    'DATE':                         _to_date,
-    'YEAR':                         _to_year,
-    'VARBINARY':                    _to_varbinary,
-    'BINARY':                       _to_binary,
-    'LONGVARBINARY':                _to_varbinary,
-    'BLOB':                         _to_varbinary,
-    'BFILE':                        _to_binary,
-    'DECIMAL':                      _java_to_py_bigdecimal,
-    'NUMERIC':                      _java_to_py_bigdecimal,
-    'DOUBLE':                       _java_to_py_bigdecimal,
-    'FLOAT':                        _java_to_py('doubleValue'),
-    'REAL':                         _java_to_py_bigdecimal,
-    'TINYINT':                      _java_to_py('intValue'),
-    'INTEGER':                      _java_to_py('intValue'),
-    'SMALLINT':                     _java_to_py('intValue'),
-    'BIGINT':                       _java_to_py_bigdecimal,
-    'BOOLEAN':                      _java_to_py('booleanValue'),
-    'BIT':                          _to_bit,
-    'STRUCT':                       _java_to_py_stru,
-    'ARRAY':                        _java_to_py_array
+    'CHAR':                             _java_to_py,
+    'LONGVARCHAR':                      _java_to_py,
+    'VARCHAR':                          _java_to_py,
+    'TIMESTAMP':                        _java_to_py,
+    'DATE':                             _java_to_py,
+    'DECIMAL':                          _java_to_py,
+    'NUMERIC':                          _java_to_py,
+    'DOUBLE':                           _java_to_py,
+    'REAL':                             _java_to_py,
+    'BIGINT':                           _java_to_py,
+    'FLOAT':                            _java_to_py,
+    'TINYINT':                          _java_to_py,
+    'INTEGER':                          _java_to_py,
+    'SMALLINT':                         _java_to_py,
+    'BOOLEAN':                          _java_to_py,
+    'NCLOB':                            _java_to_py,
+    'CLOB':                             _java_to_py,
+    'BLOB':                             _java_to_py,
+    'BIT':                              _to_bit,
+    'STRUCT':                           _java_to_py_stru,
+    'ARRAY':                            _java_to_py_array,
+    'VARBINARY':                        _to_varbinary,
+    'LONGVARBINARY':                    _to_varbinary,
+    'TIMESTAMP_WITH_TIMEZONE':          _java_to_py_timestampwithtimezone,
+    'TIMESTAMP WITH LOCAL TIME ZONE':   _java_to_py_timestampwithtimezone,
+    'TIME':                             _to_time,
+    'YEAR':                             _to_year,
+    'BINARY':                           _to_binary,
+    'BFILE':                            _to_bfile,
 }

@@ -32,10 +32,7 @@ from prompt_toolkit.formatted_text import HTML
 
 # 加载JDBC驱动和ODBC驱动
 from .sqlclijdbcapi import connect as jdbcconnect
-from .sqlclijdbcapi import DetachJVM as jdbcdetach
 from .sqlclijdbcapi import SQLCliJDBCTimeOutException
-from .sqlclijdbcapi import setBlobDefaultFetchSize as setjdbcBlobDefaultFetchSize
-from .sqlclijdbcapi import setClobDefaultFetchSize as setjdbcClobDefaultFetchSize
 from .sqlclijdbcapi import SQLCliJDBCException
 from .sqlcliodbc import connect as odbcconnect
 from .sqlcliodbc import SQLCliODBCException
@@ -381,9 +378,6 @@ class SQLCli(object):
         if self.MetaHandler is not None:
             self.MetaHandler.ShutdownServer()
             self.MetaHandler = None
-
-        # 关闭SQLJDBC的JVM句柄
-        jdbcdetach()
 
     # 加载CLI的各种特殊命令集
     def register_special_commands(self):
@@ -825,8 +819,6 @@ class SQLCli(object):
                 cls.SQLOptions.set("CONNPROP", str(m_JDBCProp))
                 if "SQLCLI_DEBUG" in os.environ:
                     print("Connect to [" + m_JDBCURL + "]...")
-                setjdbcClobDefaultFetchSize(cls.SQLOptions.get("LOB_LENGTH"))
-                setjdbcBlobDefaultFetchSize(cls.SQLOptions.get("LOB_LENGTH"))
                 retryCount = 0
                 while True:
                     try:
@@ -1840,9 +1832,6 @@ class SQLCli(object):
         if self.MetaHandler is not None:
             self.MetaHandler.ShutdownServer()
             self.MetaHandler = None
-
-        # 关闭SQLJDBC的JVM句柄
-        jdbcdetach()
 
     def echo(self, s,
              Flags=OFLAG_LOGFILE | OFLAG_LOGGER | OFLAG_CONSOLE | OFLAG_SPOOL | OFLAG_ECHO,

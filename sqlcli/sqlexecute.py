@@ -5,6 +5,7 @@ import decimal
 import click
 import time
 import os
+import platform
 import re
 import traceback
 import json
@@ -17,6 +18,7 @@ from .commandanalyze import CommandNotFound
 from .sqlcliexception import SQLCliException
 from .sqlclijdbcapi import SQLCliJDBCException
 from .sqlclijdbcapi import SQLCliJDBCTimeOutException
+from .sqlclijdbcapi import SQLCliJDBCLargeObject
 from .sqlcliodbc import SQLCliODBCException
 
 
@@ -707,6 +709,90 @@ class SQLExecute(object):
         title = headers = None
         m_FetchStatus = True
 
+        def format_column(p_column, p_columntype):
+            if type(p_column) == float:
+                return self.SQLOptions.get("FLOAT_FORMAT") % p_column
+            elif type(p_column) in (bool, str, int):
+                return p_column
+            elif type(p_column) == datetime.date:
+                m_ColumnFormat = self.SQLOptions.get("DATE_FORMAT")
+                if platform.system().lower() == 'windows':
+                    m_ColumnFormat = m_ColumnFormat.replace("%04Y", "%Y")
+                else:
+                    m_ColumnFormat = m_ColumnFormat.replace("%Y", "%04Y")
+                return p_column.strftime(m_ColumnFormat)
+            elif type(p_column) == datetime.datetime:
+                if p_columntype in ["TIMESTAMP_WITH_TIMEZONE",
+                                    "TIMESTAMP WITH LOCAL TIME ZONE"]:
+                    m_ColumnFormat = self.SQLOptions.get("DATETIME-TZ_FORMAT")
+                else:
+                    m_ColumnFormat = self.SQLOptions.get("DATETIME_FORMAT")
+                if platform.system().lower() == 'windows':
+                    m_ColumnFormat = m_ColumnFormat.replace("%04Y", "%Y")
+                else:
+                    m_ColumnFormat = m_ColumnFormat.replace("%Y", "%04Y")
+                return p_column.strftime(m_ColumnFormat)
+            elif type(p_column) == datetime.time:
+                return p_column.strftime(self.SQLOptions.get("TIME_FORMAT"))
+            elif type(p_column) == bytearray:
+                if p_columntype == "BLOB":
+                    m_ColumnTrimLength = int(self.SQLOptions.get("LOB_LENGTH"))
+                    m_ColumnisCompleteOutput = True
+                    if len(p_column) > m_ColumnTrimLength:
+                        m_ColumnisCompleteOutput = False
+                        p_column = p_column[:m_ColumnTrimLength]
+                    # 转换为16进制，并反算成ASCII
+                    p_column = binascii.b2a_hex(p_column)
+                    p_column = p_column.decode()
+                    if not m_ColumnisCompleteOutput:
+                        # 用...的方式提醒输出没有结束，只是由于格式控制导致不显示
+                        return "0x" + p_column + "..."
+                    else:
+                        return "0x" + p_column
+                else:
+                    # 转换为16进制，并反算成ASCII
+                    p_column = binascii.b2a_hex(p_column)
+                    p_column = p_column.decode()
+                    return "0x" + p_column
+            elif type(p_column) == decimal.Decimal:
+                if self.SQLOptions.get("DECIMAL_FORMAT") != "":
+                    return self.SQLOptions.get("DECIMAL_FORMAT") % p_column
+                else:
+                    return p_column
+            elif type(p_column) == SQLCliJDBCLargeObject:
+                m_TrimLength = int(self.SQLOptions.get("LOB_LENGTH"))
+                if m_TrimLength < 4:
+                    m_TrimLength = 4
+                if m_TrimLength > p_column.getObjectLength():
+                    if p_column.getColumnTypeName().upper().find("CLOB") != -1:
+                        m_DataValue = p_column.getData(1, p_column.getObjectLength())
+                        return m_DataValue
+                    elif p_column.getColumnTypeName().upper().find("BLOB") != -1:
+                        m_DataValue = p_column.getData(1, p_column.getObjectLength())
+                        m_DataValue = binascii.b2a_hex(m_DataValue)
+                        m_DataValue = m_DataValue.decode()
+                        return "0x" + m_DataValue
+                else:
+                    if p_column.getColumnTypeName().upper().find("CLOB") != -1:
+                        m_DataValue = "Len:" + str(p_column.getObjectLength()) + ";" + \
+                                      "Content:[" + \
+                                      p_column.getData(1, m_TrimLength - 3) + "..." + \
+                                      p_column.getData(p_column.getObjectLength() - 2, 3) + \
+                                      "]"
+                        return m_DataValue
+                    elif p_column.getColumnTypeName().upper().find("BLOB") != -1:
+                        m_DataValue = "Len:" + str(p_column.getObjectLength()) + ";" + \
+                                      "Content:0x[" + \
+                                      binascii.b2a_hex(p_column.getData(1, m_TrimLength - 3)).decode() + "..." + \
+                                      binascii.b2a_hex(p_column.getData(p_column.getObjectLength() - 2, 3)).decode() + \
+                                      "]"
+                        return m_DataValue
+            else:
+                # 其他类型直接返回
+                raise SQLCliJDBCException("SQLCLI-00000: Unknown column type [" +
+                                          str(p_columntype) + ":" + str(type(p_column)) +
+                                          "] in format_column")
+
         # cursor.description is not None for queries that return result sets,
         # e.g. SELECT.
         result = []
@@ -729,64 +815,36 @@ class SQLExecute(object):
                     if column is None:
                         m_row.append(None)
                         continue
+
                     # 处理各种数据类型
-                    if columntypes[m_nColumnPos] == "FLOAT":
-                        m_row.append(self.SQLOptions.get("FLOAT_FORMAT") % column)
-                    elif columntypes[m_nColumnPos] in ("DECIMAL", "DOUBLE"):
-                        if self.SQLOptions.get("DECIMAL_FORMAT") != "":
-                            m_row.append(self.SQLOptions.get("DECIMAL_FORMAT") % column)
-                        else:
-                            m_row.append(column)
-                    elif columntypes[m_nColumnPos] == "STRUCT":
+                    if columntypes[m_nColumnPos] == "STRUCT":
                         m_ColumnValue = "STRUCTURE("
                         for m_nPos in range(0, len(column)):
                             m_ColumnType = str(type(column[m_nPos]))
                             if m_nPos == 0:
-                                if m_ColumnType.upper().find('STR') != -1:
+                                if type(column[m_nPos]) == str:
                                     m_ColumnValue = m_ColumnValue + "'" + str(column[m_nPos]) + "'"
-                                elif m_ColumnType.upper().find('SQLDATE') != -1:
-                                    m_ColumnValue = m_ColumnValue + "DATE'" + str(column[m_nPos]) + "'"
-                                elif m_ColumnType.upper().find("FLOAT") != -1:
+                                elif type(column[m_nPos]) == datetime.date:
+                                    m_ColumnValue = m_ColumnValue + "DATE '" + \
+                                                    format_column(column[m_nPos], m_ColumnType) + "'"
+                                elif type(column[m_nPos]) == datetime.datetime:
+                                    m_ColumnValue = m_ColumnValue + "TIMESTAMP '" + \
+                                                    format_column(column[m_nPos], m_ColumnType) + "'"
+                                else:
                                     m_ColumnValue = m_ColumnValue + \
-                                                    self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
-                                elif m_ColumnType.upper().find("DOUBLE") != -1:
-                                    m_CellValue = decimal.Decimal(column[m_nPos].toString())
-                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
-                                        m_ColumnValue = m_ColumnValue + \
-                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % m_CellValue)
-                                    else:
-                                        m_ColumnValue = m_ColumnValue + str(m_CellValue)
-                                elif m_ColumnType.upper().find("DECIMAL") != -1:
-                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
-                                        m_ColumnValue = m_ColumnValue + \
-                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos])
-                                    else:
-                                        m_ColumnValue = m_ColumnValue + str(column[m_nPos])
-                                else:
-                                    m_ColumnValue = m_ColumnValue + str(column[m_nPos])
+                                                    str(format_column(column[m_nPos], m_ColumnType))
                             else:
-                                if m_ColumnType.upper().find('STR') != -1:
+                                if type(column[m_nPos]) == str:
                                     m_ColumnValue = m_ColumnValue + ",'" + str(column[m_nPos]) + "'"
-                                elif m_ColumnType.upper().find('SQLDATE') != -1:
-                                    m_ColumnValue = m_ColumnValue + ",DATE'" + str(column[m_nPos]) + "'"
-                                elif m_ColumnType.upper().find("FLOAT") != -1:
-                                    m_ColumnValue = m_ColumnValue + "," + \
-                                                    self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
-                                elif m_ColumnType.upper().find("DOUBLE") != -1:
-                                    m_CellValue = decimal.Decimal(column[m_nPos].toString())
-                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
-                                        m_ColumnValue = m_ColumnValue + "," + \
-                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % m_CellValue)
-                                    else:
-                                        m_ColumnValue = m_ColumnValue + "," + str(m_CellValue)
-                                elif m_ColumnType.upper().find("DECIMAL") != -1:
-                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
-                                        m_ColumnValue = m_ColumnValue + "," + \
-                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos])
-                                    else:
-                                        m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
+                                elif type(column[m_nPos]) == datetime.date:
+                                    m_ColumnValue = m_ColumnValue + ",DATE '" + \
+                                                    format_column(column[m_nPos], m_ColumnType) + "'"
+                                elif type(column[m_nPos]) == datetime.datetime:
+                                    m_ColumnValue = m_ColumnValue + ",TIMESTAMP '" + \
+                                                    format_column(column[m_nPos], m_ColumnType) + "'"
                                 else:
-                                    m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
+                                    m_ColumnValue = m_ColumnValue + "," + \
+                                                    str(format_column(column[m_nPos], m_ColumnType))
                         m_ColumnValue = m_ColumnValue + ")"
                         m_row.append(m_ColumnValue)
                     elif columntypes[m_nColumnPos] == "ARRAY":
@@ -794,79 +852,33 @@ class SQLExecute(object):
                         for m_nPos in range(0, len(column)):
                             m_ColumnType = str(type(column[m_nPos]))
                             if m_nPos == 0:
-                                if m_ColumnType.upper().find('STR') != -1:
+                                if type(column[m_nPos]) == str:
                                     m_ColumnValue = m_ColumnValue + "'" + str(column[m_nPos]) + "'"
-                                elif m_ColumnType.upper().find('SQLDATE') != -1:
-                                    m_ColumnValue = m_ColumnValue + "DATE'" + str(column[m_nPos]) + "'"
-                                elif m_ColumnType.upper().find("FLOAT") != -1:
+                                elif type(column[m_nPos]) == datetime.date:
+                                    m_ColumnValue = m_ColumnValue + "DATE '" + \
+                                                    format_column(column[m_nPos], m_ColumnType) + "'"
+                                elif type(column[m_nPos]) == datetime.datetime:
+                                    m_ColumnValue = m_ColumnValue + "TIMESTAMP '" + \
+                                                    format_column(column[m_nPos], m_ColumnType) + "'"
+                                else:
                                     m_ColumnValue = m_ColumnValue + \
-                                                    self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
-                                elif m_ColumnType.upper().find("DOUBLE") != -1:
-                                    m_CellValue = decimal.Decimal(column[m_nPos].toString())
-                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
-                                        m_ColumnValue = m_ColumnValue + \
-                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % m_CellValue)
-                                    else:
-                                        m_ColumnValue = m_ColumnValue + str(m_CellValue)
-                                elif m_ColumnType.upper().find("DECIMAL") != -1:
-                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
-                                        m_ColumnValue = m_ColumnValue + \
-                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos])
-                                    else:
-                                        m_ColumnValue = m_ColumnValue + str(column[m_nPos])
-                                else:
-                                    m_ColumnValue = m_ColumnValue + str(column[m_nPos])
+                                                    str(format_column(column[m_nPos], m_ColumnType))
                             else:
-                                if m_ColumnType.upper().find('STR') != -1:
+                                if type(column[m_nPos]) == str:
                                     m_ColumnValue = m_ColumnValue + ",'" + str(column[m_nPos]) + "'"
-                                elif m_ColumnType.upper().find('SQLDATE') != -1:
-                                    m_ColumnValue = m_ColumnValue + ",DATE'" + str(column[m_nPos]) + "'"
-                                elif m_ColumnType.upper().find("FLOAT") != -1:
-                                    m_ColumnValue = m_ColumnValue + "," + \
-                                                    self.SQLOptions.get("FLOAT_FORMAT") % column[m_nPos]
-                                elif m_ColumnType.upper().find("DOUBLE") != -1:
-                                    m_CellValue = decimal.Decimal(column[m_nPos].toString())
-                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
-                                        m_ColumnValue = m_ColumnValue + "," + \
-                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % m_CellValue)
-                                    else:
-                                        m_ColumnValue = m_ColumnValue + "," + str(m_CellValue)
-                                elif m_ColumnType.upper().find("DECIMAL") != -1:
-                                    if self.SQLOptions.get("DECIMAL_FORMAT") != "":
-                                        m_ColumnValue = m_ColumnValue + "," + \
-                                                        str(self.SQLOptions.get("DECIMAL_FORMAT") % column[m_nPos])
-                                    else:
-                                        m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
+                                elif type(column[m_nPos]) == datetime.date:
+                                    m_ColumnValue = m_ColumnValue + ",DATE '" + \
+                                                    format_column(column[m_nPos], m_ColumnType) + "'"
+                                elif type(column[m_nPos]) == datetime.datetime:
+                                    m_ColumnValue = m_ColumnValue + ",TIMESTAMP '" + \
+                                                    format_column(column[m_nPos], m_ColumnType) + "'"
                                 else:
-                                    m_ColumnValue = m_ColumnValue + "," + str(column[m_nPos])
+                                    m_ColumnValue = m_ColumnValue + "," + \
+                                                    str(format_column(column[m_nPos], m_ColumnType))
                         m_ColumnValue = m_ColumnValue + "]"
                         m_row.append(m_ColumnValue)
-                    elif isinstance(column, datetime.date):
-                        m_row.append(column.strftime(self.SQLOptions.get("DATE_FORMAT")))
-                    elif isinstance(column, datetime.datetime):
-                        m_row.append(column.strftime(self.SQLOptions.get("DATETIME_FORMAT")))
-                    elif isinstance(column, datetime.time):
-                        m_row.append(column.strftime(self.SQLOptions.get("TIME_FORMAT")))
-                    elif columntype in ("BINARY", "VARBINARY", "LONGVARBINARY"):
-                        # 转换为16进制，并反算成ASCII
-                        column = binascii.b2a_hex(column)
-                        column = column.decode()
-                        m_row.append("0x" + column)
-                    elif columntype == "BLOB":
-                        m_TrimLength = int(self.SQLOptions.get("LOB_LENGTH"))
-                        m_isCompleteOutput = True
-                        if len(column) > m_TrimLength:
-                            m_isCompleteOutput = False
-                            column = column[:m_TrimLength]
-                        # 转换为16进制，并反算成ASCII
-                        column = binascii.b2a_hex(column)
-                        column = column.decode()
-                        if not m_isCompleteOutput:
-                            m_row.append("0x" + column + "...")
-                        else:
-                            m_row.append("0x" + column)
                     else:
-                        m_row.append(column)
+                        m_row.append(format_column(column, columntype))
                 m_row = tuple(m_row)
                 result.append(m_row)
             rowcount = rowcount + len(rowset)
