@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 import re
-import json
 import configparser
 from .sqlcliexception import SQLCliException
 
@@ -491,22 +490,33 @@ class TestWrapper(object):
                 else:
                     m_Result = "Compare Failed!"
 
-            # 用于Scenario分析
+            # 生成xlog文件，用于Scenario分析
             m_ScenarioName = "NONE-0"
             m_ScenarioStartPos = 0
             m_nPos = 0
-            m_ScenariosStatus = {}             # 记录成功或者失败，用来在命令行中的返回结果
-            m_ScenariosResults = {}            # 记录详细的失败消息，用于生成xlog文件
+            m_ScenariosResults = {}
             m_bSaveResult = False
             while True:
                 if m_nPos >= len(m_CompareResultList):
                     break
+
                 matchObj = re.search(r"--(\s+)?\[Hint](\s+)?setup:", m_CompareResultList[m_nPos],
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     if not m_bSaveResult:
                         if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = "Successful"
+                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
+                    m_ScenarioName = "setup"
+                    m_ScenarioStartPos = m_nPos
+                    m_nPos = m_nPos + 1
+                    continue
+
+                matchObj = re.search(r"--(\s+)?\[(\s+)?setup:]", m_CompareResultList[m_nPos],
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    if not m_bSaveResult:
+                        if not m_ScenarioName.startswith("NONE"):
+                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
                     m_ScenarioName = "setup"
                     m_ScenarioStartPos = m_nPos
                     m_nPos = m_nPos + 1
@@ -517,7 +527,18 @@ class TestWrapper(object):
                 if matchObj:
                     if not m_bSaveResult:
                         if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = "Successful"
+                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
+                    m_ScenarioName = "cleanup"
+                    m_ScenarioStartPos = m_nPos
+                    m_nPos = m_nPos + 1
+                    continue
+
+                matchObj = re.search(r"--(\s+)?\[(\s+)?cleanup:]", m_CompareResultList[m_nPos],
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    if not m_bSaveResult:
+                        if not m_ScenarioName.startswith("NONE"):
+                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
                     m_ScenarioName = "cleanup"
                     m_ScenarioStartPos = m_nPos
                     m_nPos = m_nPos + 1
@@ -528,7 +549,19 @@ class TestWrapper(object):
                 if matchObj:
                     if not m_bSaveResult:
                         if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = "Successful"
+                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
+                    m_ScenarioName = "NONE-" + str(m_nPos)
+                    m_bSaveResult = False
+                    m_ScenarioStartPos = 0
+                    m_nPos = m_nPos + 1
+                    continue
+
+                matchObj = re.search(r"--(\s+)?\[(\s+)?setup:end]", m_CompareResultList[m_nPos],
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    if not m_bSaveResult:
+                        if not m_ScenarioName.startswith("NONE"):
+                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
                     m_ScenarioName = "NONE-" + str(m_nPos)
                     m_bSaveResult = False
                     m_ScenarioStartPos = 0
@@ -540,7 +573,19 @@ class TestWrapper(object):
                 if matchObj:
                     if not m_bSaveResult:
                         if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = "Successful"
+                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
+                    m_ScenarioName = "NONE-" + str(m_nPos)
+                    m_bSaveResult = False
+                    m_ScenarioStartPos = 0
+                    m_nPos = m_nPos + 1
+                    continue
+
+                matchObj = re.search(r"--(\s+)?\[(\s+)?cleanup:end]", m_CompareResultList[m_nPos],
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    if not m_bSaveResult:
+                        if not m_ScenarioName.startswith("NONE"):
+                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
                     m_ScenarioName = "NONE-" + str(m_nPos)
                     m_bSaveResult = False
                     m_ScenarioStartPos = 0
@@ -552,7 +597,22 @@ class TestWrapper(object):
                 if matchObj:
                     if not m_bSaveResult:
                         if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = "Successful"
+                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
+                    m_ScenarioName = matchObj.group(3).strip()
+                    m_ScenarioStartPos = m_nPos
+                    if m_ScenarioName.upper() == "END":
+                        m_ScenarioName = "NONE-" + str(m_nPos)
+                        m_bSaveResult = False
+                        m_ScenarioStartPos = 0
+                    m_nPos = m_nPos + 1
+                    continue
+
+                matchObj = re.search(r"--(\s+)?\[(\s+)?Scenario:(.*)]", m_CompareResultList[m_nPos],
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    if not m_bSaveResult:
+                        if not m_ScenarioName.startswith("NONE"):
+                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
                     m_ScenarioName = matchObj.group(3).strip()
                     m_ScenarioStartPos = m_nPos
                     if m_ScenarioName.upper() == "END":
@@ -595,26 +655,27 @@ class TestWrapper(object):
                         m_nPos2 = m_nPos2 + 1
                     m_nPos = m_nPos + 1
                     m_bSaveResult = True
-                    m_ScenariosStatus[m_ScenarioName] = 'Failed'
-                    m_ScenariosResults[m_ScenarioName] = m_szErrorMessage
+                    m_ScenariosResults[m_ScenarioName] = {"Status": "FAILURE", "message": m_szErrorMessage}
                 else:
                     m_nPos = m_nPos + 1
             if not m_bSaveResult:
-                m_ScenariosResults[m_ScenarioName] = "Successful"
-                m_ScenariosStatus[m_ScenarioName] = 'Successful'
-            if self.c_CompareGenerateReport:
-                m_xlogResults = {"ScenarioResults": m_ScenariosResults}
-                with open(m_xlogFullFileName, 'w', encoding=self.c_CompareResultEncoding) as f:
-                    json.dump(m_xlogResults, f)
+                if not m_ScenarioName.startswith("NONE"):
+                    m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
 
+            # 是否在log中发现了Scenario，如果没有，则认为整个文件就是一个Scenario
+            if m_ScenarioName not in m_ScenariosResults:
+                m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
+
+            # 返沪i结果
             m_Headers = ["Scenario", "Result"]
             m_ReturnResult = []
-            for m_ScenarioName, m_ScenarioStatus in m_ScenariosStatus.items():
+            for m_ScenarioName, m_ScenarioStatus in m_ScenariosResults.items():
                 if self.c_CompareReportDetailMode:
                     if m_ScenarioStatus == "Failed":
                         m_Result = m_Result + "\n... >>>>>>> ...\n" + "Scenario:[" + m_ScenarioName + "]"
-                        m_Result = m_Result + "\n" + m_ScenariosResults[m_ScenarioName]
-                m_ReturnResult.append([m_ScenarioName, m_ScenarioStatus])
+                        m_Result = m_Result + "\n" + m_ScenarioStatus["Status"]
+                        m_Result = m_Result + "\n" + m_ScenarioStatus["message"]
+                m_ReturnResult.append([m_ScenarioName, m_ScenarioStatus["Status"]])
             return m_Title, m_ReturnResult, m_Headers, None, m_Result
         except DiffException as de:
             raise SQLCliException('Fatal Diff Exception:: ' + de.message)
