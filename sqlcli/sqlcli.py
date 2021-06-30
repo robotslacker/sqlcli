@@ -756,6 +756,8 @@ class SQLCli(object):
                 cls.db_host = m_serverparameter[0]
                 cls.db_port = m_serverparameter[1]
                 cls.db_service_name = m_serverparameter[2]
+            else:
+                raise SQLCliException("Missed host/[port]:service in connect command.")
 
         # 处理JDBC属性
         m_jdbcproplist = shlex.shlex(m_jdbcprop)

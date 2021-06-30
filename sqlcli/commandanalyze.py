@@ -94,8 +94,8 @@ def execute(cls, sql, p_nTimeout: int):
 
 
 @special_command("help", "Show this help.")
-def show_help(cls, arg):
-    if cls and arg:
+def show_help(cls, arg, Timeout: int):
+    if cls and arg and Timeout:
         pass
     headers = ["Command", "Description"]
     result = []
@@ -114,7 +114,7 @@ def show_help(cls, arg):
 
 
 @special_command("quit", "Quit.")
-def quit_sqlcli(cls, arg):
-    if cls and arg:
+def quit_sqlcli(cls, arg, Timeout: int):
+    if cls and arg and Timeout:
         pass
     raise EOFError
