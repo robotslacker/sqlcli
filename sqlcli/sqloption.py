@@ -149,7 +149,7 @@ class SQLOptions(object):
         """返回全部的运行参数列表"""
         return self.m_SQL_OptionList
 
-    def set(self, p_ParameterName, p_ParameterValue, p_ParameterDefaultValue=None):
+    def set(self, p_ParameterName, p_ParameterValue, p_ParameterDefaultValue=None, p_Hidden=False):
         """设置运行参数， 若p_ParameterValue为空，则加载默认参数"""
         for m_nPos in range(0, len(self.m_SQL_OptionList)):
             if self.m_SQL_OptionList[m_nPos]["Name"] == p_ParameterName:
@@ -189,6 +189,7 @@ class SQLOptions(object):
                     m_ParameterValue = p_ParameterDefaultValue
             self.m_SQL_OptionList.append({"Name": m_ParameterName,
                                           "Value": m_ParameterValue,
+                                          "Hidden": p_Hidden,
                                           "Comments": 'User session variable'})
             return True
 
