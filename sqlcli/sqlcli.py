@@ -1811,7 +1811,7 @@ class SQLCli(object):
             if self.SQLOptions.get("JOBMANAGER") == "ON":
                 # 如果还有活动的事务，标记事务为失败信息
                 for m_Transaction in self.TransactionHandler.getAllTransactions():
-                    self.TransactionHandler.TransactionFail(m_Transaction)
+                    self.TransactionHandler.TransactionFail(m_Transaction.Transaction_Name)
             # SQLCliException只有在被设置了WHENEVER_SQLERROR为EXIT的时候，才会被捕获到
 
         # 退出进程

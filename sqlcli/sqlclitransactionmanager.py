@@ -12,6 +12,9 @@ class Transaction(object):
         self.Transaction_EndTime = 0            # 事务结束时间
         self.Transaction_Status = 0             # 事务完成状态
 
+    def __str__(self):
+        return self.Transaction_Name
+
 
 class TransactionStatistics(object):
     def __init__(self):
@@ -104,7 +107,7 @@ class TransactionManager(object):
                 "FROM   SQLCLI_TRANSACTIONS "
         m_db_cursor = self.MetaConn.cursor()
         m_db_cursor.execute(m_SQL)
-        m_rs = m_db_cursor.fetchone()
+        m_rs = m_db_cursor.fetchmany()
         if m_rs is None:
             m_db_cursor.close()
             return []
@@ -153,7 +156,6 @@ class TransactionManager(object):
                     "       Transaction_Failed_Count = ? " \
                     "WHERE  Transaction_Name = '" + p_objTransaction.Transaction_Name + "'"
             m_Data = [
-                p_objTransaction.Transaction_Name,
                 m_TransactionStatistics.Max_Transaction_Time,
                 m_TransactionStatistics.Min_Transaction_Time,
                 m_TransactionStatistics.Sum_Transaction_Time,
@@ -173,7 +175,7 @@ class TransactionManager(object):
         if m_rs[0] == 0:
             m_SQL = "Insert Into SQLCLI_TRANSACTIONS(" \
                     "Transaction_Name,Transaction_StartTime,Transaction_EndTime,Transaction_Status) " \
-                    "VALUES (?,?,?,?,?)"
+                    "VALUES (?,?,?,?)"
             m_Data = [
                 p_objTransaction.Transaction_Name,
                 p_objTransaction.Transaction_StartTime,
@@ -190,15 +192,17 @@ class TransactionManager(object):
 
             m_Data = [
                 p_objTransaction.Transaction_StartTime,
+                p_objTransaction.Transaction_EndTime,
+                p_objTransaction.Transaction_Status
             ]
             m_db_cursor.execute(m_SQL, parameters=m_Data)
         m_db_cursor.close()
         self.MetaConn.commit()
 
     def TransactionBegin(self, p_TransactionName):
-        m_Transaction = self.getTransactionByName(p_TransactionName)
-        if m_Transaction is not None:
-            raise SQLCliException("SQLCLI-0000: " + "You can't start an existed transaction.")
+        # m_Transaction = self.getTransactionByName(p_TransactionName)
+        # if m_Transaction is not None:
+        #     raise SQLCliException("SQLCLI-0000: " + "You can't start an existed transaction.")
         m_Transaction = Transaction()
         m_Transaction.Transaction_Name = p_TransactionName
         m_Transaction.Transaction_StartTime = int(time.mktime(datetime.datetime.now().timetuple()))
@@ -251,6 +255,9 @@ class TransactionManager(object):
 
     # 处理Transaction的相关命令
     def Process_Command(self, p_szCommand: str):
+        if self.MetaConn is None:
+            raise SQLCliException("SQLCLI-00000:  JobManager not enabled. not support this command.")
+
         m_szSQL = p_szCommand.strip()
 
         # 创建新的Transaction
