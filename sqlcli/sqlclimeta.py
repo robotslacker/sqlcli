@@ -175,7 +175,8 @@ class SQLCliMeta(object):
                     "Min_Transaction_Time       Integer," \
                     "Sum_Transaction_Time       Integer," \
                     "Transaction_Count          Integer," \
-                    "Transaction_Failed_Count   Integer" \
+                    "Transaction_Failed_Count   Integer," \
+                    "Transaction_Items          ARRAY default ARRAY[]" \
                     ")"
             m_db_cursor.execute(m_SQL)
             m_db_cursor.close()

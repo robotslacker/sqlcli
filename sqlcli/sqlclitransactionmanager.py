@@ -2,6 +2,7 @@
 import re
 import time
 import datetime
+import numpy as np
 from .sqlcliexception import SQLCliException
 
 
@@ -24,6 +25,7 @@ class TransactionStatistics(object):
         self.Sum_Transaction_Time = 0           # 事务累计完成时间
         self.Transaction_Count = 0              # 事务累计完成次数
         self.Transaction_Failed_Count = 0       # 事务累计失败次数
+        self.Transaction_VAR = 0                # 事务累计方差
 
 
 # Transaction事务管理
@@ -42,7 +44,7 @@ class TransactionManager(object):
     def getTransactionStatisticsByName(self, p_szTransaction_Name: str):
         # 返回指定的Transaction统计信息，如果找不到，返回None
         m_SQL = "SELECT Max_Transaction_Time,Min_Transaction_Time,Sum_Transaction_Time," \
-                "       Transaction_Count,Transaction_Failed_Count " \
+                "       Transaction_Count,Transaction_Failed_Count,Transaction_Items " \
                 "FROM   SQLCLI_TRANSACTIONS_STATISTICS " \
                 "WHERE  Transaction_Name = '" + p_szTransaction_Name + "'"
         m_db_cursor = self.MetaConn.cursor()
@@ -59,6 +61,7 @@ class TransactionManager(object):
             m_TransactionStatistics.Sum_Transaction_Time = m_rs[2]
             m_TransactionStatistics.Transaction_Count = m_rs[3]
             m_TransactionStatistics.Transaction_Failed_Count = m_rs[4]
+            m_TransactionStatistics.Transaction_VAR = np.var(m_rs[5])
             m_db_cursor.close()
             return m_TransactionStatistics
 
@@ -69,7 +72,7 @@ class TransactionManager(object):
                 "ORDER  BY 1"
         m_db_cursor = self.MetaConn.cursor()
         m_db_cursor.execute(m_SQL)
-        m_rs = m_db_cursor.fetchone()
+        m_rs = m_db_cursor.fetchmany()
         if m_rs is None:
             m_db_cursor.close()
             return None
@@ -125,14 +128,15 @@ class TransactionManager(object):
             # 之前没有任何统计信息
             m_SQL = "INSERT INTO SQLCLI_TRANSACTIONS_STATISTICS(" \
                     "Transaction_Name, Max_Transaction_Time,Min_Transaction_Time,Sum_Transaction_Time," \
-                    "Transaction_Count,Transaction_Failed_Count) VALUES(?,?,?,?,?,?) "
+                    "Transaction_Count,Transaction_Failed_Count,Transaction_Items) VALUES(?,?,?,?,?,?,ARRAY[?]) "
             m_Data = [
                 p_objTransaction.Transaction_Name,
                 p_objTransaction.Transaction_EndTime - p_objTransaction.Transaction_StartTime,
                 p_objTransaction.Transaction_EndTime - p_objTransaction.Transaction_StartTime,
                 p_objTransaction.Transaction_EndTime - p_objTransaction.Transaction_StartTime,
                 1,
-                0 if p_objTransaction.Transaction_Status == 0 else 1
+                0 if p_objTransaction.Transaction_Status == 0 else 1,
+                p_objTransaction.Transaction_EndTime - p_objTransaction.Transaction_StartTime
             ]
             m_db_cursor = self.MetaConn.cursor()
             m_db_cursor.execute(m_SQL, parameters=m_Data)
@@ -153,14 +157,16 @@ class TransactionManager(object):
                     "       Min_Transaction_Time = ?, " \
                     "       Sum_Transaction_Time = ?, " \
                     "       Transaction_Count = ?, " \
-                    "       Transaction_Failed_Count = ? " \
+                    "       Transaction_Failed_Count = ?, " \
+                    "       Transaction_Items = Array_Append(Transaction_Items, ?) " \
                     "WHERE  Transaction_Name = '" + p_objTransaction.Transaction_Name + "'"
             m_Data = [
                 m_TransactionStatistics.Max_Transaction_Time,
                 m_TransactionStatistics.Min_Transaction_Time,
                 m_TransactionStatistics.Sum_Transaction_Time,
                 m_TransactionStatistics.Transaction_Count,
-                m_TransactionStatistics.Transaction_Failed_Count
+                m_TransactionStatistics.Transaction_Failed_Count,
+                m_TrsansactionElapsedTime
             ]
             m_db_cursor = self.MetaConn.cursor()
             m_db_cursor.execute(m_SQL, parameters=m_Data)
@@ -230,18 +236,22 @@ class TransactionManager(object):
         self.SQLExecuteHandler.SQLTransaction = ''
 
     def TransactionShow(self, p_TransactionName):
-        m_Header = ["name", "max_time", "min_time", "avg_time", "finished", "failed"]
+        m_Header = ["Name", "Max_Time", "Min_Time", "Avg_Time", "Finished", "Failed", "VAR"]
+        m_ColumnTypes = ['VARCHAR', 'INTEGER', 'INTEGER', 'DECIMAL', 'INTEGER', 'INTEGER', 'DECIMAL']
         m_Result = []
 
         if p_TransactionName.strip().upper() == "ALL":
-            for m_TransactionSatstics in self.getAllTransactionStatistics():
-                m_Result.append([m_TransactionSatstics.Transaction_Name,
-                                 m_TransactionSatstics.Max_Transaction_Time,
-                                 m_TransactionSatstics.Min_Transaction_Time,
-                                 m_TransactionSatstics.Sum_Transaction_Time/m_TransactionSatstics.Transaction_Count,
-                                 m_TransactionSatstics.Transaction_Count,
-                                 m_TransactionSatstics.Transaction_Failed_Count
-                                 ])
+            m_TransactionSatsticsList = self.getAllTransactionStatistics()
+            if m_TransactionSatsticsList is not None:
+                for m_TransactionSatstics in m_TransactionSatsticsList:
+                    m_Result.append([m_TransactionSatstics.Transaction_Name,
+                                     m_TransactionSatstics.Max_Transaction_Time,
+                                     m_TransactionSatstics.Min_Transaction_Time,
+                                     m_TransactionSatstics.Sum_Transaction_Time/m_TransactionSatstics.Transaction_Count,
+                                     m_TransactionSatstics.Transaction_Count,
+                                     m_TransactionSatstics.Transaction_Failed_Count,
+                                     m_TransactionSatstics.Transaction_VAR
+                                     ])
         else:
             m_TransactionSatstics = self.getTransactionStatisticsByName(p_TransactionName)
             m_Result.append([p_TransactionName,
@@ -249,9 +259,10 @@ class TransactionManager(object):
                              m_TransactionSatstics.Min_Transaction_Time,
                              m_TransactionSatstics.Sum_Transaction_Time / m_TransactionSatstics.Transaction_Count,
                              m_TransactionSatstics.Transaction_Count,
-                             m_TransactionSatstics.Transaction_Failed_Count
+                             m_TransactionSatstics.Transaction_Failed_Count,
+                             m_TransactionSatstics.Transaction_VAR
                              ])
-        return None, m_Result, m_Header, None, "Total [" + str(len(m_Result)) + "] Transactions."
+        return None, m_Result, m_Header, m_ColumnTypes, "Total [" + str(len(m_Result)) + "] Transactions."
 
     # 处理Transaction的相关命令
     def Process_Command(self, p_szCommand: str):
