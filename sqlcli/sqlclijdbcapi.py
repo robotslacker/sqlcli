@@ -694,9 +694,8 @@ class Cursor(object):
                 rows.append(row)
         return rows
 
-    # optional nextset() unsupported
-
-    arraysize = 1
+    # 默认的fetchmany返回记录数，100
+    arraysize = 100
 
     def setinputsizes(self, sizes):
         pass

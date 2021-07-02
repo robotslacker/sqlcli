@@ -72,7 +72,7 @@ class TransactionManager(object):
                 "ORDER  BY 1"
         m_db_cursor = self.MetaConn.cursor()
         m_db_cursor.execute(m_SQL)
-        m_rs = m_db_cursor.fetchmany()
+        m_rs = m_db_cursor.fetchall()
         if m_rs is None:
             m_db_cursor.close()
             return None
@@ -82,6 +82,7 @@ class TransactionManager(object):
                 m_TransactionStatistics = self.getTransactionStatisticsByName(m_row[0])
                 m_TransactionStatisticsList.append(m_TransactionStatistics)
             m_db_cursor.close()
+            print("m_TransactionStatisticsList = " + str(m_TransactionStatisticsList))
             return m_TransactionStatisticsList
 
     def getTransactionByName(self, p_szTransaction_Name: str):
@@ -110,7 +111,7 @@ class TransactionManager(object):
                 "FROM   SQLCLI_TRANSACTIONS "
         m_db_cursor = self.MetaConn.cursor()
         m_db_cursor.execute(m_SQL)
-        m_rs = m_db_cursor.fetchmany()
+        m_rs = m_db_cursor.fetchall()
         if m_rs is None:
             m_db_cursor.close()
             return []
