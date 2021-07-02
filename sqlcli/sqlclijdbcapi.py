@@ -528,7 +528,7 @@ class Cursor(object):
                     m_JavaObject = m_JavaArray(parameters[i])
                 prep_stmt.setObject(i + 1, m_JavaObject)
             else:
-                prep_stmt.setObject(i + 1, parameters[i])
+                prep_stmt.setObject(i + 1, _pyobj_to_javaobj(parameters[i]))
 
     def execute_direct(self, operation, TimeOutLimit=-1):
         if self._connection.isClosed():
@@ -852,6 +852,13 @@ def _to_binary(conn, rs, col, p_objColumnSQLType=None):
                 return True
     else:
         raise SQLCliJDBCException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _to_binary")
+
+
+def _pyobj_to_javaobj(p_pyobj):
+    if type(p_pyobj) == datetime.datetime:
+        m_javaobj = jpype.JClass("java.sql.Timestamp")(round(time.mktime(p_pyobj.timetuple())))
+        return m_javaobj
+    return p_pyobj
 
 
 def _javaobj_to_pyobj(p_javaobj, p_objColumnSQLType=None):

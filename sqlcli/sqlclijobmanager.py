@@ -934,7 +934,11 @@ class JOBManager(object):
             m_db_cursor.close()
             self.MetaConn.commit()
         except Exception as ex:
-            print("Internal error:: perf file write not complete. " + repr(ex))
+            print("Internal error:: Save Job write not complete. ")
+            import traceback
+            if "SQLCLI_DEBUG" in os.environ:
+                print('traceback.print_exc():\n%s' % traceback.print_exc())
+                print('traceback.format_exc():\n%s' % traceback.format_exc())
         finally:
             self.MetaLockHandler.release()
 
