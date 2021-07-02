@@ -82,7 +82,6 @@ class TransactionManager(object):
                 m_TransactionStatistics = self.getTransactionStatisticsByName(m_row[0])
                 m_TransactionStatisticsList.append(m_TransactionStatistics)
             m_db_cursor.close()
-            print("m_TransactionStatisticsList = " + str(m_TransactionStatisticsList))
             return m_TransactionStatisticsList
 
     def getTransactionByName(self, p_szTransaction_Name: str):
@@ -248,20 +247,24 @@ class TransactionManager(object):
                     m_Result.append([m_TransactionSatstics.Transaction_Name,
                                      m_TransactionSatstics.Max_Transaction_Time,
                                      m_TransactionSatstics.Min_Transaction_Time,
-                                     m_TransactionSatstics.Sum_Transaction_Time/m_TransactionSatstics.Transaction_Count,
+                                     round(
+                                         m_TransactionSatstics.Sum_Transaction_Time /
+                                         m_TransactionSatstics.Transaction_Count, 2),
                                      m_TransactionSatstics.Transaction_Count,
                                      m_TransactionSatstics.Transaction_Failed_Count,
-                                     m_TransactionSatstics.Transaction_VAR
+                                     round(m_TransactionSatstics.Transaction_VAR, 2)
                                      ])
         else:
             m_TransactionSatstics = self.getTransactionStatisticsByName(p_TransactionName)
             m_Result.append([p_TransactionName,
                              m_TransactionSatstics.Max_Transaction_Time,
                              m_TransactionSatstics.Min_Transaction_Time,
-                             m_TransactionSatstics.Sum_Transaction_Time / m_TransactionSatstics.Transaction_Count,
+                             round(
+                                 m_TransactionSatstics.Sum_Transaction_Time / m_TransactionSatstics.Transaction_Count,
+                                 2),
                              m_TransactionSatstics.Transaction_Count,
                              m_TransactionSatstics.Transaction_Failed_Count,
-                             m_TransactionSatstics.Transaction_VAR
+                             round(m_TransactionSatstics.Transaction_VAR, 2)
                              ])
         return None, m_Result, m_Header, m_ColumnTypes, "Total [" + str(len(m_Result)) + "] Transactions."
 
