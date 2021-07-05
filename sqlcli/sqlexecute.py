@@ -229,7 +229,8 @@ class SQLExecute(object):
 
             # ${random(1,100)}
             # 处理脚本中的随机数问题
-            matchObj = re.search(r"\${random_int\((\s+)?(\d+)(\s+)?,(\s+)?(\d+)(\s+)?\)}", sql, re.IGNORECASE | re.DOTALL)
+            matchObj = re.search(r"\${random_int\((\s+)?(\d+)(\s+)?,(\s+)?(\d+)(\s+)?\)}",
+                                 sql, re.IGNORECASE | re.DOTALL)
             if matchObj:
                 m_Searched = matchObj.group(0)
                 m_random_start = int(matchObj.group(2))
@@ -385,7 +386,7 @@ class SQLExecute(object):
                                                  ") expired. Abort this Script."
                             yield {"type": "error", "message": m_SQL_ErrorMessage}
                         raise EOFError
-                m_SQL_ErrorMessage = "SQLCLI-0000: SQL Timeout (" + str(time.time() - self.getStartTime()) + \
+                m_SQL_ErrorMessage = "SQLCLI-0000: SQL Timeout (" + str(round(time.time() - start, 2)) + \
                                      ") expired. Abort this command."
                 yield {"type": "error", "message": m_SQL_ErrorMessage}
             except CommandNotFound:
@@ -597,7 +598,7 @@ class SQLExecute(object):
                                     yield {"type": "error", "message": m_SQL_ErrorMessage}
                                 raise EOFError
                         m_SQL_ErrorMessage = "SQLCLI-0000: SQL Timeout (" + \
-                                             str(round(time.time() - self.getStartTime(), 2)) + \
+                                             str(round(time.time() - start, 2)) + \
                                              ") expired. Abort this command."
                         yield {"type": "error", "message": m_SQL_ErrorMessage}
                     except SQLCliODBCException as oe:
