@@ -282,13 +282,13 @@ class SQLExecute(object):
             except ValueError:
                 m_SQLTimeOut = -1
                 if "SQLCLI_DEBUG" in os.environ:
-                    yield {"type": "error", "message": "QLCLI-0000: Not a valid SQLTimeOut Setting, Ignore this."}
+                    yield {"type": "error", "message": "SQLCLI-0000: Not a valid SQLTimeOut Setting, Ignore this."}
             try:
                 m_ScriptTimeOut = int(self.SQLOptions.get("SCRIPT_TIMEOUT"))
             except ValueError:
                 m_ScriptTimeOut = -1
                 if "SQLCLI_DEBUG" in os.environ:
-                    yield {"type": "error", "message": "QLCLI-0000: Not a valid ScriptTimeOut Setting, Ignore this."}
+                    yield {"type": "error", "message": "SQLCLI-0000: Not a valid ScriptTimeOut Setting, Ignore this."}
 
             # 执行SQL
             try:
