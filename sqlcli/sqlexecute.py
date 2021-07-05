@@ -5,8 +5,9 @@ import decimal
 import click
 import time
 import os
-import platform
 import re
+import platform
+import random
 import traceback
 import json
 import binascii
@@ -226,6 +227,15 @@ class SQLExecute(object):
                     # 记录被JQ表达式改写的SQL
                     m_RewrotedSQL.append(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
 
+            # ${random(1,100)}
+            # 处理脚本中的随机数问题
+            matchObj = re.search(r"\${random_int\((\s+)?(\d+)(\s+)?,(\s+)?(\d+)(\s+)?\)}", sql, re.IGNORECASE | re.DOTALL)
+            if matchObj:
+                m_Searched = matchObj.group(0)
+                m_random_start = int(matchObj.group(2))
+                m_random_end = int(matchObj.group(5))
+                sql = sql.replace(m_Searched, str(random.randint(m_random_start, m_random_end)))
+
             # ${var}
             bMatched = False
             while True:
@@ -267,8 +277,18 @@ class SQLExecute(object):
 
             # 记录命令开始时间
             start = time.time()
-            m_SQLTimeOut = int(self.SQLOptions.get("SQL_TIMEOUT"))
-            m_ScriptTimeOut = int(self.SQLOptions.get("SCRIPT_TIMEOUT"))
+            try:
+                m_SQLTimeOut = int(self.SQLOptions.get("SQL_TIMEOUT"))
+            except ValueError:
+                m_SQLTimeOut = -1
+                if "SQLCLI_DEBUG" in os.environ:
+                    yield {"type": "error", "message": "QLCLI-0000: Not a valid SQLTimeOut Setting, Ignore this."}
+            try:
+                m_ScriptTimeOut = int(self.SQLOptions.get("SCRIPT_TIMEOUT"))
+            except ValueError:
+                m_ScriptTimeOut = -1
+                if "SQLCLI_DEBUG" in os.environ:
+                    yield {"type": "error", "message": "QLCLI-0000: Not a valid ScriptTimeOut Setting, Ignore this."}
 
             # 执行SQL
             try:
