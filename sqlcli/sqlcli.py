@@ -1788,6 +1788,13 @@ class SQLCli(object):
         m_Cli_ProcessTitleBak = setproctitle.getproctitle()
         setproctitle.setproctitle('SQLCli MAIN ' + " Script:" + str(self.sqlscript))
 
+        # 由于外界的classpath可能后来的JPYPE加载，所以不再看classpath
+        for s in os.environ:
+            if s.lower() == 'classpath':
+                if "SQLCLI_DEBUG" in os.environ:
+                    print("Ignore user classpath setting.")
+                os.environ.pop(s)
+
         # 开始依次处理SQL语句
         try:
             # 如果用户指定了用户名，口令，尝试直接进行数据库连接
