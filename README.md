@@ -14,7 +14,7 @@ SQLCli 是一个主要用Python完成的，命令快速的测试工具。
 
 SQLCli 目前可以支持的数据库有：  
    * Oracle,MySQL,PostgreSQL,SQLServer,TeraData, Hive, H2等主流通用数据库  
-   * 达梦，神通， 金仓， 南大通用，LinkoopDB等众多国产数据库  
+   * 达梦，神通， 金仓， 南大通用，LinkoopDB, 快立方等众多国产数据库  
    * ClickHouse数据库      
    * 其他符合标准JDBC规范的数据库  
    
