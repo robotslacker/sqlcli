@@ -743,7 +743,7 @@ class SQLExecute(object):
                     m_ColumnFormat = m_ColumnFormat.replace("%Y", "%04Y")
                 return p_column.strftime(m_ColumnFormat)
             elif type(p_column) == datetime.datetime:
-                if p_columntype in ["TIMESTAMP_WITH_TIMEZONE",
+                if p_columntype in ["TIMESTAMP WITH TIME ZONE",
                                     "TIMESTAMP WITH LOCAL TIME ZONE"]:
                     m_ColumnFormat = self.SQLOptions.get("DATETIME-TZ_FORMAT")
                 else:
@@ -752,6 +752,7 @@ class SQLExecute(object):
                     m_ColumnFormat = m_ColumnFormat.replace("%04Y", "%Y")
                 else:
                     m_ColumnFormat = m_ColumnFormat.replace("%Y", "%04Y")
+                p_column.strftime(m_ColumnFormat)
                 return p_column.strftime(m_ColumnFormat)
             elif type(p_column) == datetime.time:
                 return p_column.strftime(self.SQLOptions.get("TIME_FORMAT"))

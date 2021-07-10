@@ -1329,6 +1329,24 @@ class SQLCli(object):
                     raise SQLCliException("SQLCLI-00000: "
                                           "Unknown option [" + str(options_parameters[1]) + "] for debug. ON/OFF only.")
 
+            # 处理AUTOCOMMIT选项
+            if options_parameters[0].upper() == "AUTOCOMMIT":
+                if options_parameters[1].upper() == 'FALSE':
+                    cls.db_conn.setAutoCommit(False)
+                elif options_parameters[1].upper() == 'TRUE':
+                    cls.db_conn.setAutoCommit(True)
+                else:
+                    raise SQLCliException("SQLCLI-00000: "
+                                          "Unknown option [" + str(options_parameters[1]) + "] for AUTOCOMMIT. "
+                                                                                            "True/False only.")
+                return [{
+                    "title": None,
+                    "rows": None,
+                    "headers": None,
+                    "columntypes": None,
+                    "status": None
+                }, ]
+
             # 处理JOBMANAGER选项
             if options_parameters[0].upper() == "JOBMANAGER":
                 if options_parameters[1].upper() == 'ON' and cls.SQLOptions.get("JOBMANAGER").upper() == "OFF":

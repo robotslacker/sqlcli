@@ -102,11 +102,11 @@ def limit(method, timeout):
     """ 这里不使用func_timeout， 是因为funct_timeout的函数内部如果启动新的线程，会导致Python进程最后无法退出的问题"""
     def f(*args):
         @jpype.JImplements(jpype.java.util.concurrent.Callable)
-        class g:
+        class ClsJLimit:
             @jpype.JOverride
             def call(self):
                 return method(*args)
-        future = jpype.java.util.concurrent.FutureTask(g())
+        future = jpype.java.util.concurrent.FutureTask(ClsJLimit())
         jpype.java.lang.Thread(future).start()
         try:
             timeunit = jpype.java.util.concurrent.TimeUnit.SECONDS
@@ -980,11 +980,15 @@ def _java_to_py_timestampwithtimezone(conn, rs, col, p_objColumnSQLType=None):
     elif m_TypeName in ('oracle.sql.TIMESTAMPTZ', 'oracle.sql.TIMESTAMPLTZ'):
         java_val = java_val.offsetDateTimeValue(conn)
         ld = java_val.toLocalDateTime()
-        d = datetime.datetime.strptime(str(ld.getYear()).zfill(4) + "-" + str(ld.getMonthValue()).zfill(2) + "-" +
-                                       str(ld.getDayOfMonth()).zfill(2) + " " + str(ld.getHour()).zfill(2) + ":" +
-                                       str(ld.getMinute()).zfill(2) + ":" + str(ld.getSecond()).zfill(2) + " " +
-                                       str(ld.getNano() // 1000) + " " + java_val.getOffset().getId(),
-                                       "%Y-%m-%d %H:%M:%S %f %z")
+        try:
+            d = datetime.datetime.strptime(str(ld.getYear()).zfill(4) + "-" + str(ld.getMonthValue()).zfill(2) + "-" +
+                                           str(ld.getDayOfMonth()).zfill(2) + " " + str(ld.getHour()).zfill(2) + ":" +
+                                           str(ld.getMinute()).zfill(2) + ":" + str(ld.getSecond()).zfill(2) + " " +
+                                           str(ld.getNano() // 1000) + " " + java_val.getOffset().getId(),
+                                           "%Y-%m-%d %H:%M:%S %f %z")
+        except ValueError:
+            d = str(java_val.format(
+                jpype.java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS Z")))
         return d
     elif m_TypeName in 'org.h2.api.TimestampWithTimeZone':
         java_val = rs.getObject(col, jpype.JClass("java.time.OffsetDateTime"))
