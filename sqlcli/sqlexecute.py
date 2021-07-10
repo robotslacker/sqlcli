@@ -808,6 +808,8 @@ class SQLExecute(object):
                                       binascii.b2a_hex(p_column.getData(p_column.getObjectLength() - 2, 3)).decode() + \
                                       "]"
                         return m_DataValue
+            elif isinstance(p_column, type(None)):
+                return p_column
             else:
                 # 其他类型直接返回
                 raise SQLCliJDBCException("SQLCLI-00000: Unknown column type [" +

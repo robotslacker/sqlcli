@@ -650,6 +650,8 @@ class Cursor(object):
                 converter = _DEFAULT_CONVERTERS["YEAR"]
             elif m_ColumnTypeName in ['timestamptz']:       # PG数据类型
                 converter = _DEFAULT_CONVERTERS["TIMESTAMP_WITH_TIMEZONE"]
+            elif m_ColumnClassName in ['java.sql.SQLXML']:       # PG数据类型
+                converter = _DEFAULT_CONVERTERS["VARCHAR"]
             else:
                 if sqltype in self._converters.keys():
                     converter = self._converters.get(sqltype)
@@ -862,6 +864,8 @@ def _pyobj_to_javaobj(p_pyobj):
 
 
 def _javaobj_to_pyobj(p_javaobj, p_objColumnSQLType=None):
+    if p_javaobj is None:
+        return None
     if type(p_javaobj) == str:
         return p_javaobj
     m_TypeName = str(p_javaobj.getClass().getTypeName())
@@ -934,6 +938,10 @@ def _javaobj_to_pyobj(p_javaobj, p_objColumnSQLType=None):
         m_LargeObject.setObjectLength(m_Length)
         m_LargeObject.setObject(p_javaobj)
         return m_LargeObject
+    elif m_TypeName.upper() in ['ORACLE.SQL.ROWID']:
+        return p_javaobj.toString()
+    elif m_TypeName.upper() in ['ORACLE.XDB.XMLTYPE']:
+        return p_javaobj.getString()
     else:
         raise SQLCliJDBCException("SQLCLI-00000: Unknown java class type [" + m_TypeName + "] in _javaobj_to_pyobj")
 
@@ -1095,4 +1103,5 @@ _DEFAULT_CONVERTERS = {
     'YEAR':                             _to_year,
     'BINARY':                           _to_binary,
     'BFILE':                            _to_bfile,
+    'ROWID':                            _java_to_py
 }
