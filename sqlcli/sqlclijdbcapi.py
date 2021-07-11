@@ -650,7 +650,7 @@ class Cursor(object):
                 converter = _DEFAULT_CONVERTERS["YEAR"]
             elif m_ColumnTypeName in ['timestamptz']:       # PG数据类型
                 converter = _DEFAULT_CONVERTERS["TIMESTAMP_WITH_TIMEZONE"]
-            elif m_ColumnClassName in ['java.sql.SQLXML']:       # PG数据类型
+            elif m_ColumnClassName in ['java.sql.SQLXML']:       # SQLXML
                 converter = _DEFAULT_CONVERTERS["VARCHAR"]
             else:
                 if sqltype in self._converters.keys():
