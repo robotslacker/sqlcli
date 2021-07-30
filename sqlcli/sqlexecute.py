@@ -424,15 +424,25 @@ class SQLExecute(object):
                                         (m_ScriptTimeOut - (time.time() - self.getStartTime()) < m_SQLTimeOut):
                                     # 脚本时间已经不够，剩下的SQL时间变少
                                     m_SQLTimeOut = m_ScriptTimeOut - (time.time() - self.getStartTime())
-                        if "SQL_DIRECT" in m_SQLHint.keys():
-                            self.cur.execute_direct(sql, TimeOutLimit=m_SQLTimeOut)
-                        elif "SQL_PREPARE" in m_SQLHint.keys():
-                            self.cur.execute(sql, TimeOutLimit=m_SQLTimeOut)
-                        else:
-                            if self.SQLOptions.get("SQL_EXECUTE").upper() == "DIRECT":
+
+                        try:
+                            # 执行数据库的SQL语句
+                            if "SQL_DIRECT" in m_SQLHint.keys():
                                 self.cur.execute_direct(sql, TimeOutLimit=m_SQLTimeOut)
-                            else:
+                            elif "SQL_PREPARE" in m_SQLHint.keys():
                                 self.cur.execute(sql, TimeOutLimit=m_SQLTimeOut)
+                            else:
+                                if self.SQLOptions.get("SQL_EXECUTE").upper() == "DIRECT":
+                                    self.cur.execute_direct(sql, TimeOutLimit=m_SQLTimeOut)
+                                else:
+                                    self.cur.execute(sql, TimeOutLimit=m_SQLTimeOut)
+                        except Exception as e:
+                            if "SQL_LOOP" in m_SQLHint.keys():
+                                # 如果在循环中, 错误不会处理， 一直到循环结束
+                                pass
+                            else:
+                                raise e
+
                         rowcount = 0
                         m_SQL_Status = 0
                         while True:
@@ -610,7 +620,8 @@ class SQLExecute(object):
 
                         self.LastJsonSQLResult = {"elapsed": time.time() - start,
                                                   "message": m_SQL_ErrorMessage,
-                                                  "status": -1}
+                                                  "status": -1,
+                                                  "rows": 0}
 
                         # 发生了ODBC的SQL语法错误
                         if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
@@ -671,7 +682,8 @@ class SQLExecute(object):
 
                         self.LastJsonSQLResult = {"elapsed": time.time() - start,
                                                   "message": m_SQL_ErrorMessage,
-                                                  "status": -1}
+                                                  "status": -1,
+                                                  "rows": 0}
 
                         # 发生了JDBC的SQL语法错误
                         if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
