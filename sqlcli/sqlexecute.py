@@ -70,7 +70,7 @@ class SQLExecute(object):
             pass
         if obj is None:
             if "SQLCLI_DEBUG" in os.environ:
-                click.secho("JQ Parse Error: obj is None")
+                click.secho("[DEBUG] JQ Parse Error: obj is None")
             return "****"
         try:
             obj = json.loads(obj) if isinstance(obj, str) else obj
@@ -80,7 +80,7 @@ class SQLExecute(object):
                     continue
                 if obj is None:
                     if "SQLCLI_DEBUG" in os.environ:
-                        click.secho("JQ Parse Error: obj is none")
+                        click.secho("[DEBUG] JQ Parse Error: obj is none")
                     return "****"
                 if isinstance(obj, (list, tuple, str)):
                     if im.startswith('[') and im.endswith(']'):
@@ -293,6 +293,9 @@ class SQLExecute(object):
 
             # 执行SQL
             try:
+                if "SQLCLI_DEBUG" in os.environ:
+                    print("[DEBUG] SQL=[" + str(sql) + "]")
+
                 # 处理超时时间问题
                 if m_ScriptTimeOut > 0:
                     if m_ScriptTimeOut <= time.time() - self.getStartTime():
@@ -306,6 +309,7 @@ class SQLExecute(object):
                         if m_SQLTimeOut <= 0 or (m_ScriptTimeOut - (time.time() - self.getStartTime()) < m_SQLTimeOut):
                             # 脚本时间已经不够，剩下的SQL时间变少
                             m_SQLTimeOut = m_ScriptTimeOut - (time.time() - self.getStartTime())
+
                 # 首先尝试这是一个特殊命令，如果返回CommandNotFound，则认为其是一个标准SQL
                 for m_Result in execute(self.SQLCliHandler,  sql, p_nTimeout=m_SQLTimeOut):
                     # 保存之前的运行结果
@@ -408,8 +412,6 @@ class SQLExecute(object):
                 # 执行正常的SQL语句
                 if self.cur is not None:
                     try:
-                        if "SQLCLI_DEBUG" in os.environ:
-                            print("DEBUG-SQL=[" + str(sql) + "]")
                         # 处理超时时间问题
                         if m_ScriptTimeOut > 0:
                             if m_ScriptTimeOut <= time.time() - self.getStartTime():
@@ -451,11 +453,11 @@ class SQLExecute(object):
                                 self.get_result(self.cur, rowcount)
                             rowcount = m_FetchedRows
                             if "SQLCLI_DEBUG" in os.environ:
-                                print("!!DEBUG!!  headers=" + str(headers))
+                                print("[DEBUG] headers=" + str(headers))
                                 if result is not None:
                                     for m_RowPos in range(0, len(result)):
                                         for m_CellPos in range(0, len(result[m_RowPos])):
-                                            print("Cell[" + str(m_RowPos) + ":" +
+                                            print("[DEBUG] Cell[" + str(m_RowPos) + ":" +
                                                   str(m_CellPos) + "]=[" + str(result[m_RowPos][m_CellPos]) + "]")
 
                             # 如果Hints中有order字样，对结果进行排序后再输出
@@ -470,7 +472,7 @@ class SQLExecute(object):
                                 for m_SQLFilter in m_SQLHint["LogFilter"]:
                                     for item in result[:]:
                                         if "SQLCLI_DEBUG" in os.environ:
-                                            print("Apply Filter: " + str(''.join(str(item))) + " with " + m_SQLFilter)
+                                            print("[DEBUG] Apply Filter: " + str(''.join(str(item))) + " with " + m_SQLFilter)
                                         if re.match(m_SQLFilter, ''.join(str(item)), re.IGNORECASE):
                                             result.remove(item)
                                             continue
@@ -490,7 +492,7 @@ class SQLExecute(object):
                                             m_SQLMaskPattern = m_SQLMask[0]
                                             m_SQLMaskTarget = m_SQLMask[1]
                                             if "SQLCLI_DEBUG" in os.environ:
-                                                print("Apply Mask: " + m_Output +
+                                                print("[DEBUG] Apply Mask: " + m_Output +
                                                       " with " + m_SQLMaskPattern + "=>" + m_SQLMaskTarget)
                                             try:
                                                 m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget, m_Output,
@@ -500,11 +502,11 @@ class SQLExecute(object):
                                                     m_Output = m_NewOutput
                                             except re.error:
                                                 if "SQLCLI_DEBUG" in os.environ:
-                                                    print('traceback.print_exc():\n%s' % traceback.print_exc())
-                                                    print('traceback.format_exc():\n%s' % traceback.format_exc())
+                                                    print('[DEBUG] traceback.print_exc():\n%s' % traceback.print_exc())
+                                                    print('[DEBUG] traceback.format_exc():\n%s' % traceback.format_exc())
                                         else:
                                             if "SQLCLI_DEBUG" in os.environ:
-                                                print("LogMask Hint Error: " + m_SQLHint["LogMask"])
+                                                print("[DEBUG] LogMask Hint Error: " + m_SQLHint["LogMask"])
 
                             # 保存之前的运行结果
                             if result is None:
@@ -521,7 +523,7 @@ class SQLExecute(object):
                             # 如果存在SQL_LOOP信息，则需要反复执行上一个SQL
                             if "SQL_LOOP" in m_SQLHint.keys():
                                 if "SQLCLI_DEBUG" in os.environ:
-                                    print("SQL_LOOP=" + str(m_SQLHint["SQL_LOOP"]))
+                                    print("[DEBUG] LOOP=" + str(m_SQLHint["SQL_LOOP"]))
                                 # 循环执行SQL列表，构造参数列表
                                 m_LoopTimes = int(m_SQLHint["SQL_LOOP"]["LoopTimes"])
                                 m_LoopInterval = int(m_SQLHint["SQL_LOOP"]["LoopInterval"])
@@ -557,6 +559,8 @@ class SQLExecute(object):
                                     else:
                                         # 测试失败, 等待一段时间后，开始下一次检查
                                         time.sleep(m_LoopInterval)
+                                        if "SQLCLI_DEBUG" in os.environ:
+                                            print("[DEBUG] SQL(LOOP " + str(m_nLoopPos) + ")=[" + str(sql) + "]")
                                         for m_Result in self.run(sql):
                                             # 最后一次执行的结果将被传递到外层，作为SQL返回结果
                                             if m_Result["type"] == "result":

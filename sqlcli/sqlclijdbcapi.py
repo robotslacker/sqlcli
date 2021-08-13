@@ -661,7 +661,7 @@ class Cursor(object):
                         warnings.warn("Unknown JDBC convert with constant value " + str(sqltype) +
                                       ":" + self._meta.getColumnClassName(col))
             if "SQLCLI_DEBUG" in os.environ:
-                print("JDBC SQLType=[" + str(converter.__name__) + "] for col [" + str(col) + "]. " +
+                print("[DEBUG] JDBC SQLType=[" + str(converter.__name__) + "] for col [" + str(col) + "]. " +
                       "sqltype=[" + str(sqltype) + ":" + str(m_ColumnClassName) + ":" + m_ColumnTypeName + "]")
             v = converter(self._connection.jconn, self._rs, col, m_ColumnClassName)
             row.append(v)

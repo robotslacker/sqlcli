@@ -687,7 +687,9 @@ class TestWrapper(object):
             if eval(str(p_Formular)):
                 return None, None, None, None, "Assert Successful."
             else:
-                raise SQLCliException('Assert Failed.')
+                return None, None, None, None, "Assert Failed."
+        except SyntaxError as se:
+            return None, None, None, None, "Assert Failed."
         except Exception as ae:
             raise SQLCliException(str(ae))
 
