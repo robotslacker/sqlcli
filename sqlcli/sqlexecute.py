@@ -885,6 +885,9 @@ class SQLExecute(object):
                         m_row.append(m_ColumnValue)
                     elif columntypes[m_nColumnPos] == "ARRAY":
                         m_ColumnValue = "ARRAY["
+                        if self.SQLOptions.get('OUTPUT_SORT_ARRAY') == "1":
+                            # 保证Array的输出每次都一样顺序
+                            column.sort()
                         for m_nPos in range(0, len(column)):
                             m_ColumnType = str(type(column[m_nPos]))
                             if m_nPos == 0:

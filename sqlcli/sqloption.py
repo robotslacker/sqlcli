@@ -67,6 +67,7 @@ class SQLOptions(object):
                                       "Value": 20,
                                       "Comments": '',
                                       "Hidden": False})
+
         self.m_SQL_OptionList.append({"Name": "FLOAT_FORMAT",
                                       "Value": "%.7g",
                                       "Comments": '',
@@ -91,6 +92,12 @@ class SQLOptions(object):
                                       "Value": "%Y-%m-%d %H:%M:%S %z",
                                       "Comments": '',
                                       "Hidden": False})
+
+        self.m_SQL_OptionList.append({"Name": "OUTPUT_SORT_ARRAY",
+                                      "Value": "1",
+                                      "Comments": 'Print Array output with sort order.',
+                                      "Hidden": False})
+
         self.m_SQL_OptionList.append({"Name": "CONN_RETRY_TIMES",
                                       "Value": "1",
                                       "Comments": 'Connect retry times.',
