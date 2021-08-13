@@ -109,7 +109,7 @@ class SQLExecute(object):
                                                                cls=DecimalEncoder)
         except (IndexError, KeyError, ValueError) as je:
             if "SQLCLI_DEBUG" in os.environ:
-                click.secho("JQ Parse Error: " + repr(je))
+                click.secho("[DEBUG] JQ Parse Error: " + repr(je))
             return "****"
 
     def run(self, statement, p_sqlscript=None):
@@ -283,13 +283,15 @@ class SQLExecute(object):
             except ValueError:
                 m_SQLTimeOut = -1
                 if "SQLCLI_DEBUG" in os.environ:
-                    yield {"type": "error", "message": "SQLCLI-0000: Not a valid SQLTimeOut Setting, Ignore this."}
+                    yield {"type": "error",
+                           "message": "[DEBUG] SQLCLI-0000: Not a valid SQLTimeOut Setting, Ignore this."}
             try:
                 m_ScriptTimeOut = int(self.SQLOptions.get("SCRIPT_TIMEOUT"))
             except ValueError:
                 m_ScriptTimeOut = -1
                 if "SQLCLI_DEBUG" in os.environ:
-                    yield {"type": "error", "message": "SQLCLI-0000: Not a valid ScriptTimeOut Setting, Ignore this."}
+                    yield {"type": "error",
+                           "message": "[DEBUG] SQLCLI-0000: Not a valid ScriptTimeOut Setting, Ignore this."}
 
             # 执行SQL
             try:
@@ -329,7 +331,8 @@ class SQLExecute(object):
                             for m_SQLFilter in m_SQLHint["LogFilter"]:
                                 for item in result[:]:
                                     if "SQLCLI_DEBUG" in os.environ:
-                                        print("Apply Filter: " + str(''.join(str(item))) + " with " + m_SQLFilter)
+                                        print("[DEBUG] Apply Filter: " + str(''.join(str(item))) +
+                                              " with " + m_SQLFilter)
                                     if re.match(m_SQLFilter, ''.join(str(item)), re.IGNORECASE):
                                         result.remove(item)
                                         continue
@@ -349,7 +352,7 @@ class SQLExecute(object):
                                         m_SQLMaskPattern = m_SQLMask[0]
                                         m_SQLMaskTarget = m_SQLMask[1]
                                         if "SQLCLI_DEBUG" in os.environ:
-                                            print("Apply Mask: " + m_Output +
+                                            print("[DEBUG] Apply Mask: " + m_Output +
                                                   " with " + m_SQLMaskPattern + "=>" + m_SQLMaskTarget)
                                         try:
                                             m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget, m_Output,
@@ -359,11 +362,11 @@ class SQLExecute(object):
                                                 m_Output = m_NewOutput
                                         except re.error:
                                             if "SQLCLI_DEBUG" in os.environ:
-                                                print('traceback.print_exc():\n%s' % traceback.print_exc())
-                                                print('traceback.format_exc():\n%s' % traceback.format_exc())
+                                                print('[DEBUG] traceback.print_exc():\n%s' % traceback.print_exc())
+                                                print('[DEBUG] traceback.format_exc():\n%s' % traceback.format_exc())
                                     else:
                                         if "SQLCLI_DEBUG" in os.environ:
-                                            print("LogMask Hint Error: " + m_SQLHint["LogMask"])
+                                            print("[DEBUG] LogMask Hint Error: " + m_SQLHint["LogMask"])
                         m_Result["rows"] = result
                         if m_Result["rows"] is None:
                             m_Rows = 0
@@ -472,7 +475,8 @@ class SQLExecute(object):
                                 for m_SQLFilter in m_SQLHint["LogFilter"]:
                                     for item in result[:]:
                                         if "SQLCLI_DEBUG" in os.environ:
-                                            print("[DEBUG] Apply Filter: " + str(''.join(str(item))) + " with " + m_SQLFilter)
+                                            print("[DEBUG] Apply Filter: " + str(''.join(str(item))) +
+                                                  " with " + m_SQLFilter)
                                         if re.match(m_SQLFilter, ''.join(str(item)), re.IGNORECASE):
                                             result.remove(item)
                                             continue
@@ -502,8 +506,10 @@ class SQLExecute(object):
                                                     m_Output = m_NewOutput
                                             except re.error:
                                                 if "SQLCLI_DEBUG" in os.environ:
-                                                    print('[DEBUG] traceback.print_exc():\n%s' % traceback.print_exc())
-                                                    print('[DEBUG] traceback.format_exc():\n%s' % traceback.format_exc())
+                                                    print('[DEBUG] traceback.print_exc():\n%s'
+                                                          % traceback.print_exc())
+                                                    print('[DEBUG] traceback.format_exc():\n%s'
+                                                          % traceback.format_exc())
                                         else:
                                             if "SQLCLI_DEBUG" in os.environ:
                                                 print("[DEBUG] LogMask Hint Error: " + m_SQLHint["LogMask"])

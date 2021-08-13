@@ -688,7 +688,7 @@ class TestWrapper(object):
                 return None, None, None, None, "Assert Successful."
             else:
                 return None, None, None, None, "Assert Failed."
-        except SyntaxError as se:
+        except SyntaxError:
             return None, None, None, None, "Assert Failed."
         except Exception as ae:
             raise SQLCliException(str(ae))
