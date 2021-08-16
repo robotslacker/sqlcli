@@ -876,6 +876,8 @@ class SQLExecute(object):
                                 elif type(column[m_nPos]) == datetime.datetime:
                                     m_ColumnValue = m_ColumnValue + "TIMESTAMP '" + \
                                                     format_column(column[m_nPos], m_ColumnType) + "'"
+                                elif isinstance(column[m_nPos], type(None)):
+                                    m_ColumnValue = m_ColumnValue + "<null>"
                                 else:
                                     m_ColumnValue = m_ColumnValue + \
                                                     str(format_column(column[m_nPos], m_ColumnType))
@@ -888,6 +890,8 @@ class SQLExecute(object):
                                 elif type(column[m_nPos]) == datetime.datetime:
                                     m_ColumnValue = m_ColumnValue + ",TIMESTAMP '" + \
                                                     format_column(column[m_nPos], m_ColumnType) + "'"
+                                elif isinstance(column[m_nPos], type(None)):
+                                    m_ColumnValue = m_ColumnValue + ",<null>"
                                 else:
                                     m_ColumnValue = m_ColumnValue + "," + \
                                                     str(format_column(column[m_nPos], m_ColumnType))
@@ -909,6 +913,8 @@ class SQLExecute(object):
                                 elif type(column[m_nPos]) == datetime.datetime:
                                     m_ColumnValue = m_ColumnValue + "TIMESTAMP '" + \
                                                     format_column(column[m_nPos], m_ColumnType) + "'"
+                                elif isinstance(column[m_nPos], type(None)):
+                                    m_ColumnValue = m_ColumnValue + "<null>"
                                 else:
                                     m_ColumnValue = m_ColumnValue + \
                                                     str(format_column(column[m_nPos], m_ColumnType))
@@ -921,6 +927,8 @@ class SQLExecute(object):
                                 elif type(column[m_nPos]) == datetime.datetime:
                                     m_ColumnValue = m_ColumnValue + ",TIMESTAMP '" + \
                                                     format_column(column[m_nPos], m_ColumnType) + "'"
+                                elif isinstance(column[m_nPos], type(None)):
+                                    m_ColumnValue = m_ColumnValue + ",<null>"
                                 else:
                                     m_ColumnValue = m_ColumnValue + "," + \
                                                     str(format_column(column[m_nPos], m_ColumnType))
