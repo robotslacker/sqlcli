@@ -63,6 +63,18 @@ class HDFSWrapper(object):
         # 尝试创建目录，如果目录不存在的话
         self.__m_HDFS_Handler__.makedirs(self.__m_HDFS_WebFSDir__.replace('\\', '/'))
 
+    def HDFS_List(self, hdfs_path=""):
+        m_ReturnList = []
+        for row in self.__m_HDFS_Handler__.list(hdfs_path, status=True):
+            if row[1]['type'].upper() == 'DIRECTORY':
+                m_ReturnList.extend(
+                    self.HDFS_list(os.path.join(hdfs_path, row[0]).replace("\\", "/"),
+                                   recusive=True)
+                )
+            else:
+                m_ReturnList.append((os.path.join(hdfs_path, row[0]).replace("\\", "/"), row[1]))
+        return m_ReturnList
+
     def HDFS_status(self, hdfs_path=""):
         """ 返回目录下的文件 """
         if self.__m_HDFS_Handler__ is None:
@@ -70,6 +82,21 @@ class HDFSWrapper(object):
 
         m_ReturnList = []
         m_Status = self.__m_HDFS_Handler__.status(hdfs_path)
+        if m_Status['type'].upper() == 'DIRECTORY':
+            # HDFS CLI对于目录的大小总是返回0， 所以这里遍历所有的目录来获得准确的目录大小
+            m_FileList = self.HDFS_List(hdfs_path)
+            m_FileSize = 0
+            for m_File in m_FileList:
+                m_FileSize = m_FileSize + m_File[1]['length']
+            if m_FileSize > 1024*1024*1024:
+                m_FileSize = str(round((float(m_FileSize) / (1024*1024*1024)), 2)) + 'G'
+            elif m_FileSize > 1024*1024:
+                m_FileSize = str(round((float(m_FileSize) / (1024*1024)), 2)) + 'M'
+            elif m_FileSize > 1024:
+                m_FileSize = str(round((float(m_FileSize) / 1024), 2)) + 'K'
+            else:
+                m_FileSize = str(m_FileSize)
+            m_Status['length'] = m_FileSize
         m_ReturnList.append((hdfs_path, m_Status))
         return m_ReturnList
 
