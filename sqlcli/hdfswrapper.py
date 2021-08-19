@@ -28,13 +28,13 @@ class HDFSWrapper(object):
     def HDFS_makedirs(self, hdfs_path):
         """ 创建目录 """
         if self.__m_HDFS_Handler__ is None:
-            raise HDFSWrapperException("HDFS not connected. Please connect it frist.")
+            raise HDFSWrapperException("HDFS not connected. Please connect it first.")
         self.__m_HDFS_Handler__.makedirs(os.path.join(self.__m_HDFS_WebFSDir__, hdfs_path).replace('\\', '/'))
 
     def HDFS_setPermission(self, hdfs_path, permission):
         """ 修改指定文件的权限信息 """
         if self.__m_HDFS_Handler__ is None:
-            raise HDFSWrapperException("HDFS not connected. Please connect it frist.")
+            raise HDFSWrapperException("HDFS not connected. Please connect it first.")
         m_hdfs_filepath = os.path.dirname(hdfs_path)
         m_hdfs_filename = os.path.basename(hdfs_path)
         self.__m_HDFS_Handler__.set_permission(
@@ -63,31 +63,19 @@ class HDFSWrapper(object):
         # 尝试创建目录，如果目录不存在的话
         self.__m_HDFS_Handler__.makedirs(self.__m_HDFS_WebFSDir__.replace('\\', '/'))
 
-    def HDFS_List(self, hdfs_path=""):
-        m_ReturnList = []
-        for row in self.__m_HDFS_Handler__.list(hdfs_path, status=True):
-            if row[1]['type'].upper() == 'DIRECTORY':
-                m_ReturnList.extend(
-                    self.HDFS_list(os.path.join(hdfs_path, row[0]).replace("\\", "/"),
-                                   recusive=True)
-                )
-            else:
-                m_ReturnList.append((os.path.join(hdfs_path, row[0]).replace("\\", "/"), row[1]))
-        return m_ReturnList
-
     def HDFS_status(self, hdfs_path=""):
         """ 返回目录下的文件 """
         if self.__m_HDFS_Handler__ is None:
-            raise HDFSWrapperException("HDFS not connected. Please connect it frist.")
+            raise HDFSWrapperException("HDFS not connected. Please connect it first.")
 
         m_ReturnList = []
         m_Status = self.__m_HDFS_Handler__.status(hdfs_path)
         if m_Status['type'].upper() == 'DIRECTORY':
             # HDFS CLI对于目录的大小总是返回0， 所以这里遍历所有的目录来获得准确的目录大小
-            m_FileList = self.HDFS_List(hdfs_path)
+            m_FileList = self.HDFS_list(hdfs_path, recusive=True)
             m_FileSize = 0
             for m_File in m_FileList:
-                m_FileSize = m_FileSize + m_File[1]['length']
+                m_FileSize = m_FileSize + int(m_File[1]['length'])
             if m_FileSize > 1024*1024*1024:
                 m_FileSize = str(round((float(m_FileSize) / (1024*1024*1024)), 2)) + 'G'
             elif m_FileSize > 1024*1024:
@@ -103,7 +91,7 @@ class HDFSWrapper(object):
     def HDFS_list(self, hdfs_path="", recusive=False):
         """ 返回目录下的文件 """
         if self.__m_HDFS_Handler__ is None:
-            raise HDFSWrapperException("HDFS not connected. Please connect it frist.")
+            raise HDFSWrapperException("HDFS not connected. Please connect it first.")
 
         m_ReturnList = []
         if not recusive:
@@ -125,7 +113,7 @@ class HDFSWrapper(object):
     def HDFS_Download(self, hdfs_path="", local_path="", recusive=False):
         """ 从hdfs获取文件到本地 """
         if self.__m_HDFS_Handler__ is None:
-            raise HDFSWrapperException("HDFS not connected. Please connect it frist.")
+            raise HDFSWrapperException("HDFS not connected. Please connect it first.")
 
         # 如果本地没有对应目录，且local_path传递的是一个目录，则建立目录
         m_LocalPath = local_path
@@ -140,7 +128,7 @@ class HDFSWrapper(object):
     def HDFS_Upload(self, local_path, hdfs_path=""):
         """ 上传文件到hdfs """
         if self.__m_HDFS_Handler__ is None:
-            raise HDFSWrapperException("HDFS not connected. Please connect it frist.")
+            raise HDFSWrapperException("HDFS not connected. Please connect it first.")
 
         for file in glob(local_path):
             if hdfs_path == "":

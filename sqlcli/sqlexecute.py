@@ -318,7 +318,66 @@ class SQLExecute(object):
                     if "type" not in m_Result.keys():
                         m_Result.update({"type": "result"})
                     if m_Result["type"] == "result" and sql.startswith("__internal__"):
+                        # 如果存在SQL_LOOP信息，则需要反复执行上一个SQL
+                        if "SQL_LOOP" in m_SQLHint.keys():
+                            if "SQLCLI_DEBUG" in os.environ:
+                                print("[DEBUG] LOOP=" + str(m_SQLHint["SQL_LOOP"]))
+                            # 循环执行SQL列表，构造参数列表
+                            m_LoopTimes = int(m_SQLHint["SQL_LOOP"]["LoopTimes"])
+                            m_LoopInterval = int(m_SQLHint["SQL_LOOP"]["LoopInterval"])
+                            m_LoopUntil = m_SQLHint["SQL_LOOP"]["LoopUntil"]
+                            if m_LoopInterval < 0:
+                                m_LoopTimes = 0
+                                if "SQLCLI_DEBUG" in os.environ:
+                                    raise SQLCliException(
+                                        "SQLLoop Hint Error, Unexpected LoopInterval: " + str(m_LoopInterval))
+                            if m_LoopTimes < 0:
+                                if "SQLCLI_DEBUG" in os.environ:
+                                    raise SQLCliException(
+                                        "SQLLoop Hint Error, Unexpected LoopTime: " + str(m_LoopTimes))
+
+                            # 保存Silent设置
+                            m_OldSilentMode = self.SQLOptions.get("SILENT")
+                            m_OldTimingMode = self.SQLOptions.get("TIMING")
+                            m_OldTimeMode = self.SQLOptions.get("TIME")
+                            self.SQLOptions.set("SILENT", "ON")
+                            self.SQLOptions.set("TIMING", "OFF")
+                            self.SQLOptions.set("TIME", "OFF")
+                            for m_nLoopPos in range(1, m_LoopTimes):
+                                # 检查Until条件，如果达到Until条件，退出
+                                m_AssertSuccessful = False
+                                for m_SQLResult in \
+                                        self.run("__internal__ test assert " + m_LoopUntil):
+                                    if m_SQLResult["type"] == "result":
+                                        if m_SQLResult["status"].startswith("Assert Successful"):
+                                            m_AssertSuccessful = True
+                                        break
+                                if m_AssertSuccessful:
+                                    break
+                                else:
+                                    # 测试失败, 等待一段时间后，开始下一次检查
+                                    time.sleep(m_LoopInterval)
+                                    if "SQLCLI_DEBUG" in os.environ:
+                                        print("[DEBUG] SQL(LOOP " + str(m_nLoopPos) + ")=[" + str(sql) + "]")
+                                    for m_SQLResult in self.run(sql):
+                                        # 最后一次执行的结果将被传递到外层，作为SQL返回结果
+                                        if m_SQLResult["type"] == "result":
+                                            m_SQL_Status = 0
+                                            m_Result["title"] = m_SQLResult["title"]
+                                            m_Result["rows"] = m_SQLResult["rows"]
+                                            m_Result["headers"] = m_SQLResult["headers"]
+                                            m_Result["columntypes"] = m_SQLResult["columntypes"]
+                                            m_Result["status"] = m_SQLResult["status"]
+                                        if m_SQLResult["type"] == "error":
+                                            m_SQL_Status = 1
+                                            m_SQL_ErrorMessage = m_SQLResult["message"]
+                            self.SQLOptions.set("TIME", m_OldTimeMode)
+                            self.SQLOptions.set("TIMING", m_OldTimingMode)
+                            self.SQLOptions.set("SILENT", m_OldSilentMode)
+
+                        # 保存之前的运行结果
                         result = m_Result["rows"]
+
                         # 如果Hints中有order字样，对结果进行排序后再输出
                         if "Order" in m_SQLHint.keys() and result is not None:
                             for i in range(1, len(result)):
@@ -367,6 +426,8 @@ class SQLExecute(object):
                                     else:
                                         if "SQLCLI_DEBUG" in os.environ:
                                             print("[DEBUG] LogMask Hint Error: " + m_SQLHint["LogMask"])
+
+                        # 返回运行结果
                         m_Result["rows"] = result
                         if m_Result["rows"] is None:
                             m_Rows = 0
