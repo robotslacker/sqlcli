@@ -1654,7 +1654,14 @@ class SQLCli(object):
                             # 显示过程中用户按下了CTRL+C
                             pass
                     elif p_result["type"] == "error":
-                        self.echo(p_result["message"])
+                        if self.SQLOptions.get('OUTPUT_ERROR_PREFIX') != '':
+                            m_ErrorLines = p_result["message"].splitlines()
+                            m_ErrorPrefix = self.SQLOptions.get('OUTPUT_ERROR_PREFIX')
+                            for nPos in range(0, len(m_ErrorLines)):
+                                m_ErrorLines[nPos] = m_ErrorPrefix + ":  " + m_ErrorLines[nPos]
+                            self.echo("\n".join(m_ErrorLines))
+                        else:
+                            self.echo(p_result["message"])
                     elif p_result["type"] == "statistics":
                         self.Log_Statistics(p_result)
                     else:

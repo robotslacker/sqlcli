@@ -8,7 +8,6 @@ import traceback
 from glob import glob
 
 from hdfs import InsecureClient, HdfsError
-from .sqlcliexception import SQLCliException
 
 
 class HDFSWrapperException(Exception):
@@ -77,11 +76,11 @@ class HDFSWrapper(object):
             for m_File in m_FileList:
                 m_FileSize = m_FileSize + int(m_File[1]['length'])
             if m_FileSize > 1024*1024*1024:
-                m_FileSize = str(round((float(m_FileSize) / (1024*1024*1024)), 2)) + 'G'
+                m_FileSize = str(round(float(m_FileSize) / (1024*1024*1024))) + 'G'
             elif m_FileSize > 1024*1024:
-                m_FileSize = str(round((float(m_FileSize) / (1024*1024)), 2)) + 'M'
+                m_FileSize = str(round(float(m_FileSize) / (1024*1024))) + 'M'
             elif m_FileSize > 1024:
-                m_FileSize = str(round((float(m_FileSize) / 1024), 2)) + 'K'
+                m_FileSize = str(round(float(m_FileSize) / 1024)) + 'K'
             else:
                 m_FileSize = str(m_FileSize)
             m_Status['length'] = m_FileSize
@@ -345,4 +344,4 @@ class HDFSWrapper(object):
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
-            raise SQLCliException(he.message)
+            return None, None, None, None, he.message

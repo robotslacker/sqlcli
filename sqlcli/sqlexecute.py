@@ -214,7 +214,7 @@ class SQLExecute(object):
             # 2. ${var}
             #    用户定义的变量
 
-            matchObj = re.search(r"\${LastSQLResult\((.*)\)}",
+            matchObj = re.search(r"\${LastSQLResult\((.*?)\)}",
                                  sql, re.IGNORECASE | re.DOTALL)
             if matchObj:
                 m_Searched = matchObj.group(0)
@@ -960,7 +960,7 @@ class SQLExecute(object):
                         m_row.append(m_ColumnValue)
                     elif columntypes[m_nColumnPos] == "ARRAY":
                         m_ColumnValue = "ARRAY["
-                        if self.SQLOptions.get('OUTPUT_SORT_ARRAY') == "1":
+                        if self.SQLOptions.get('OUTPUT_SORT_ARRAY') == "ON":
                             # 保证Array的输出每次都一样顺序
                             column.sort()
                         for m_nPos in range(0, len(column)):

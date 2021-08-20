@@ -28,11 +28,6 @@ class SQLOptions(object):
                                       "Value": "OFF",
                                       "Comments": '',
                                       "Hidden": False})
-        self.m_SQL_OptionList.append({"Name": "OUTPUT_FORMAT",
-                                      "Value": "LEGACY",
-                                      "Comments": 'TAB|CSV|LEGACY',
-                                      "Hidden": False
-                                      })
         self.m_SQL_OptionList.append({"Name": "CSV_HEADER",
                                       "Value": "OFF",
                                       "Comments": 'ON|OFF',
@@ -94,17 +89,26 @@ class SQLOptions(object):
                                       "Hidden": False})
 
         self.m_SQL_OptionList.append({"Name": "OUTPUT_SORT_ARRAY",
-                                      "Value": "1",
+                                      "Value": "ON",
                                       "Comments": 'Print Array output with sort order.',
-                                      "Hidden": False})
-
-        self.m_SQL_OptionList.append({"Name": "CONN_RETRY_TIMES",
-                                      "Value": "1",
-                                      "Comments": 'Connect retry times.',
                                       "Hidden": False})
         self.m_SQL_OptionList.append({"Name": "OUTPUT_PREFIX",
                                       "Value": "",
                                       "Comments": 'Output Prefix',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "OUTPUT_ERROR_PREFIX",
+                                      "Value": "",
+                                      "Comments": 'Error Output Prefix',
+                                      "Hidden": False})
+        self.m_SQL_OptionList.append({"Name": "OUTPUT_FORMAT",
+                                      "Value": "LEGACY",
+                                      "Comments": 'TAB|CSV|LEGACY',
+                                      "Hidden": False
+                                      })
+
+        self.m_SQL_OptionList.append({"Name": "CONN_RETRY_TIMES",
+                                      "Value": "1",
+                                      "Comments": 'Connect retry times.',
                                       "Hidden": False})
         self.m_SQL_OptionList.append({"Name": "DEBUG",
                                       "Value": "OFF",
