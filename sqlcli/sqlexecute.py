@@ -962,7 +962,8 @@ class SQLExecute(object):
                         m_ColumnValue = "ARRAY["
                         if self.SQLOptions.get('OUTPUT_SORT_ARRAY') == "ON":
                             # 保证Array的输出每次都一样顺序
-                            column.sort()
+                            # 需要注意可能有NULL值导致字符数组无法排序的情况
+                            column.sort(key=lambda x: -1 * float('inf') if x is None else x)
                         for m_nPos in range(0, len(column)):
                             m_ColumnType = str(type(column[m_nPos]))
                             if m_nPos == 0:
