@@ -13,6 +13,7 @@ class DiffException(Exception):
 
 class POSIXCompare:
     CompiledRegexPattern = {}
+    ErrorRegexPattern = []
 
     # 正则表达比较两个字符串
     # p_str1                  原字符串
@@ -40,6 +41,10 @@ class POSIXCompare:
             if p_str2 in self.CompiledRegexPattern:
                 m_CompiledPattern = self.CompiledRegexPattern[p_str2]
             else:
+                # 如果之前编译过，且没有编译成功，不再尝试编译，直接判断不匹配
+                if p_str2 in self.ErrorRegexPattern:
+                    return False
+                # 正则编译
                 m_CompiledPattern = re.compile(p_str2)
                 self.CompiledRegexPattern[p_str2] = m_CompiledPattern
             if p_compare_ignorecase:
@@ -54,6 +59,7 @@ class POSIXCompare:
                 return True
         except re.error:
             # 正则表达式错误，可能是由于这并非是一个正则表达式
+            self.ErrorRegexPattern.append(p_str2)
             return False
 
     def compare(self,
@@ -491,21 +497,120 @@ class TestWrapper(object):
                     m_Result = "Compare Failed!"
 
             # 生成xlog文件，用于Scenario分析
-            m_ScenarioName = "NONE-0"
-            m_ScenarioStartPos = 0
-            m_nPos = 0
+            m_ScenarioStartPos = 0  # 当前Senario开始的位置
             m_ScenariosResults = {}
-            m_bSaveResult = False
+            m_ScenariosPos = {}
+
+            # 首先记录下来每一个Senario的开始位置，结束位置
+            m_nPos = 0
+            m_ScenarioName = None
             while True:
                 if m_nPos >= len(m_CompareResultList):
                     break
 
+                # Scenario定义
+                # -- [Hint] setup:
+                # -- [setup:]
+                # -- [Hint] setup:end:
+                # -- [setup:end]
+
+                # -- [Hint] cleanup:
+                # -- [cleanup:]
+                # -- [Hint] cleanup:end:
+                # -- [cleanup:end]
+
+                # -- [Hint] scenario:xxxx:
+                # -- [scenario:xxxx]
+                # -- [Hint] scenario:end:
+                # -- [scenario:end]
+
+                matchObj = re.search(r"--(\s+)?\[Hint](\s+)?setup:end", m_CompareResultList[m_nPos],
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    if m_ScenarioName is None:
+                        m_ScenarioName = "setup"
+                    m_ScenariosPos[m_ScenarioName] = {
+                        "ScenarioStartPos": m_ScenarioStartPos,
+                        "ScenarioEndPos": m_nPos
+                    }
+                    m_ScenarioStartPos = m_nPos + 1
+                    m_nPos = m_nPos + 1
+                    m_ScenarioName = None
+                    continue
+
+                matchObj = re.search(r"--(\s+)?\[(\s+)?setup:end]", m_CompareResultList[m_nPos],
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    if m_ScenarioName is None:
+                        m_ScenarioName = "setup"
+                    m_ScenariosPos[m_ScenarioName] = {
+                        "ScenarioStartPos": m_ScenarioStartPos,
+                        "ScenarioEndPos": m_nPos
+                    }
+                    m_ScenarioStartPos = m_nPos + 1
+                    m_nPos = m_nPos + 1
+                    m_ScenarioName = None
+                    continue
+
+                matchObj = re.search(r"--(\s+)?\[Hint](\s+)?cleanup:end", m_CompareResultList[m_nPos],
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    if m_ScenarioName is None:
+                        m_ScenarioName = "cleanup"
+                    m_ScenariosPos[m_ScenarioName] = {
+                        "ScenarioStartPos": m_ScenarioStartPos,
+                        "ScenarioEndPos": m_nPos
+                    }
+                    m_ScenarioStartPos = m_nPos + 1
+                    m_nPos = m_nPos + 1
+                    m_ScenarioName = None
+                    continue
+
+                matchObj = re.search(r"--(\s+)?\[(\s+)?cleanup:end]", m_CompareResultList[m_nPos],
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    if m_ScenarioName is None:
+                        m_ScenarioName = "cleanup"
+                    m_ScenariosPos[m_ScenarioName] = {
+                        "ScenarioStartPos": m_ScenarioStartPos,
+                        "ScenarioEndPos": m_nPos
+                    }
+                    m_ScenarioStartPos = m_nPos + 1
+                    m_nPos = m_nPos + 1
+                    m_ScenarioName = None
+                    continue
+
+                matchObj = re.search(r"--(\s+)?\[Hint](\s+)?scenario:end", m_CompareResultList[m_nPos],
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    if m_ScenarioName is None:
+                        m_ScenarioName = "none-" + str(m_ScenarioStartPos)
+                    m_ScenariosPos[m_ScenarioName] = {
+                        "ScenarioStartPos": m_ScenarioStartPos,
+                        "ScenarioEndPos": m_nPos
+                    }
+                    m_ScenarioStartPos = m_nPos + 1
+                    m_nPos = m_nPos + 1
+                    m_ScenarioName = None
+                    continue
+
+                matchObj = re.search(r"--(\s+)?\[(\s+)?scenario:end]", m_CompareResultList[m_nPos],
+                                     re.IGNORECASE | re.DOTALL)
+                if matchObj:
+                    if m_ScenarioName is None:
+                        m_ScenarioName = "none-" + str(m_ScenarioStartPos)
+                    m_ScenariosPos[m_ScenarioName] = {
+                        "ScenarioStartPos": m_ScenarioStartPos,
+                        "ScenarioEndPos": m_nPos
+                    }
+                    m_ScenarioStartPos = m_nPos + 1
+                    m_nPos = m_nPos + 1
+                    m_ScenarioName = None
+                    continue
+
                 matchObj = re.search(r"--(\s+)?\[Hint](\s+)?setup:", m_CompareResultList[m_nPos],
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
-                    if not m_bSaveResult:
-                        if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
                     m_ScenarioName = "setup"
                     m_ScenarioStartPos = m_nPos
                     m_nPos = m_nPos + 1
@@ -514,9 +619,6 @@ class TestWrapper(object):
                 matchObj = re.search(r"--(\s+)?\[(\s+)?setup:]", m_CompareResultList[m_nPos],
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
-                    if not m_bSaveResult:
-                        if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
                     m_ScenarioName = "setup"
                     m_ScenarioStartPos = m_nPos
                     m_nPos = m_nPos + 1
@@ -525,9 +627,6 @@ class TestWrapper(object):
                 matchObj = re.search(r"--(\s+)?\[Hint](\s+)?cleanup:", m_CompareResultList[m_nPos],
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
-                    if not m_bSaveResult:
-                        if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
                     m_ScenarioName = "cleanup"
                     m_ScenarioStartPos = m_nPos
                     m_nPos = m_nPos + 1
@@ -536,142 +635,70 @@ class TestWrapper(object):
                 matchObj = re.search(r"--(\s+)?\[(\s+)?cleanup:]", m_CompareResultList[m_nPos],
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
-                    if not m_bSaveResult:
-                        if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
                     m_ScenarioName = "cleanup"
                     m_ScenarioStartPos = m_nPos
-                    m_nPos = m_nPos + 1
-                    continue
-
-                matchObj = re.search(r"--(\s+)?\[Hint](\s+)?setup:end", m_CompareResultList[m_nPos],
-                                     re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    if not m_bSaveResult:
-                        if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
-                    m_ScenarioName = "NONE-" + str(m_nPos)
-                    m_bSaveResult = False
-                    m_ScenarioStartPos = 0
-                    m_nPos = m_nPos + 1
-                    continue
-
-                matchObj = re.search(r"--(\s+)?\[(\s+)?setup:end]", m_CompareResultList[m_nPos],
-                                     re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    if not m_bSaveResult:
-                        if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
-                    m_ScenarioName = "NONE-" + str(m_nPos)
-                    m_bSaveResult = False
-                    m_ScenarioStartPos = 0
-                    m_nPos = m_nPos + 1
-                    continue
-
-                matchObj = re.search(r"--(\s+)?\[Hint](\s+)?cleanup:end", m_CompareResultList[m_nPos],
-                                     re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    if not m_bSaveResult:
-                        if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
-                    m_ScenarioName = "NONE-" + str(m_nPos)
-                    m_bSaveResult = False
-                    m_ScenarioStartPos = 0
-                    m_nPos = m_nPos + 1
-                    continue
-
-                matchObj = re.search(r"--(\s+)?\[(\s+)?cleanup:end]", m_CompareResultList[m_nPos],
-                                     re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    if not m_bSaveResult:
-                        if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
-                    m_ScenarioName = "NONE-" + str(m_nPos)
-                    m_bSaveResult = False
-                    m_ScenarioStartPos = 0
                     m_nPos = m_nPos + 1
                     continue
 
                 matchObj = re.search(r"--(\s+)?\[Hint](\s+)?Scenario:(.*)", m_CompareResultList[m_nPos],
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
-                    if not m_bSaveResult:
-                        if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
                     m_ScenarioName = matchObj.group(3).strip()
                     m_ScenarioStartPos = m_nPos
-                    if m_ScenarioName.upper() == "END":
-                        m_ScenarioName = "NONE-" + str(m_nPos)
-                        m_bSaveResult = False
-                        m_ScenarioStartPos = 0
                     m_nPos = m_nPos + 1
                     continue
 
                 matchObj = re.search(r"--(\s+)?\[(\s+)?Scenario:(.*)]", m_CompareResultList[m_nPos],
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
-                    if not m_bSaveResult:
-                        if not m_ScenarioName.startswith("NONE"):
-                            m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
                     m_ScenarioName = matchObj.group(3).strip()
                     m_ScenarioStartPos = m_nPos
-                    if m_ScenarioName.upper() == "END":
-                        m_ScenarioName = "NONE-" + str(m_nPos)
-                        m_bSaveResult = False
-                        m_ScenarioStartPos = 0
                     m_nPos = m_nPos + 1
                     continue
 
-                # 错误信息只记录前后20行信息,前5行，多余的不记录
-                if m_CompareResultList[m_nPos].startswith('-') or m_CompareResultList[m_nPos].startswith('+'):
-                    if m_nPos < 5:
-                        m_nStartPos = 0
-                    else:
-                        m_nStartPos = m_nPos - 5
-                    if m_nStartPos < m_ScenarioStartPos:
-                        m_nStartPos = m_ScenarioStartPos
-                    if m_nStartPos + 20 > len(m_CompareResultList):
-                        m_nEndPos = len(m_CompareResultList)
-                    else:
-                        m_nEndPos = m_nStartPos + 20
-                    m_szErrorMessage = m_CompareResultList[m_nStartPos] + "\n"
-                    m_nPos2 = m_nStartPos + 1
-                    while True:
-                        # 本次记录dif的信息从本次Scenario开始的地方记录，截止到下一个Scenarios开始或本次Scneario终止
-                        if m_nPos2 >= len(m_CompareResultList):
-                            break
-                        matchObj = re.search(r"--(\s+)?\[Hint](\s+)?Scenario:(.*)", m_CompareResultList[m_nPos2],
-                                             re.IGNORECASE | re.DOTALL)
-                        if matchObj:
-                            break  # Scenario终止
-                        matchObj = re.search(r"--(\s+)?\[(\s+)?Scenario:(.*)]", m_CompareResultList[m_nPos2],
-                                             re.IGNORECASE | re.DOTALL)
-                        if matchObj:
-                            break  # Scenario终止
-                        if m_nPos2 < m_nEndPos:
-                            m_szErrorMessage = m_szErrorMessage + m_CompareResultList[m_nPos2] + "\n"
-                        else:
-                            break  # 记录已经超过了5+20行
-                        m_nPos2 = m_nPos2 + 1
-                    m_nPos = m_nPos + 1
-                    m_bSaveResult = True
-                    m_ScenariosResults[m_ScenarioName] = {"Status": "FAILURE", "message": m_szErrorMessage}
-                else:
-                    m_nPos = m_nPos + 1
-            if not m_bSaveResult:
-                if not m_ScenarioName.startswith("NONE"):
+                # 不是什么特殊内容，这里是标准文本
+                m_nPos = m_nPos + 1
+
+            # 最后一个Senario的情况记录下来
+            if m_ScenarioStartPos < len(m_CompareResultList):
+                if m_ScenarioName is not None:
+                    m_ScenariosPos[m_ScenarioName] = {
+                        "ScenarioStartPos": m_ScenarioStartPos,
+                        "ScenarioEndPos": len(m_CompareResultList)
+                    }
+
+            # 遍历每一个Senario的情况
+            for m_ScenarioName, m_Senario_Pos in m_ScenariosPos.items():
+                m_StartPos = m_Senario_Pos['ScenarioStartPos']
+                m_EndPos = m_Senario_Pos['ScenarioEndPos']
+                bFoundDif = False
+                m_DifStartPos = 0
+                for m_nPos in range(m_StartPos, m_EndPos):
+                    if m_CompareResultList[m_nPos].startswith('-') or m_CompareResultList[m_nPos].startswith('+'):
+                        m_DifStartPos = m_nPos
+                        bFoundDif = True
+                        break
+                if not bFoundDif:
                     m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
+                else:
+                    # 错误信息只记录前后20行信息,前5行，多余的不记录
+                    if m_DifStartPos - 5 > m_StartPos:
+                        m_DifStartPos = m_DifStartPos - 5
+                    else:
+                        m_DifStartPos = m_StartPos
+                    if m_DifStartPos + 20 < m_EndPos:
+                        m_DifEndPos = m_DifStartPos + 20
+                    else:
+                        m_DifEndPos = m_EndPos
+                    m_Message = "\n".join(m_CompareResultList[m_DifStartPos:m_DifEndPos])
+                    m_ScenariosResults[m_ScenarioName] = {"Status": "FAILURE", "message": m_Message}
 
-            # 是否在log中发现了Scenario，如果没有，则认为整个文件就是一个Scenario
-            if m_ScenarioName not in m_ScenariosResults:
-                m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
-
-            # 返沪i结果
+            # 返回结果
             m_Headers = ["Scenario", "Result"]
             m_ReturnResult = []
             for m_ScenarioName, m_ScenarioStatus in m_ScenariosResults.items():
                 if self.c_CompareReportDetailMode:
-                    if m_ScenarioStatus == "Failed":
+                    if m_ScenarioStatus["Status"] == "FAILURE":
                         m_Result = m_Result + "\n... >>>>>>> ...\n" + "Scenario:[" + m_ScenarioName + "]"
                         m_Result = m_Result + "\n" + m_ScenarioStatus["Status"]
                         m_Result = m_Result + "\n" + m_ScenarioStatus["message"]
