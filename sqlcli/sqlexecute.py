@@ -317,7 +317,8 @@ class SQLExecute(object):
                     # 保存之前的运行结果
                     if "type" not in m_Result.keys():
                         m_Result.update({"type": "result"})
-                    if m_Result["type"] == "result" and sql.startswith("__internal__"):
+                    if m_Result["type"] == "result" and \
+                            ( sql.lower().startswith("__internal__") or sql.lower().startswith("loaddriver")):
                         # 如果存在SQL_LOOP信息，则需要反复执行上一个SQL
                         if "SQL_LOOP" in m_SQLHint.keys():
                             if "SQLCLI_DEBUG" in os.environ:
