@@ -149,9 +149,6 @@ class SQLExecute(object):
         -- [Hint]  scenario:XXXX   -- 相关SQL的场景ID，仅仅作为日志信息供查看
         -- .....
         """
-        m_SQL_Status = 0             # SQL 运行结果， 0 成功， 1 失败
-        m_SQL_ErrorMessage = ""      # 错误日志信息
-
         # Remove spaces and EOL
         statement = statement.strip()
         if not statement:  # Empty string
@@ -161,8 +158,9 @@ class SQLExecute(object):
         (ret_bSQLCompleted, ret_SQLSplitResults,
          ret_SQLSplitResultsWithComments, ret_SQLHints) = SQLAnalyze(statement)
         for m_nPos in range(0, len(ret_SQLSplitResults)):
-            m_raw_sql = ret_SQLSplitResults[m_nPos]                  # 记录原始SQL
-
+            m_raw_sql = ret_SQLSplitResults[m_nPos]                 # 记录原始SQL
+            m_SQL_ErrorMessage = ""                                 # 错误日志信息
+            m_SQL_Status = 0                                        # SQL 运行结果， 0 成功， 1 失败
             # 如果当前是在回显一个文件，则不再做任何处理，直接返回
             if self.echofile is not None and \
                     not re.match(r'echo\s+off', m_raw_sql, re.IGNORECASE):
@@ -318,7 +316,7 @@ class SQLExecute(object):
                     if "type" not in m_Result.keys():
                         m_Result.update({"type": "result"})
                     if m_Result["type"] == "result" and \
-                            ( sql.lower().startswith("__internal__") or sql.lower().startswith("loaddriver")):
+                            (sql.lower().startswith("__internal__") or sql.lower().startswith("loaddriver")):
                         # 如果存在SQL_LOOP信息，则需要反复执行上一个SQL
                         if "SQL_LOOP" in m_SQLHint.keys():
                             if "SQLCLI_DEBUG" in os.environ:
