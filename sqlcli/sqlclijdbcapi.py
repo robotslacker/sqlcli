@@ -301,6 +301,9 @@ def AttachJVM(jars=None, libs=None):
             args.append('-Djava.library.path=%s' % libs_path)
         jvm_path = getattr(jpype, "getDefaultJVMPath")()
         getattr(jpype, "startJVM")(jvm_path, *args, ignoreUnrecognized=True, convertStrings=True)
+        if "SQLCLI_DEBUG" not in os.environ:
+            print("JVM started: class.path=[" + jpype.java.lang.System.getProperty('java.class.path') + "]")
+            print("JVM Version: [" + ".".join([str(x) for x in getattr(jpype, "getJVMVersion")()]) + "]")
 
     if not getattr(jpype, "isThreadAttachedToJVM")():
         getattr(jpype, "attachThreadToJVM")()
