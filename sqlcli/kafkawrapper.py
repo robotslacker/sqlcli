@@ -76,6 +76,8 @@ class KafkaWrapper(object):
     def Kafka_DeleteTopic(self, p_szTopicName, p_TimeOut: int):
         if self.__kafka_servers__ is None:
             raise SQLCliException("Missed kafka server information. Please use \"kafka set server\" first ..")
+        if p_szTopicName.find(' ') != -1:
+            raise SQLCliException("Invalid TopicName [" + p_szTopicName + "]")
         a = AdminClient({'bootstrap.servers': self.__kafka_servers__})
         deleted_topics = [p_szTopicName, ]
         fs = a.delete_topics(topics=deleted_topics)
@@ -250,6 +252,7 @@ class KafkaWrapper(object):
             matchObj = re.match(r"kafka\s+drop\s+topic\s+(.*)\s+timeout\s+(\d+)(\s+)?$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
             if matchObj:
+                m_TopicName = str(matchObj.group(1)).strip()
                 m_TimeOut = int(matchObj.group(2))
             else:
                 m_TimeOut = 1800
