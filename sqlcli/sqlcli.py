@@ -110,7 +110,8 @@ class SQLCli(object):
             clientcharset='UTF-8',                  # 客户端字符集，在读取SQL文件时，采纳这个字符集，默认为UTF-8
             resultcharset='UTF-8',                  # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
             profile=None,                           # 程序初始化执行脚本
-            scripttimeout=-1                        # 程序的脚本超时时间，默认为不限制
+            scripttimeout=-1,                       # 程序的脚本超时时间，默认为不限制
+            priority=None                           # 只运行特定priority的脚本，其他脚本忽略
     ):
         self.db_saved_conn = {}                         # 数据库Session备份
         self.SQLMappingHandler = SQLMapping()           # 函数句柄，处理SQLMapping信息
@@ -163,6 +164,7 @@ class SQLCli(object):
             HeadLessConsole = open(os.devnull, "w")
             self.Console = HeadLessConsole
         self.logger = logger
+        self.priority = priority
 
         # profile的顺序， <PYTHON_PACKAGE>/sqlcli/profile/default， SQLCLI_HOME/profile/default , user define
         if os.path.isfile(os.path.join(os.path.dirname(__file__), "profile", "default")):
@@ -205,6 +207,7 @@ class SQLCli(object):
         self.SQLExecuteHandler.SQLMappingHandler = self.SQLMappingHandler
         self.SQLExecuteHandler.SQLOptions = self.SQLOptions
         self.SQLExecuteHandler.WorkerName = self.WorkerName
+        self.SQLExecuteHandler.SQLPriorityIncludeList = self.priority
 
         # 加载一些特殊的命令
         self.register_special_commands()
@@ -2229,7 +2232,7 @@ class SQLCli(object):
                 self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
                 self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tRAWSQL\tSQL\t"
                                              "SQLStatus\tErrorMessage\tworker_name\t"
-                                             "Scenario\tTransaction\n")
+                                             "Scenario\tPriority\tTransaction\n")
                 self.SQLPerfFileHandle.close()
 
             # 对于多线程运行，这里的thread_name格式为JOB_NAME#副本数-完成次数
@@ -2253,6 +2256,7 @@ class SQLCli(object):
                 str(p_SQLResult["ErrorMessage"]).replace("\n", " ").replace("\t", "    ") + "\t" +
                 str(m_ThreadName) + "\t" +
                 str(p_SQLResult["Scenario"]) + "\t" +
+                str(p_SQLResult["Priority"]) + "\t" +
                 str(p_SQLResult["Transaction"]) +
                 "\n"
             )

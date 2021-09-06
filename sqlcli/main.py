@@ -12,6 +12,7 @@ from .sqlcliexception import SQLCliException
 @click.command()
 @click.option("--version", is_flag=True, help="Output sqlcli's version.")
 @click.option("--logon", type=str, help="logon user name and password. user/pass",)
+@click.option("--priority", type=str, help="will only run sql which priority in this list. default is run all sql.",)
 @click.option("--logfile", type=str, help="Log every query and its results to a file.",)
 @click.option("--execute", type=str, help="Execute SQL script.")
 @click.option("--sqlmap", type=str, help="SQL Mapping file.")
@@ -36,7 +37,8 @@ def cli(
         resultcharset,
         profile,
         scripttimeout,
-        server
+        server,
+        priority
 ):
     if version:
         print("Version:", __version__)
@@ -75,7 +77,8 @@ def cli(
         clientcharset=clientcharset,
         resultcharset=resultcharset,
         profile=profile,
-        scripttimeout=m_ScriptTimeout
+        scripttimeout=m_ScriptTimeout,
+        priority=priority
     )
 
     # 运行主程序

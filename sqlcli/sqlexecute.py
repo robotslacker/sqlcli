@@ -41,8 +41,15 @@ class SQLExecute(object):
         # 程序Echo输出句柄
         self.echofile = None
 
-        # Scenario信息，如果当前SQL指定，则重复上一个的Scenario信息
+        # Scenario名称，如果当前SQL未指定，则重复上一个SQL的Scenario信息
         self.SQLScenario = ''
+
+        # 当前运行参考的优先级，只有在这个List中的脚本才可以被执行
+        # 默认情况下是不做任何限制
+        self.SQLPriorityIncludeList = None
+
+        # Scenario的优先级，如果当前SQL未指定，则重复上一个SQL的Scenario信息
+        self.SQLPriority = ''
 
         # Transaction信息
         self.SQLTransactionName = ""
@@ -145,14 +152,21 @@ class SQLExecute(object):
         }
 
         支持的SQLHint包括:
-        -- [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
-        -- [Hint]  scenario:XXXX   -- 相关SQL的场景ID，仅仅作为日志信息供查看
+        -- [Hint]  order              -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
+        -- [Hint]  scenario:XXXX      -- 相关SQL的场景名称
+        -- [Hint]  scenario:XXXX:P1   -- 相关SQL的场景名称以及SQL优先级，如果应用程序指定了限制的优先级，则只运行指定的优先级脚本
         -- .....
         """
         # Remove spaces and EOL
         statement = statement.strip()
         if not statement:  # Empty string
             return
+
+        # 优先级
+        m_Priorites = []
+        if self.SQLPriorityIncludeList is not None:
+            for m_Priority in self.SQLPriorityIncludeList.split(','):
+                m_Priorites.append(m_Priority.strip().upper())
 
         # 分析SQL语句
         (ret_bSQLCompleted, ret_SQLSplitResults,
@@ -180,8 +194,11 @@ class SQLExecute(object):
             if "SCENARIO" in m_SQLHint.keys():
                 if m_SQLHint['SCENARIO'].strip().upper() == "END":
                     self.SQLScenario = ""
+                    self.SQLPriority = ""
                 else:
                     self.SQLScenario = m_SQLHint['SCENARIO']
+                    if "PRIORITY" in m_SQLHint.keys():
+                        self.SQLPriority = m_SQLHint['PRIORITY']
 
             # 记录包含有注释信息的SQL
             m_FormattedSQL = SQLFormatWithPrefix(m_CommentSQL)
@@ -211,7 +228,6 @@ class SQLExecute(object):
             # 1. ${LastSQLResult(.*)}       # .* JQ Parse Pattern
             # 2. ${var}
             #    用户定义的变量
-
             matchObj = re.search(r"\${LastSQLResult\((.*?)\)}",
                                  sql, re.IGNORECASE | re.DOTALL)
             if matchObj:
@@ -273,6 +289,20 @@ class SQLExecute(object):
                 "rewrotedsql": m_RewrotedSQL,
                 "script": p_sqlscript
             }
+
+            # 检查优先级, 如果定义了优先级，但不符合定义要求，则直接跳过这个语句
+            if self.SQLPriority != "" and len(m_Priorites) != 0:
+                if self.SQLPriority not in m_Priorites:
+                    # 由于优先级原因，这个SQL不会被执行，直接返回
+                    yield {
+                        "type": "result",
+                        "title": None,
+                        "rows": None,
+                        "headers": None,
+                        "columntypes": None,
+                        "status": "Skip due to priority set."
+                    }
+                    continue
 
             # 记录命令开始时间
             start = time.time()
@@ -794,8 +824,13 @@ class SQLExecute(object):
                     "ErrorMessage": m_SQL_ErrorMessage,
                     "thread_name": self.WorkerName,
                     "Scenario": self.SQLScenario,
+                    "Priority": self.SQLPriority,
                     "Transaction": self.SQLTransactionName
                 }
+        # 当前SQL文件已经执行完毕，清空Scenario，以及Priority
+        if p_sqlscript is not None:
+            self.SQLScenario = ''
+            self.SQLPriority = ''
 
     def get_result(self, cursor, rowcount):
         """

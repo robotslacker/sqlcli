@@ -702,12 +702,22 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?Scenario:(.*)", line,
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
-                    m_SQLHint["SCENARIO"] = matchObj.group(4)
+                    m_SenarioAndPriority = matchObj.group(4)
+                    if len(m_SenarioAndPriority.split(':')) == 2:
+                        m_SQLHint["SCENARIO"] = m_SenarioAndPriority.split(':')[0].strip()
+                        m_SQLHint["PRIORITY"] = m_SenarioAndPriority.split(':')[1].strip()
+                    else:
+                        m_SQLHint["SCENARIO"] = m_SenarioAndPriority
 
                 matchObj = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:(.*)]", line,
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
-                    m_SQLHint["SCENARIO"] = matchObj.group(4)
+                    m_SenarioAndPriority = matchObj.group(4)
+                    if len(m_SenarioAndPriority.split(':')) == 2:
+                        m_SQLHint["SCENARIO"] = m_SenarioAndPriority.split(':')[0].strip()
+                        m_SQLHint["PRIORITY"] = m_SenarioAndPriority.split(':')[1].strip()
+                    else:
+                        m_SQLHint["SCENARIO"] = m_SenarioAndPriority
 
                 # [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
                 matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?order", line,
