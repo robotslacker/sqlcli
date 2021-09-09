@@ -169,8 +169,10 @@ class SQLExecute(object):
                 m_Priorites.append(m_Priority.strip().upper())
 
         # 分析SQL语句
+        m_HasOutputScenarioSkipInfo = False
         (ret_bSQLCompleted, ret_SQLSplitResults,
          ret_SQLSplitResultsWithComments, ret_SQLHints) = SQLAnalyze(statement)
+
         for m_nPos in range(0, len(ret_SQLSplitResults)):
             m_raw_sql = ret_SQLSplitResults[m_nPos]                 # 记录原始SQL
             m_SQL_ErrorMessage = ""                                 # 错误日志信息
@@ -193,12 +195,31 @@ class SQLExecute(object):
             m_SQLHint = ret_SQLHints[m_nPos]                         # SQL提示信息，其中Scenario用作日志处理
             if "SCENARIO" in m_SQLHint.keys():
                 if m_SQLHint['SCENARIO'].strip().upper() == "END":
+                    m_HasOutputScenarioSkipInfo = False
                     self.SQLScenario = ""
                     self.SQLPriority = ""
                 else:
                     self.SQLScenario = m_SQLHint['SCENARIO']
+                    m_HasOutputScenarioSkipInfo = False
                     if "PRIORITY" in m_SQLHint.keys():
                         self.SQLPriority = m_SQLHint['PRIORITY']
+
+            # 检查优先级, 如果定义了优先级，但不符合定义要求，则直接跳过这个语句
+            if self.SQLPriority != "" and len(m_Priorites) != 0:
+                if self.SQLPriority not in m_Priorites:
+                    # 由于优先级原因，这个SQL不会被执行，直接返回
+                    # Scenario的第一个语句打印Skip信息
+                    if not m_HasOutputScenarioSkipInfo:
+                        yield {
+                            "type": "result",
+                            "title": None,
+                            "rows": None,
+                            "headers": None,
+                            "columntypes": None,
+                            "status": "Skip scenario [" + self.SQLScenario + "] due to priority set."
+                        }
+                        m_HasOutputScenarioSkipInfo = True
+                    continue
 
             # 记录包含有注释信息的SQL
             m_FormattedSQL = SQLFormatWithPrefix(m_CommentSQL)
@@ -289,20 +310,6 @@ class SQLExecute(object):
                 "rewrotedsql": m_RewrotedSQL,
                 "script": p_sqlscript
             }
-
-            # 检查优先级, 如果定义了优先级，但不符合定义要求，则直接跳过这个语句
-            if self.SQLPriority != "" and len(m_Priorites) != 0:
-                if self.SQLPriority not in m_Priorites:
-                    # 由于优先级原因，这个SQL不会被执行，直接返回
-                    yield {
-                        "type": "result",
-                        "title": None,
-                        "rows": None,
-                        "headers": None,
-                        "columntypes": None,
-                        "status": "Skip due to priority set."
-                    }
-                    continue
 
             # 记录命令开始时间
             start = time.time()

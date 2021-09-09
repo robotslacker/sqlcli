@@ -258,6 +258,13 @@ def SQLAnalyze(p_SQLCommandPlainText):
         SQLSplitResultsWithComments     包含注释信息的SQL语句信息，数组长度和SQLSplitResults相同
         SQLHints                        SQL的其他各种标志信息，根据SQLSplitResultsWithComments中的注释内容解析获得
     """
+    # 处理逻辑
+    # 1. 将所有的SQL信息根据换行符分拆到数组中
+    # 2. 将SQL内容中的注释信息一律去掉， 包括段内注释和行内注释
+    # 3. 依次将每行的内容进行SQL判断，按照完成SQL来进行分组。同时拼接其注释信息到其中
+    # 4. 进行其他的处理
+    # 5. 分析SQLHint信息
+    # 6. 所有信息返回
     SQLCommands = p_SQLCommandPlainText.split('\n')
 
     # 首先备份原始的SQL
@@ -284,6 +291,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 # 如果存在行注释
                 m_nLineCommentStart = SQLCommands[m_nPos].find('--')
                 if m_nLineCommentStart != -1:
+                    # 将行注释中的内容替换成空格
                     SQLCommands[m_nPos] = SQLCommands[m_nPos][0:m_nLineCommentStart] + \
                                           re.sub(r'.', ' ', SQLCommands[m_nPos][m_nLineCommentStart:])
                     continue
@@ -691,6 +699,29 @@ def SQLAnalyze(p_SQLCommandPlainText):
         else:
             SQLSplitResultsWithComments[m_nPos] = ""
 
+    # 去掉SQL语句中的第一个无意义的回车换行符
+    for m_nPos in range(0, len(SQLSplitResultsWithComments)):
+        if SQLSplitResultsWithComments[m_nPos] is None or len(SQLSplitResultsWithComments[m_nPos]) == 0:
+            SQLSplitResultsWithComments[m_nPos] = ""
+        else:
+            if SQLSplitResultsWithComments[m_nPos][0] == '\n':
+                SQLSplitResultsWithComments[m_nPos] = SQLSplitResultsWithComments[m_nPos][1:]
+
+    # 把Scenaio:End的信息要单独分拆出来，作为一个独立的语句
+    m_nPos = 0
+    while m_nPos < len(SQLSplitResultsWithComments):
+        m_CommandSplitList = SQLSplitResultsWithComments[m_nPos].split('\n')
+        if len(m_CommandSplitList) > 1:
+            matchObj1 = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?Scenario:End", SQLSplitResultsWithComments[m_nPos],
+                                  re.IGNORECASE | re.DOTALL)
+            matchObj2 = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:End]", SQLSplitResultsWithComments[m_nPos],
+                                  re.IGNORECASE | re.DOTALL)
+            if matchObj1 or matchObj2:
+                SQLSplitResults.insert(m_nPos, "")
+                SQLSplitResultsWithComments.insert(m_nPos, m_CommandSplitList[0])
+                SQLSplitResultsWithComments[m_nPos+1] = "\n".join(m_CommandSplitList[1:])
+        m_nPos = m_nPos + 1
+
     # 解析SQLHints
     m_SQLHints = []      # 所有的SQLHint信息，是一个字典的列表
     m_SQLHint = {}       # SQLHint信息，为Key-Value字典信息
@@ -704,19 +735,22 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 if matchObj:
                     m_SenarioAndPriority = matchObj.group(4)
                     if len(m_SenarioAndPriority.split(':')) == 2:
-                        m_SQLHint["SCENARIO"] = m_SenarioAndPriority.split(':')[0].strip()
-                        m_SQLHint["PRIORITY"] = m_SenarioAndPriority.split(':')[1].strip()
+                        # 如果有两个内容， 规则是:Scenario:Priority:ScenarioName
+                        m_SQLHint["PRIORITY"] = m_SenarioAndPriority.split(':')[0].strip()
+                        m_SQLHint["SCENARIO"] = m_SenarioAndPriority.split(':')[1].strip()
                     else:
+                        # 如果只有一个内容， 规则是:Scenario:ScenarioName
                         m_SQLHint["SCENARIO"] = m_SenarioAndPriority
-
                 matchObj = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:(.*)]", line,
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_SenarioAndPriority = matchObj.group(4)
                     if len(m_SenarioAndPriority.split(':')) == 2:
-                        m_SQLHint["SCENARIO"] = m_SenarioAndPriority.split(':')[0].strip()
-                        m_SQLHint["PRIORITY"] = m_SenarioAndPriority.split(':')[1].strip()
+                        # 如果有两个内容， 规则是:Scenario:Priority:ScenarioName
+                        m_SQLHint["PRIORITY"] = m_SenarioAndPriority.split(':')[0].strip()
+                        m_SQLHint["SCENARIO"] = m_SenarioAndPriority.split(':')[1].strip()
                     else:
+                        # 如果只有一个内容， 规则是:Scenario:ScenarioName
                         m_SQLHint["SCENARIO"] = m_SenarioAndPriority
 
                 # [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
@@ -770,11 +804,24 @@ def SQLAnalyze(p_SQLCommandPlainText):
                         "LoopUntil": matchObj.group(5),
                         "LoopInterval": matchObj.group(6)
                     }
-
-            m_SQLHints.append({})     # 对于注释信息，所有的SQLHint信息都是空的
+            # 对于Scneario:End 作为一个单独的语句
+            if "SCENARIO" in m_SQLHint.keys():
+                if m_SQLHint["SCENARIO"].upper() == "END":
+                    m_SQLHints.append(m_SQLHint)
+                    m_SQLHint = {}
+                else:
+                    m_SQLHints.append({})  # 对于注释信息，所有的SQLHint信息都是空的
+            else:
+                m_SQLHints.append({})  # 对于注释信息，所有的SQLHint信息都是空的
         else:
             # 这里是一个可执行SQL信息
             # 将这个SQL之前所有解析注释信息送到SQL的标志中，并同时清空当前的SQL标志信息
             m_SQLHints.append(m_SQLHint)
             m_SQLHint = {}
+
+    # SQLSplitResults, SQLSplitResultsWithComments, m_SQLHints 分别表示不同的含义，其数组长度必须完全一致，一一对应
+    # SQLSplitResults：              解析后的所有SQL语句
+    # SQLSplitResultsWithComments：  解析后包含了注释部分的SQL语句
+    # m_SQLHints：                   SQL的提示信息
+    # m_bInMultiLineSQL：            是否包含在一个多行文本中。 not m_bInMultiLineSQL表示本SQL语句已经完整
     return not m_bInMultiLineSQL, SQLSplitResults, SQLSplitResultsWithComments, m_SQLHints
