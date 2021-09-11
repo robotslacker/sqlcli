@@ -228,15 +228,17 @@ class SQLMapping(object):
 
 
 def SQLFormatWithPrefix(p_szCommentSQLScript, p_szOutputPrefix=""):
+    # 如果是完全空行的内容，则跳过
+    if len(p_szCommentSQLScript) == 0:
+        return None
+
     # 把所有的SQL换行, 第一行加入[SQL >]， 随后加入[   >]
     m_FormattedString = None
     m_CommentSQLLists = p_szCommentSQLScript.split('\n')
-    # 从最后一行开始，依次删除空行，空行内容不打印
-    for m_nPos in range(len(m_CommentSQLLists), 0, -1):
-        if len(m_CommentSQLLists[m_nPos-1].strip()) == 0:
+    if len(p_szCommentSQLScript) >= 1:
+        # 如果原来的内容最后一个字符就是回车换行符，split函数会在后面补一个换行符，这里要去掉，否则前端显示就会多一个空格
+        if p_szCommentSQLScript[-1] == "\n":
             del m_CommentSQLLists[-1]
-        else:
-            break
 
     # 拼接字符串
     bSQLPrefix = 'SQL> '
@@ -699,27 +701,37 @@ def SQLAnalyze(p_SQLCommandPlainText):
         else:
             SQLSplitResultsWithComments[m_nPos] = ""
 
-    # 去掉SQL语句中的第一个无意义的回车换行符
-    for m_nPos in range(0, len(SQLSplitResultsWithComments)):
-        if SQLSplitResultsWithComments[m_nPos] is None or len(SQLSplitResultsWithComments[m_nPos]) == 0:
-            SQLSplitResultsWithComments[m_nPos] = ""
-        else:
-            if SQLSplitResultsWithComments[m_nPos][0] == '\n':
-                SQLSplitResultsWithComments[m_nPos] = SQLSplitResultsWithComments[m_nPos][1:]
-
     # 把Scenaio:End的信息要单独分拆出来，作为一个独立的语句
     m_nPos = 0
     while m_nPos < len(SQLSplitResultsWithComments):
         m_CommandSplitList = SQLSplitResultsWithComments[m_nPos].split('\n')
         if len(m_CommandSplitList) > 1:
-            matchObj1 = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?Scenario:End", SQLSplitResultsWithComments[m_nPos],
-                                  re.IGNORECASE | re.DOTALL)
-            matchObj2 = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:End]", SQLSplitResultsWithComments[m_nPos],
-                                  re.IGNORECASE | re.DOTALL)
-            if matchObj1 or matchObj2:
-                SQLSplitResults.insert(m_nPos, "")
-                SQLSplitResultsWithComments.insert(m_nPos, m_CommandSplitList[0])
-                SQLSplitResultsWithComments[m_nPos+1] = "\n".join(m_CommandSplitList[1:])
+            for m_nPos3 in range(0, len(m_CommandSplitList)):
+                matchObj1 = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?Scenario:End", m_CommandSplitList[m_nPos3],
+                                      re.IGNORECASE | re.DOTALL)
+                matchObj2 = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:End]", m_CommandSplitList[m_nPos3],
+                                      re.IGNORECASE | re.DOTALL)
+                if matchObj1 or matchObj2:
+                    if m_nPos3 != 0:
+                        # 把Scenario_End之前的内容送入解析
+                        # 不要怀疑这里为啥不用JOIN，因为JOIN在处理\n数组的时候会丢掉一个
+                        m_Prefix = ""
+                        for m_nPos4 in range(0, m_nPos3):
+                            m_Prefix = m_Prefix + m_CommandSplitList[m_nPos4] + "\n"
+                        SQLSplitResults.insert(m_nPos, "")
+                        SQLSplitResultsWithComments.insert(m_nPos, m_Prefix)
+                        m_nPos = m_nPos + 1
+
+                    if m_nPos3 != len(m_CommandSplitList) - 1:
+                        # 把Scenario_End送入解析
+                        SQLSplitResults.insert(m_nPos, "")
+                        SQLSplitResultsWithComments.insert(m_nPos, m_CommandSplitList[m_nPos3])
+                        m_nPos = m_nPos + 1
+                        #  随后的语句将继续作为下一步分拆的内容
+                        SQLSplitResultsWithComments[m_nPos] = "\n".join(m_CommandSplitList[m_nPos3 + 1:])
+                    else:
+                        SQLSplitResultsWithComments[m_nPos] = m_CommandSplitList[m_nPos3]
+                    break
         m_nPos = m_nPos + 1
 
     # 解析SQLHints
