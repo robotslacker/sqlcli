@@ -166,9 +166,12 @@ class SQLCli(object):
             HeadLessConsole = open(os.devnull, "w")
             self.Console = HeadLessConsole
         self.logger = logger
-        self.priority = priority
         self.suitename = suitename
         self.casename = casename
+
+        # 如果程序传递了Priority，则以程序传递的参数为准
+        if priority is not None:
+            self.SQLOptions.set("PRIORITY", priority)
 
         # profile的顺序， <PYTHON_PACKAGE>/sqlcli/profile/default， SQLCLI_HOME/profile/default , user define
         if os.path.isfile(os.path.join(os.path.dirname(__file__), "profile", "default")):
@@ -211,7 +214,7 @@ class SQLCli(object):
         self.SQLExecuteHandler.SQLMappingHandler = self.SQLMappingHandler
         self.SQLExecuteHandler.SQLOptions = self.SQLOptions
         self.SQLExecuteHandler.WorkerName = self.WorkerName
-        self.SQLExecuteHandler.SQLPriorityIncludeList = self.priority
+        self.TestHandler.SQLOptions = self.SQLOptions
 
         # 加载一些特殊的命令
         self.register_special_commands()

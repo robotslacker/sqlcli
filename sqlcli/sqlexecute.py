@@ -44,10 +44,6 @@ class SQLExecute(object):
         # Scenario名称，如果当前SQL未指定，则重复上一个SQL的Scenario信息
         self.SQLScenario = ''
 
-        # 当前运行参考的优先级，只有在这个List中的脚本才可以被执行
-        # 默认情况下是不做任何限制
-        self.SQLPriorityIncludeList = None
-
         # Scenario的优先级，如果当前SQL未指定，则重复上一个SQL的Scenario信息
         self.SQLPriority = ''
 
@@ -164,8 +160,8 @@ class SQLExecute(object):
 
         # 优先级
         m_Priorites = []
-        if self.SQLPriorityIncludeList is not None:
-            for m_Priority in self.SQLPriorityIncludeList.split(','):
+        if self.SQLOptions.get("PRIORITY") != "":
+            for m_Priority in self.SQLOptions.get("PRIORITY").split(','):
                 m_Priorites.append(m_Priority.strip().upper())
 
         # 分析SQL语句

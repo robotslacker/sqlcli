@@ -45,12 +45,12 @@ class POSIXCompare:
                 if p_str2 in self.ErrorRegexPattern:
                     return False
                 # 正则编译
-                m_CompiledPattern = re.compile(p_str2)
+                if p_compare_ignorecase:
+                    m_CompiledPattern = re.compile(p_str2, re.IGNORECASE)
+                else:
+                    m_CompiledPattern = re.compile(p_str2)
                 self.CompiledRegexPattern[p_str2] = m_CompiledPattern
-            if p_compare_ignorecase:
-                matchObj = re.match(m_CompiledPattern, p_str1, re.IGNORECASE)
-            else:
-                matchObj = re.match(m_CompiledPattern, p_str1)
+            matchObj = re.match(m_CompiledPattern, p_str1)
             if matchObj is None:
                 return False
             elif str(matchObj.group()) != p_str1:
@@ -304,9 +304,9 @@ class TestWrapper(object):
     c_CompareWorkEncoding = 'UTF-8'           # Compare工作文件字符集
     c_CompareResultEncoding = 'UTF-8'         # Compare结果文件字符集
     c_CompareRefEncoding = 'UTF-8'            # Compare参考文件字符集
-    c_CompareReportDetailMode = False         # Compare日志显示样式， 是否显示详细内容
-    c_CompareGenerateReport = False           # 是否在本地生成Dif/Suc/xLog文件报告
-    c_CompareGenerateReportDir = None         # 本地Dif/Suc/xLog报告的生成目录
+
+    def __init__(self):
+        self.SQLOptions = None                # 程序处理参数
 
     def setTestOptions(self, p_szParameter, p_szValue):
         if p_szParameter.upper() == "IgnoreEmptyLine".upper():
@@ -381,34 +381,12 @@ class TestWrapper(object):
                     self.c_MaskLines.pop(m_nPos)
                     break
             return
-        if p_szParameter.upper() == "CompareReportDetailMode".upper():
-            if p_szValue.upper() == "TRUE":
-                self.c_CompareReportDetailMode = True
-            elif p_szValue.upper() == "FALSE":
-                self.c_CompareReportDetailMode = False
-            else:
-                raise SQLCliException("Invalid option value [" + str(p_szValue) + "]. True/False only.")
-            return
-        if p_szParameter.upper() == "CompareGenerateReport".upper():
-            if p_szValue.upper() == "TRUE":
-                self.c_CompareGenerateReport = True
-            elif p_szValue.upper() == "FALSE":
-                self.c_CompareGenerateReport = False
-            else:
-                raise SQLCliException("Invalid option value [" + str(p_szValue) + "]. True/False only.")
-            return
-        if p_szParameter.upper() == "CompareGenerateReportDir".upper():
-            self.c_CompareGenerateReportDir = p_szValue
-            return
-
         raise SQLCliException("Invalid parameter [" + str(p_szParameter) + "].")
 
     def Compare_Files(self, p_szWorkFile, p_szReferenceFile):
-        m_Title = None
-        if self.c_CompareReportDetailMode:
-            m_Title = "Compare text files:"
-            m_Title = m_Title + "\n" + "  Workfile:          [" + str(p_szWorkFile) + "]"
-            m_Title = m_Title + "\n" + "  Reffile:           [" + str(p_szReferenceFile) + "]"
+        m_Title = "Compare text files:"
+        m_Title = m_Title + "\n" + "  Workfile:          [" + str(p_szWorkFile) + "]"
+        m_Title = m_Title + "\n" + "  Reffile:           [" + str(p_szReferenceFile) + "]"
 
         # 检查文件是否存在
         if not os.path.isfile(p_szWorkFile):
@@ -435,75 +413,15 @@ class TestWrapper(object):
                 CompareRefEncoding=self.c_CompareRefEncoding,
             )
 
-            # 记录Report文件的位置信息
-            (m_WorkFilePath, m_TempFileName) = os.path.split(p_szWorkFile)
-            (m_ShortWorkFileName, m_WorkFileExtension) = os.path.splitext(m_TempFileName)
-            m_DifFileName = m_ShortWorkFileName + '.dif'
-            m_SucFileName = m_ShortWorkFileName + '.suc'
-            m_xlogFileName = m_ShortWorkFileName + '.xlog'
-            if self.c_CompareGenerateReportDir is not None:
-                m_WorkFilePath = self.c_CompareGenerateReportDir
-            else:
-                m_WorkFilePath = os.getcwd()  # 默认当前目录
-            m_DifFullFileName = os.path.join(m_WorkFilePath, m_DifFileName)
-            m_xlogFullFileName = os.path.join(m_WorkFilePath, m_xlogFileName)
-            m_SucFullFileName = os.path.join(m_WorkFilePath, m_SucFileName)
-            # 尝试先删除旧的数据文件
-            if os.path.exists(m_DifFullFileName):
-                os.remove(m_DifFullFileName)
-            if os.path.exists(m_SucFullFileName):
-                os.remove(m_SucFullFileName)
-            if os.path.exists(m_xlogFullFileName):
-                os.remove(m_xlogFullFileName)
-
-            if m_CompareResult:
-                if self.c_CompareGenerateReport:
-                    m_Title = m_Title + "\n" + "  Sucfile:           [" + str(m_SucFullFileName) + "]"
-                    m_Title = m_Title + "\n" + "  xLogfile:          [" + str(m_xlogFullFileName) + "]"
-                    m_Title = m_Title + "\n" + "  Mask flag:         [" + str(self.c_CompareEnableMask) + "]"
-                    m_Title = m_Title + "\n" + "  BlankSpace flag:   [" + str(self.c_CompareIgnoreTailOrHeadBlank) + "]"
-                    m_Title = m_Title + "\n" + "  CaseSentive flag:  [" + str(self.c_CompareIgnoreCase) + "]"
-                    m_Title = m_Title + "\n" + "  Empty line flag:   [" + str(self.c_IgnoreEmptyLine) + "]"
-                    for row in self.c_SkipLines:
-                        m_Title = m_Title + "\n" + "  Skip line..:       [" + str(row) + "]"
-                    for row in self.c_MaskLines:
-                        m_Title = m_Title + "\n" + "  Mask line..:       [" + str(row) + "]"
-                # 生成一个空的suc文件
-                m_CompareResultFile = open(m_SucFullFileName, 'w', encoding=self.c_CompareResultEncoding)
-                m_CompareResultFile.close()
-                # 返回比对结果
-                m_Result = "Compare Successful!"
-            else:
-                if self.c_CompareGenerateReport:
-                    m_Title = m_Title + "\n" + "  Diffile:           [" + str(m_DifFullFileName) + "]"
-                    m_Title = m_Title + "\n" + "  xLogfile:          [" + str(m_xlogFullFileName) + "]"
-                    m_Title = m_Title + "\n" + "  Mask flag:         [" + str(self.c_CompareEnableMask) + "]"
-                    m_Title = m_Title + "\n" + "  BlankSpace flag:   [" + str(self.c_CompareIgnoreTailOrHeadBlank) + "]"
-                    m_Title = m_Title + "\n" + "  CaseSentive flag:  [" + str(self.c_CompareIgnoreCase) + "]"
-                    m_Title = m_Title + "\n" + "  Empty line flag:   [" + str(self.c_IgnoreEmptyLine) + "]"
-                    for row in self.c_SkipLines:
-                        m_Title = m_Title + "\n" + "  Skip line..:       [" + str(row) + "]"
-                    for row in self.c_MaskLines:
-                        m_Title = m_Title + "\n" + "  Mask line..:       [" + str(row) + "]"
-                # 生成dif文件
-                m_CompareResultFile = open(m_DifFullFileName, 'w', encoding=self.c_CompareResultEncoding)
-                for line in m_CompareResultList:
-                    print(line, file=m_CompareResultFile)
-                m_CompareResultFile.close()
-                # 返回比对结果
-                if self.c_CompareGenerateReport:
-                    m_Result = "Compare Failed! Please check report files for more information."
-                else:
-                    m_Result = "Compare Failed!"
-
-            # 生成xlog文件，用于Scenario分析
+            # 生成Scenario分析结果
             m_ScenarioStartPos = 0  # 当前Senario开始的位置
-            m_ScenariosResults = {}
+            m_ScenarioResults = {}
             m_ScenariosPos = {}
 
             # 首先记录下来每一个Senario的开始位置，结束位置
             m_nPos = 0
             m_ScenarioName = None
+            m_ScenarioPriority = None
             while True:
                 if m_nPos >= len(m_CompareResultList):
                     break
@@ -521,6 +439,8 @@ class TestWrapper(object):
 
                 # -- [Hint] scenario:xxxx:
                 # -- [scenario:xxxx]
+                # -- [Hint] scenario:priority:xxxx:
+                # -- [scenario:priority:xxxx]
                 # -- [Hint] scenario:end:
                 # -- [scenario:end]
 
@@ -531,11 +451,13 @@ class TestWrapper(object):
                         m_ScenarioName = "setup"
                     m_ScenariosPos[m_ScenarioName] = {
                         "ScenarioStartPos": m_ScenarioStartPos,
-                        "ScenarioEndPos": m_nPos
+                        "ScenarioEndPos": m_nPos,
+                        "ScenarioPriority": m_ScenarioPriority
                     }
                     m_ScenarioStartPos = m_nPos + 1
                     m_nPos = m_nPos + 1
                     m_ScenarioName = None
+                    m_ScenarioPriority = None
                     continue
 
                 matchObj = re.search(r"--(\s+)?\[(\s+)?setup:end]", m_CompareResultList[m_nPos],
@@ -545,11 +467,13 @@ class TestWrapper(object):
                         m_ScenarioName = "setup"
                     m_ScenariosPos[m_ScenarioName] = {
                         "ScenarioStartPos": m_ScenarioStartPos,
-                        "ScenarioEndPos": m_nPos
+                        "ScenarioEndPos": m_nPos,
+                        "ScenarioPriority": m_ScenarioPriority
                     }
                     m_ScenarioStartPos = m_nPos + 1
                     m_nPos = m_nPos + 1
                     m_ScenarioName = None
+                    m_ScenarioPriority = None
                     continue
 
                 matchObj = re.search(r"--(\s+)?\[Hint](\s+)?cleanup:end", m_CompareResultList[m_nPos],
@@ -559,11 +483,13 @@ class TestWrapper(object):
                         m_ScenarioName = "cleanup"
                     m_ScenariosPos[m_ScenarioName] = {
                         "ScenarioStartPos": m_ScenarioStartPos,
-                        "ScenarioEndPos": m_nPos
+                        "ScenarioEndPos": m_nPos,
+                        "ScenarioPriority": m_ScenarioPriority
                     }
                     m_ScenarioStartPos = m_nPos + 1
                     m_nPos = m_nPos + 1
                     m_ScenarioName = None
+                    m_ScenarioPriority = None
                     continue
 
                 matchObj = re.search(r"--(\s+)?\[(\s+)?cleanup:end]", m_CompareResultList[m_nPos],
@@ -573,11 +499,13 @@ class TestWrapper(object):
                         m_ScenarioName = "cleanup"
                     m_ScenariosPos[m_ScenarioName] = {
                         "ScenarioStartPos": m_ScenarioStartPos,
-                        "ScenarioEndPos": m_nPos
+                        "ScenarioEndPos": m_nPos,
+                        "ScenarioPriority": m_ScenarioPriority
                     }
                     m_ScenarioStartPos = m_nPos + 1
                     m_nPos = m_nPos + 1
                     m_ScenarioName = None
+                    m_ScenarioPriority = None
                     continue
 
                 matchObj = re.search(r"--(\s+)?\[Hint](\s+)?scenario:end", m_CompareResultList[m_nPos],
@@ -587,11 +515,13 @@ class TestWrapper(object):
                         m_ScenarioName = "none-" + str(m_ScenarioStartPos)
                     m_ScenariosPos[m_ScenarioName] = {
                         "ScenarioStartPos": m_ScenarioStartPos,
-                        "ScenarioEndPos": m_nPos
+                        "ScenarioEndPos": m_nPos,
+                        "ScenarioPriority": m_ScenarioPriority
                     }
                     m_ScenarioStartPos = m_nPos + 1
                     m_nPos = m_nPos + 1
                     m_ScenarioName = None
+                    m_ScenarioPriority = None
                     continue
 
                 matchObj = re.search(r"--(\s+)?\[(\s+)?scenario:end]", m_CompareResultList[m_nPos],
@@ -601,17 +531,20 @@ class TestWrapper(object):
                         m_ScenarioName = "none-" + str(m_ScenarioStartPos)
                     m_ScenariosPos[m_ScenarioName] = {
                         "ScenarioStartPos": m_ScenarioStartPos,
-                        "ScenarioEndPos": m_nPos
+                        "ScenarioEndPos": m_nPos,
+                        "ScenarioPriority": m_ScenarioPriority
                     }
                     m_ScenarioStartPos = m_nPos + 1
                     m_nPos = m_nPos + 1
                     m_ScenarioName = None
+                    m_ScenarioPriority = None
                     continue
 
                 matchObj = re.search(r"--(\s+)?\[Hint](\s+)?setup:", m_CompareResultList[m_nPos],
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_ScenarioName = "setup"
+                    m_ScenarioPriority = None
                     m_ScenarioStartPos = m_nPos
                     m_nPos = m_nPos + 1
                     continue
@@ -620,6 +553,7 @@ class TestWrapper(object):
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_ScenarioName = "setup"
+                    m_ScenarioPriority = None
                     m_ScenarioStartPos = m_nPos
                     m_nPos = m_nPos + 1
                     continue
@@ -628,6 +562,7 @@ class TestWrapper(object):
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_ScenarioName = "cleanup"
+                    m_ScenarioPriority = None
                     m_ScenarioStartPos = m_nPos
                     m_nPos = m_nPos + 1
                     continue
@@ -636,6 +571,7 @@ class TestWrapper(object):
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
                     m_ScenarioName = "cleanup"
+                    m_ScenarioPriority = None
                     m_ScenarioStartPos = m_nPos
                     m_nPos = m_nPos + 1
                     continue
@@ -643,7 +579,36 @@ class TestWrapper(object):
                 matchObj = re.search(r"--(\s+)?\[Hint](\s+)?Scenario:(.*)", m_CompareResultList[m_nPos],
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
-                    m_ScenarioName = matchObj.group(3).strip()
+                    m_SenarioAndPriority = matchObj.group(3).strip()
+                    if len(m_SenarioAndPriority.split(':')) == 2:
+                        # 重复的Scenario开始
+                        if m_ScenarioName is not None and \
+                                m_SenarioAndPriority.split(':')[1].strip() == m_ScenarioName:
+                            m_ScenarioStartPos = m_nPos
+                            m_nPos = m_nPos + 1
+                            continue
+                    else:
+                        # 重复的Scenario开始
+                        if m_ScenarioName is not None and \
+                                m_ScenarioName == m_SenarioAndPriority:
+                            m_ScenarioStartPos = m_nPos
+                            m_nPos = m_nPos + 1
+                            continue
+                    if m_ScenarioName is not None:
+                        # 如果上一个Scenario没有正常结束，这里标记结束
+                        m_ScenariosPos[m_ScenarioName] = {
+                            "ScenarioStartPos": m_ScenarioStartPos,
+                            "ScenarioEndPos": m_nPos - 1,
+                            "ScenarioPriority": m_ScenarioPriority
+                        }
+                    if len(m_SenarioAndPriority.split(':')) == 2:
+                        # 如果有两个内容， 规则是:Scenario:Priority:ScenarioName
+                        m_ScenarioPriority = m_SenarioAndPriority.split(':')[0].strip()
+                        m_ScenarioName = m_SenarioAndPriority.split(':')[1].strip()
+                    else:
+                        # 如果只有一个内容， 规则是:Scenario:ScenarioName
+                        m_ScenarioName = m_SenarioAndPriority
+                        m_ScenarioPriority = None
                     m_ScenarioStartPos = m_nPos
                     m_nPos = m_nPos + 1
                     continue
@@ -651,7 +616,36 @@ class TestWrapper(object):
                 matchObj = re.search(r"--(\s+)?\[(\s+)?Scenario:(.*)]", m_CompareResultList[m_nPos],
                                      re.IGNORECASE | re.DOTALL)
                 if matchObj:
-                    m_ScenarioName = matchObj.group(3).strip()
+                    m_SenarioAndPriority = matchObj.group(3).strip()
+                    if len(m_SenarioAndPriority.split(':')) == 2:
+                        # 重复的Scenario开始
+                        if m_ScenarioName is not None and \
+                                m_SenarioAndPriority.split(':')[1].strip() == m_ScenarioName:
+                            m_ScenarioStartPos = m_nPos
+                            m_nPos = m_nPos + 1
+                            continue
+                    else:
+                        # 重复的Scenario开始
+                        if m_ScenarioName is not None and \
+                                m_ScenarioName == m_SenarioAndPriority:
+                            m_ScenarioStartPos = m_nPos
+                            m_nPos = m_nPos + 1
+                            continue
+                    if m_ScenarioName is not None:
+                        # 如果上一个Scenario没有正常结束，这里标记结束
+                        m_ScenariosPos[m_ScenarioName] = {
+                            "ScenarioStartPos": m_ScenarioStartPos,
+                            "ScenarioEndPos": m_nPos - 1,
+                            "ScenarioPriority": m_ScenarioPriority
+                        }
+                    if len(m_SenarioAndPriority.split(':')) == 2:
+                        # 如果有两个内容， 规则是:Scenario:Priority:ScenarioName
+                        m_ScenarioPriority = m_SenarioAndPriority.split(':')[0].strip()
+                        m_ScenarioName = m_SenarioAndPriority.split(':')[1].strip()
+                    else:
+                        # 如果只有一个内容， 规则是:Scenario:ScenarioName
+                        m_ScenarioName = m_SenarioAndPriority
+                        m_ScenarioPriority = None
                     m_ScenarioStartPos = m_nPos
                     m_nPos = m_nPos + 1
                     continue
@@ -664,13 +658,14 @@ class TestWrapper(object):
                 if m_ScenarioName is not None:
                     m_ScenariosPos[m_ScenarioName] = {
                         "ScenarioStartPos": m_ScenarioStartPos,
-                        "ScenarioEndPos": len(m_CompareResultList)
+                        "ScenarioEndPos": len(m_CompareResultList),
+                        "ScenarioPriority": m_ScenarioPriority
                     }
-
             # 遍历每一个Senario的情况
             for m_ScenarioName, m_Senario_Pos in m_ScenariosPos.items():
                 m_StartPos = m_Senario_Pos['ScenarioStartPos']
                 m_EndPos = m_Senario_Pos['ScenarioEndPos']
+                m_ScenarioPriority = m_Senario_Pos['ScenarioPriority']
                 bFoundDif = False
                 m_DifStartPos = 0
                 for m_nPos in range(m_StartPos, m_EndPos):
@@ -679,7 +674,12 @@ class TestWrapper(object):
                         bFoundDif = True
                         break
                 if not bFoundDif:
-                    m_ScenariosResults[m_ScenarioName] = {"Status": "Successful", "message": ""}
+                    m_ScenarioResults[m_ScenarioName] = \
+                        {
+                            "Status": "Successful",
+                            "message": "",
+                            "Priority": m_ScenarioPriority
+                        }
                 else:
                     # 错误信息只记录前后20行信息,前5行，多余的不记录
                     if m_DifStartPos - 5 > m_StartPos:
@@ -691,18 +691,143 @@ class TestWrapper(object):
                     else:
                         m_DifEndPos = m_EndPos
                     m_Message = "\n".join(m_CompareResultList[m_DifStartPos:m_DifEndPos])
-                    m_ScenariosResults[m_ScenarioName] = {"Status": "FAILURE", "message": m_Message}
+                    m_ScenarioResults[m_ScenarioName] = \
+                        {
+                            "Status": "FAILURE",
+                            "message": m_Message,
+                            "Priority": m_ScenarioPriority
+                        }
+
+            # 如果没有设置任何Scenario，则将CaseName作为Scenario的名字，统一为一个Scenario
+            if len(m_ScenarioResults) == 0:
+                if m_CompareResult:
+                    m_ScenarioResults["NO-SCENARIO"] = \
+                        {
+                            "Status": "Successful",
+                            "message": "",
+                            "Priority": "UNKNOWN"
+                        }
+                else:
+                    m_ScenarioResults["NO-SCENARIO"] = \
+                        {
+                            "Status": "FAILURE",
+                            "message": "Test failed.",
+                            "Priority": "UNKNOWN"
+                        }
+
+            # 根据优先级过滤Scenario的结果，如果dif发生在不需要运行的Scenario中，则Scenario的结果标记为SKIP
+            if self.SQLOptions.get("PRIORITY") != "":
+                m_TestPriority = self.SQLOptions.get("PRIORITY")
+                m_TestPriorityList = [x.upper().strip() for x in m_TestPriority.split(",")]
+
+                # UNKNOWN的Case总是要运行的，无论如何设置优先级
+                for m_ScenarioName, m_ScenarioResult in m_ScenarioResults.items():
+                    if m_ScenarioResult["Status"] == "FAILURE" and \
+                            m_ScenarioResult["Priority"] is not None and \
+                            m_ScenarioResult["Priority"] not in m_TestPriorityList:
+                        m_ScenarioResults[m_ScenarioName] = \
+                            {
+                                "Status": "SKIP",
+                                "message": "Skip this scenario due to env TEST_PRIORITY set.",
+                                "Priority": m_ScenarioResult["Priority"]
+                            }
+                        for m_linePos in range(
+                                m_ScenariosPos[m_ScenarioName]["ScenarioStartPos"],
+                                m_ScenariosPos[m_ScenarioName]["ScenarioEndPos"] + 1):
+                            # 对于不需要展示的Scenario, 第一行标记Scenario的名字，其他行过滤删除
+                            if m_linePos == m_ScenariosPos[m_ScenarioName]["ScenarioStartPos"]:
+                                m_CompareResultList[m_linePos] = \
+                                    "S" + m_CompareResultList[m_linePos][1:8] + \
+                                    "Scenario [" + m_ScenarioName + "] skipped due to priority limit."
+                            else:
+                                if m_linePos < len(m_CompareResultList):
+                                    m_CompareResultList[m_linePos] = "!@#$%^&*"
+                # 过滤掉所有不需要展现的，已经被SKIP的内容
+                m_CompareResultList = [x for x in m_CompareResultList if x != "!@#$%^&*"]
+
+            # 遍历所有Scneario的结果，如果全部为SUCCESSFUL，则Case为成功，否则为失败
+            m_CompareResult = True
+            for m_LineItem in m_CompareResultList:
+                if m_LineItem.startswith('-') or m_LineItem.startswith('+'):
+                    m_CompareResult = False
+                    break
+            if m_CompareResult:
+                for m_ScenarioResult in m_ScenarioResults.values():
+                    if m_ScenarioResult["Status"] == "FAILURE":
+                        m_CompareResult = False
+                        break
+
+            # 记录Report文件的位置信息, 默认生成在WorkFilePath下
+            (m_WorkFilePath, m_TempFileName) = os.path.split(os.path.abspath(p_szWorkFile))
+            (m_ShortWorkFileName, m_WorkFileExtension) = os.path.splitext(m_TempFileName)
+            m_DifFileName = m_ShortWorkFileName + '.dif'
+            m_SucFileName = m_ShortWorkFileName + '.suc'
+            m_xlogFileName = m_ShortWorkFileName + '.xlog'
+            m_DifFullFileName = os.path.join(m_WorkFilePath, m_DifFileName)
+            m_xlogFullFileName = os.path.join(m_WorkFilePath, m_xlogFileName)
+            m_SucFullFileName = os.path.join(m_WorkFilePath, m_SucFileName)
+            # 尝试先删除旧的数据文件
+            if os.path.exists(m_DifFullFileName):
+                os.remove(m_DifFullFileName)
+            if os.path.exists(m_SucFullFileName):
+                os.remove(m_SucFullFileName)
+            if os.path.exists(m_xlogFullFileName):
+                os.remove(m_xlogFullFileName)
+
+            if m_CompareResult:
+                m_Title = m_Title + "\n" + "  Sucfile:           [" + str(m_SucFullFileName) + "]"
+                m_Title = m_Title + "\n" + "  xLogfile:          [" + str(m_xlogFullFileName) + "]"
+                m_Title = m_Title + "\n" + "  Mask flag:         [" + str(self.c_CompareEnableMask) + "]"
+                m_Title = m_Title + "\n" + "  BlankSpace flag:   [" + str(self.c_CompareIgnoreTailOrHeadBlank) + "]"
+                m_Title = m_Title + "\n" + "  CaseSentive flag:  [" + str(self.c_CompareIgnoreCase) + "]"
+                m_Title = m_Title + "\n" + "  Empty line flag:   [" + str(self.c_IgnoreEmptyLine) + "]"
+                for row in self.c_SkipLines:
+                    m_Title = m_Title + "\n" + "  Skip line..:       [" + str(row) + "]"
+                for row in self.c_MaskLines:
+                    m_Title = m_Title + "\n" + "  Mask line..:       [" + str(row) + "]"
+                # 生成一个空的suc文件
+                m_CompareResultFile = open(m_SucFullFileName, 'w', encoding=self.c_CompareResultEncoding)
+                m_CompareResultFile.close()
+                # 返回比对结果
+                m_Result = "Compare Successful!"
+            else:
+                m_Title = m_Title + "\n" + "  Diffile:           [" + str(m_DifFullFileName) + "]"
+                m_Title = m_Title + "\n" + "  xLogfile:          [" + str(m_xlogFullFileName) + "]"
+                m_Title = m_Title + "\n" + "  Mask flag:         [" + str(self.c_CompareEnableMask) + "]"
+                m_Title = m_Title + "\n" + "  BlankSpace flag:   [" + str(self.c_CompareIgnoreTailOrHeadBlank) + "]"
+                m_Title = m_Title + "\n" + "  CaseSentive flag:  [" + str(self.c_CompareIgnoreCase) + "]"
+                m_Title = m_Title + "\n" + "  Empty line flag:   [" + str(self.c_IgnoreEmptyLine) + "]"
+                for row in self.c_SkipLines:
+                    m_Title = m_Title + "\n" + "  Skip line..:       [" + str(row) + "]"
+                for row in self.c_MaskLines:
+                    m_Title = m_Title + "\n" + "  Mask line..:       [" + str(row) + "]"
+                # 生成dif文件
+                m_CompareResultFile = open(m_DifFullFileName, 'w', encoding=self.c_CompareResultEncoding)
+                for line in m_CompareResultList:
+                    print(line, file=m_CompareResultFile)
+                m_CompareResultFile.close()
+                # 返回比对结果
+                m_Result = "Compare Failed! " + \
+                           "Please check [" + os.path.abspath(m_DifFullFileName) + "] for more information."
 
             # 返回结果
-            m_Headers = ["Scenario", "Result"]
+            m_Headers = ["Scenario", "Priority", "Status", ]
             m_ReturnResult = []
-            for m_ScenarioName, m_ScenarioStatus in m_ScenariosResults.items():
-                if self.c_CompareReportDetailMode:
-                    if m_ScenarioStatus["Status"] == "FAILURE":
-                        m_Result = m_Result + "\n... >>>>>>> ...\n" + "Scenario:[" + m_ScenarioName + "]"
-                        m_Result = m_Result + "\n" + m_ScenarioStatus["Status"]
-                        m_Result = m_Result + "\n" + m_ScenarioStatus["message"]
-                m_ReturnResult.append([m_ScenarioName, m_ScenarioStatus["Status"]])
+            m_ScenarioCount = 0
+            m_ScenarioSuccCount = 0
+            m_ScenarioSkipCount = 0
+            for m_ScenarioName, m_ScenarioResult in m_ScenarioResults.items():
+                m_ReturnResult.append(
+                    [m_ScenarioName, m_ScenarioResult["Priority"], m_ScenarioResult["Status"]]
+                )
+                m_ScenarioCount = m_ScenarioCount + 1
+                if m_ScenarioResult["Status"] == "Successful":
+                    m_ScenarioSuccCount = m_ScenarioSuccCount + 1
+                if m_ScenarioResult["Status"] == "SKIP":
+                    m_ScenarioSkipCount = m_ScenarioSkipCount + 1
+            m_Result = \
+                str(m_ScenarioSuccCount) + " successful with total " + \
+                str(m_ScenarioCount) + "(" + str(m_ScenarioSkipCount) + " kipped) scenarios.\n" + m_Result
             return m_Title, m_ReturnResult, m_Headers, None, m_Result
         except DiffException as de:
             raise SQLCliException('Fatal Diff Exception:: ' + de.message)
@@ -749,11 +874,15 @@ class TestWrapper(object):
             self.setTestOptions(m_Parameter, m_Value)
             return None, None, None, None, "set successful."
 
-        matchObj = re.match(r"test\s+compare\s+(.*)\s+(.*)$",
+        matchObj = re.match(r"test\s+compare\s+(.*)\s+with\s+(.*)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
         if matchObj:
             m_WorkFile = matchObj.group(1).strip()
             m_RefFile = matchObj.group(2).strip()
+            if m_WorkFile.startswith("'") and m_WorkFile.endswith("'"):
+                m_WorkFile = m_WorkFile[1:-1]
+            if m_RefFile.startswith("'") and m_RefFile.endswith("'"):
+                m_RefFile = m_RefFile[1:-1]
             (title, result, headers, columntypes, status) = self.Compare_Files(m_WorkFile, m_RefFile)
             return title, result, headers, columntypes, status
 
