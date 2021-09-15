@@ -1804,7 +1804,7 @@ class SQLCli(object):
             # 如果可能，在用户的当前目录下生成sqlcli-history.txt隐含文件
             user_home = os.path.expanduser('~')
             m_HistoryFile = os.path.join(user_home, '.sqlcli-history.txt')
-            if os.access(m_HistoryFile, os.W_OK):
+            if os.access(user_home, os.W_OK):
                 history = FileHistory(m_HistoryFile)
                 enable_history_search = True
             else:

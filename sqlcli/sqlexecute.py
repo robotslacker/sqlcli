@@ -861,7 +861,7 @@ class SQLExecute(object):
                 return p_column
             elif type(p_column) == datetime.date:
                 m_ColumnFormat = self.SQLOptions.get("DATE_FORMAT")
-                if platform.system().lower() == 'windows':
+                if platform.system().lower() in ['windows', 'darwin']:
                     m_ColumnFormat = m_ColumnFormat.replace("%04Y", "%Y")
                 else:
                     m_ColumnFormat = m_ColumnFormat.replace("%Y", "%04Y")
