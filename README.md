@@ -1364,35 +1364,6 @@ Mapping file loaded.
    SQL> __internal__ test set CompareRefEncoding TRUE|FALSE
    控制在Compare比对过程中参考Ref文件的字符集设置，默认为UTF-8
 
-   SQL> __internal__ test set CompareReportDetailMode TRUE|FALSE
-   控制在Compare比对过程后是否显示详细信息，默认为不显示
-   显示状态下，将输出具体的比对参数，比对文件信息，比对结果的摘要信息
-
-   SQL> __internal__ test set CompareGenerateReportDir CHAR_STRING
-   控制Compare比对过程后生成文件的输出目录，默认为当前目录
-
-   SQL> __internal__ test set CompareGenerateReport TRUE|FALSE
-   控制在Compare比对过程后是否输出相关信息到报告信息中，默认为不输出
-   可以输出的报告信息报告：
-       dif 文件：   当前工作文件和参考Ref文件的比对结果（仅在比对失败的时候产生，比对成功的时候不存在）
-                   dif文件中每一行的格式为：  
-                      FLAG   行号(工作文件）    行号（参考文件）     工作文件/参考文件内容
-                   FLAG可以有：
-                      空    ：  空白，即工作文件和参考文件完成相同
-                      -     ：  表示工作文件中缺失，但是参考文件中存在，此刻内容输出的是参考文件内容
-                      +     ：  表示工作文件中新增，但是参考文件中缺失，此刻内容输出的是工作文件内容
-                      S     :   表示这一行由于参数的配置，已经被比对工具忽略
-       suc 文件：   当前工作文件和参考Ref文件的比对结果（仅在比对成功的时候产生，比对失败的时候不存在，内容为空）
-       xlog文件：   比对结果的JSON格式输出信息，结构为：
-                {
-                     "ScenarioResults":
-                           [
-                               {"ScenarioName1":"该场景处理结果。如果失败，这里记录该场景失败的摘要信息"},
-                               {"ScenarioName2":"该场景处理结果。如果失败，这里记录该场景失败的摘要信息"},
-                               .....
-                           ]
-                }
-
    SQL> __internal__ test set CompareSkip CHAR_STRING
    当工作文件中出现符合CHAR_STRING的信息后，这一行将不作为比对判断依据，即即使这一行不同，比对的结果仍然是符合
    CHAR_STRING为一个合法的正则表达式，需要注意的是：这里是一个完全匹配的正则表达式。
@@ -1414,6 +1385,26 @@ Mapping file loaded.
 
    SQL> __internal__ test Compare  WORKFILE  REFFILE
    比对WORKFILE和REFFILE的文件内容，并输出比对结果
+   SQL> __internal__ test set CompareGenerateReport TRUE|FALSE
+   可以输出的报告信息报告：
+       dif 文件：   当前工作文件和参考Ref文件的比对结果（仅在比对失败的时候产生，比对成功的时候不存在）
+                   dif文件中每一行的格式为：  
+                      FLAG   行号(工作文件）    行号（参考文件）     工作文件/参考文件内容
+                   FLAG可以有：
+                      空    ：  空白，即工作文件和参考文件完成相同
+                      -     ：  表示工作文件中缺失，但是参考文件中存在，此刻内容输出的是参考文件内容
+                      +     ：  表示工作文件中新增，但是参考文件中缺失，此刻内容输出的是工作文件内容
+                      S     :   表示这一行由于参数的配置，已经被比对工具忽略
+       suc 文件：   当前工作文件和参考Ref文件的比对结果（仅在比对成功的时候产生，比对失败的时候不存在，内容为空）
+       xlog文件：   比对结果的JSON格式输出信息，结构为：
+                {
+                     "ScenarioResults":
+                           [
+                               {"ScenarioName1":"该场景处理结果。如果失败，这里记录该场景失败的摘要信息"},
+                               {"ScenarioName2":"该场景处理结果。如果失败，这里记录该场景失败的摘要信息"},
+                               .....
+                           ]
+                }
 
    SQL> __internal__ test assert  判断表达式
    根据判断表达式给出结果，如果为True，显示Assert Successful。 反之显示Assert Failed.

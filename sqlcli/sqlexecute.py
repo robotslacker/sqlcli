@@ -431,33 +431,46 @@ class SQLExecute(object):
                         # 如果Hint中存在LogMask,则掩码指定的输出信息
                         if "LogMask" in m_SQLHint.keys() and result is not None:
                             for i in range(0, len(result)):
-                                m_Output = None
-                                for j in range(0, len(result[i])):
-                                    if m_Output is None:
-                                        m_Output = str(result[i][j])
-                                    else:
-                                        m_Output = m_Output + "|||" + str(result[i][j])
-                                for m_SQLMaskString in m_SQLHint["LogMask"]:
-                                    m_SQLMask = m_SQLMaskString.split("=>")
-                                    if len(m_SQLMask) == 2:
-                                        m_SQLMaskPattern = m_SQLMask[0]
-                                        m_SQLMaskTarget = m_SQLMask[1]
-                                        if "SQLCLI_DEBUG" in os.environ:
-                                            print("[DEBUG] Apply Mask: " + m_Output +
-                                                  " with " + m_SQLMaskPattern + "=>" + m_SQLMaskTarget)
-                                        try:
-                                            m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget, m_Output,
-                                                                 re.IGNORECASE)
-                                            if m_NewOutput != m_Output:
-                                                result[i] = tuple(m_NewOutput.split('|||'))
-                                                m_Output = m_NewOutput
-                                        except re.error:
+                                m_RowResult = list(result[i])
+                                m_DataChanged = False
+                                for j in range(0, len(m_RowResult)):
+                                    if m_RowResult[j] is None:
+                                        continue
+                                    m_Output = str(m_RowResult[j])
+                                    for m_SQLMaskString in m_SQLHint["LogMask"]:
+                                        m_SQLMask = m_SQLMaskString.split("=>")
+                                        if len(m_SQLMask) == 2:
+                                            m_SQLMaskPattern = m_SQLMask[0]
+                                            m_SQLMaskTarget = m_SQLMask[1]
                                             if "SQLCLI_DEBUG" in os.environ:
-                                                print('[DEBUG] traceback.print_exc():\n%s' % traceback.print_exc())
-                                                print('[DEBUG] traceback.format_exc():\n%s' % traceback.format_exc())
-                                    else:
-                                        if "SQLCLI_DEBUG" in os.environ:
-                                            print("[DEBUG] LogMask Hint Error: " + m_SQLHint["LogMask"])
+                                                print("[DEBUG] Apply Mask: " + m_Output +
+                                                      " with " + m_SQLMaskPattern + "=>" + m_SQLMaskTarget)
+                                            try:
+                                                m_BeforeSub = m_Output
+                                                nIterCount = 0
+                                                while True:
+                                                    # 循环多次替代，一直到没有可替代为止
+                                                    m_AfterSub = re.sub(m_SQLMaskPattern, m_SQLMaskTarget,
+                                                                        m_BeforeSub, re.IGNORECASE)
+                                                    if m_AfterSub == m_BeforeSub or nIterCount > 99:
+                                                        m_NewOutput = m_AfterSub
+                                                        break
+                                                    m_BeforeSub = m_AfterSub
+                                                    nIterCount = nIterCount + 1
+                                                if m_NewOutput != m_Output:
+                                                    m_DataChanged = True
+                                                    m_RowResult[j] = m_NewOutput
+                                            except re.error:
+                                                if "SQLCLI_DEBUG" in os.environ:
+                                                    print('[DEBUG] traceback.print_exc():\n%s'
+                                                          % traceback.print_exc())
+                                                    print('[DEBUG] traceback.format_exc():\n%s'
+                                                          % traceback.format_exc())
+                                        else:
+                                            if "SQLCLI_DEBUG" in os.environ:
+                                                print("[DEBUG] LogMask Hint Error: " + m_SQLHint["LogMask"])
+                                if m_DataChanged:
+                                    result[i] = tuple(m_RowResult)
 
                         # 返回运行结果
                         m_Result["rows"] = result
@@ -577,36 +590,46 @@ class SQLExecute(object):
                             # 如果Hint中存在LogMask,则掩码指定的输出信息
                             if "LogMask" in m_SQLHint.keys() and result is not None:
                                 for i in range(0, len(result)):
-                                    m_Output = None
-                                    for j in range(0, len(result[i])):
-                                        if m_Output is None:
-                                            m_Output = str(result[i][j])
-                                        else:
-                                            m_Output = m_Output + "|||" + str(result[i][j])
-                                    for m_SQLMaskString in m_SQLHint["LogMask"]:
-                                        m_SQLMask = m_SQLMaskString.split("=>")
-                                        if len(m_SQLMask) == 2:
-                                            m_SQLMaskPattern = m_SQLMask[0]
-                                            m_SQLMaskTarget = m_SQLMask[1]
-                                            if "SQLCLI_DEBUG" in os.environ:
-                                                print("[DEBUG] Apply Mask: " + m_Output +
-                                                      " with " + m_SQLMaskPattern + "=>" + m_SQLMaskTarget)
-                                            try:
-                                                m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget, m_Output,
-                                                                     re.IGNORECASE)
-                                                if m_NewOutput != m_Output:
-                                                    result[i] = tuple(m_NewOutput.split('|||'))
-                                                    m_Output = m_NewOutput
-                                            except re.error:
+                                    m_RowResult = list(result[i])
+                                    m_DataChanged = False
+                                    for j in range(0, len(m_RowResult)):
+                                        if m_RowResult[j] is None:
+                                            continue
+                                        m_Output = str(m_RowResult[j])
+                                        for m_SQLMaskString in m_SQLHint["LogMask"]:
+                                            m_SQLMask = m_SQLMaskString.split("=>")
+                                            if len(m_SQLMask) == 2:
+                                                m_SQLMaskPattern = m_SQLMask[0]
+                                                m_SQLMaskTarget = m_SQLMask[1]
                                                 if "SQLCLI_DEBUG" in os.environ:
-                                                    print('[DEBUG] traceback.print_exc():\n%s'
-                                                          % traceback.print_exc())
-                                                    print('[DEBUG] traceback.format_exc():\n%s'
-                                                          % traceback.format_exc())
-                                        else:
-                                            if "SQLCLI_DEBUG" in os.environ:
-                                                print("[DEBUG] LogMask Hint Error: " + m_SQLHint["LogMask"])
-
+                                                    print("[DEBUG] Apply Mask: " + m_Output +
+                                                          " with " + m_SQLMaskPattern + "=>" + m_SQLMaskTarget)
+                                                try:
+                                                    m_BeforeSub = m_Output
+                                                    nIterCount = 0
+                                                    while True:
+                                                        # 循环多次替代，一直到没有可替代为止
+                                                        m_AfterSub = re.sub(m_SQLMaskPattern, m_SQLMaskTarget,
+                                                                            m_BeforeSub, re.IGNORECASE)
+                                                        if m_AfterSub == m_BeforeSub or nIterCount > 99:
+                                                            m_NewOutput = m_AfterSub
+                                                            break
+                                                        m_BeforeSub = m_AfterSub
+                                                        nIterCount = nIterCount + 1
+                                                    if m_NewOutput != m_Output:
+                                                        m_DataChanged = True
+                                                        m_RowResult[j] = m_NewOutput
+                                                except re.error:
+                                                    if "SQLCLI_DEBUG" in os.environ:
+                                                        print('[DEBUG] traceback.print_exc():\n%s'
+                                                              % traceback.print_exc())
+                                                        print('[DEBUG] traceback.format_exc():\n%s'
+                                                              % traceback.format_exc())
+                                            else:
+                                                if "SQLCLI_DEBUG" in os.environ:
+                                                    print("[DEBUG] LogMask Hint Error: " + m_SQLHint["LogMask"])
+                                    if m_DataChanged:
+                                        result[i] = tuple(m_RowResult)
                             # 保存之前的运行结果
                             if result is None:
                                 m_Rows = 0
