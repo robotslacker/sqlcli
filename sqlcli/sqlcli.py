@@ -1659,7 +1659,8 @@ class SQLCli(object):
 
                         # 输出显示信息
                         try:
-                            self.output(formatted, status)
+                            if self.SQLOptions.get('FEEDBACK').upper() == 'ON' and status is not None:
+                                self.output(formatted, status)
                         except KeyboardInterrupt:
                             # 显示过程中用户按下了CTRL+C
                             pass
