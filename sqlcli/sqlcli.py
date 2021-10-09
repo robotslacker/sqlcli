@@ -1659,8 +1659,11 @@ class SQLCli(object):
 
                         # 输出显示信息
                         try:
-                            if self.SQLOptions.get('FEEDBACK').upper() == 'ON' and status is not None:
+                            if self.SQLOptions.get('FEEDBACK').upper() == 'ON':
                                 self.output(formatted, status)
+                            else:
+                                # 关闭FeedBack的情况下不回显Status信息
+                                self.output(formatted, None)
                         except KeyboardInterrupt:
                             # 显示过程中用户按下了CTRL+C
                             pass
@@ -2214,6 +2217,7 @@ class SQLCli(object):
             formatted = itertools.chain([first_line], formatted)
             # 返回输出信息
             output = itertools.chain(output, formatted)
+
         return output
 
     def Log_Statistics(self, p_SQLResult):
