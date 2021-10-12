@@ -1899,7 +1899,7 @@ class SQLCli(object):
             if matchObj:
                 m_OutputPrefix = ''
             if Flags & OFLAG_LOGFILE:
-                if self.SQLOptions.get("ECHO").upper() == 'ON' and self.logfile is not None:
+                if self.logfile is not None:
                     print(m_OutputPrefix + s, file=self.logfile)
                     self.logfile.flush()
             if Flags & OFLAG_SPOOL:
