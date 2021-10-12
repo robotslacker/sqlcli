@@ -68,7 +68,9 @@ class HDFSWrapper(object):
             raise HDFSWrapperException("HDFS not connected. Please connect it first.")
 
         m_ReturnList = []
-        m_Status = self.__m_HDFS_Handler__.status(hdfs_path)
+        m_Status = self.__m_HDFS_Handler__.status(hdfs_path=hdfs_path, strict=False)
+        if m_Status is None:
+            raise HDFSWrapperException("File or directory [" + str(hdfs_path) + "] does not exist!.")
         if m_Status['type'].upper() == 'DIRECTORY':
             # HDFS CLI对于目录的大小总是返回0， 所以这里遍历所有的目录来获得准确的目录大小
             m_FileList = self.HDFS_list(hdfs_path, recusive=True)
@@ -91,6 +93,11 @@ class HDFSWrapper(object):
         """ 返回目录下的文件 """
         if self.__m_HDFS_Handler__ is None:
             raise HDFSWrapperException("HDFS not connected. Please connect it first.")
+
+        # 先用Content函数判断文件或者目录是否存在
+        m_Content = self.__m_HDFS_Handler__.content(hdfs_path=hdfs_path, strict=False)
+        if m_Content is None:
+            raise HDFSWrapperException("File or directory [" + str(hdfs_path) + "] does not exist!.")
 
         m_ReturnList = []
         if not recusive:
@@ -229,18 +236,23 @@ class HDFSWrapper(object):
             matchObj = re.match(r"hdfs\s+rm\s+(.*)$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
             if matchObj:
-                if matchObj:
-                    m_Bak_WebFSDir = self.__m_HDFS_WebFSDir__
-                    m_FileDeleted = str(matchObj.group(1)).strip()
-                    m_FileDeletedPath = os.path.dirname(m_FileDeleted)
-                    m_FileDeletedName = os.path.basename(m_FileDeleted)
-                    self.HDFS_CD(m_FileDeletedPath)
-                    m_FileList = self.HDFS_list(self.__m_HDFS_WebFSDir__, recusive=False)
-                    for row in m_FileList:
-                        if fnmatch.fnmatch(os.path.basename(row[0]), m_FileDeletedName):
-                            self.__m_HDFS_Handler__.delete(row[0], recursive=True)
-                    # 重新返回原目录
-                    self.HDFS_CD(m_Bak_WebFSDir)
+                # 不支持在rm的路径中加入通配符，但是最后文件名可以包含通配符
+                m_Bak_WebFSDir = self.__m_HDFS_WebFSDir__
+                m_FileDeleted = str(matchObj.group(1)).strip()
+                m_FileDeletedPath = os.path.dirname(m_FileDeleted)
+                m_FileDeletedName = os.path.basename(m_FileDeleted)
+                if len(m_FileDeletedName.strip()) == 0:
+                    # 计划删除的是一个目录，而不是文件
+                    self.__m_HDFS_Handler__.delete(m_FileDeletedPath, recursive=True)
+                    return None, None, None, None, "Hdfs file deleted successful."
+
+                self.HDFS_CD(m_FileDeletedPath)
+                m_FileList = self.HDFS_list(self.__m_HDFS_WebFSDir__, recusive=True)
+                for row in m_FileList:
+                    if fnmatch.fnmatch(os.path.basename(row[0]), m_FileDeletedName):
+                        self.__m_HDFS_Handler__.delete(m_FileDeletedName, recursive=True)
+                # 重新返回原目录
+                self.HDFS_CD(m_Bak_WebFSDir)
                 return None, None, None, None, "Hdfs file deleted successful."
 
             matchObj = re.match(r"hdfs\s+makedirs\s+(.*)$",
