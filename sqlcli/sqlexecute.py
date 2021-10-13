@@ -412,10 +412,9 @@ class SQLExecute(object):
 
                         # 如果Hints中有order字样，对结果进行排序后再输出
                         if "Order" in m_SQLHint.keys() and result is not None:
-                            for i in range(1, len(result)):
-                                for j in range(0, len(result) - i):
-                                    if str(result[j]) > str(result[j + 1]):
-                                        result[j], result[j + 1] = result[j + 1], result[j]
+                            if "SQLCLI_DEBUG" in os.environ:
+                                print("[DEBUG] Apply Sort for this result.")
+                            result = sorted(result)
 
                         # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
                         if "LogFilter" in m_SQLHint.keys() and result is not None:
@@ -571,10 +570,9 @@ class SQLExecute(object):
 
                             # 如果Hints中有order字样，对结果进行排序后再输出
                             if "Order" in m_SQLHint.keys() and result is not None:
-                                for i in range(1, len(result)):
-                                    for j in range(0, len(result) - i):
-                                        if str(result[j]) > str(result[j + 1]):
-                                            result[j], result[j + 1] = result[j + 1], result[j]
+                                if "SQLCLI_DEBUG" in os.environ:
+                                    print("[DEBUG] Apply Sort for this result.")
+                                result = sorted(result)
 
                             # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
                             if "LogFilter" in m_SQLHint.keys() and result is not None:
@@ -689,6 +687,10 @@ class SQLExecute(object):
                                                 m_SQL_Status = 0
                                                 title = m_Result["title"]
                                                 result = m_Result["rows"]
+                                                if "Order" in m_SQLHint.keys() and result is not None:
+                                                    if "SQLCLI_DEBUG" in os.environ:
+                                                        print("[DEBUG] Apply Sort for this result.")
+                                                    result = sorted(result)
                                                 headers = m_Result["headers"]
                                                 columntypes = m_Result["columntypes"]
                                                 status = m_Result["status"]
