@@ -136,17 +136,17 @@ class HDFSWrapper(object):
         if self.__m_HDFS_Handler__ is None:
             raise HDFSWrapperException("HDFS not connected. Please connect it first.")
 
-        for file in glob(local_path):
-            if hdfs_path == "":
-                m_hdfs_filepath = ""
-                m_hdfs_filename = os.path.basename(file)
+        if not os.path.exists(local_path):
+            raise HDFSWrapperException("HDFS upload failed. "
+                                       "Local file or directory [" + str(local_path) + " ] does not exist.")
+
+        if os.path.isdir(local_path):
+            if hdfs_path == "" or hdfs_path.endswith("/"):
+                m_hdfs_filepath = hdfs_path
             else:
-                if hdfs_path.endswith("/"):
-                    m_hdfs_filepath = hdfs_path
-                    m_hdfs_filename = os.path.basename(file)
-                else:
-                    m_hdfs_filepath = os.path.dirname(hdfs_path)
-                    m_hdfs_filename = os.path.basename(hdfs_path)
+                raise HDFSWrapperException("HDFS upload failed. " +
+                                           "You can not upload a directory [" + str(local_path) + " ] " +
+                                           "to remote file [" + hdfs_path + "].")
             try:
                 remote_status = self.__m_HDFS_Handler__.status(
                     hdfs_path=os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath).replace('\\', '/'),
@@ -156,20 +156,69 @@ class HDFSWrapper(object):
                     self.__m_HDFS_Handler__.delete(
                         os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath).replace('\\', '/'), recursive=True)
                 remote_status = self.__m_HDFS_Handler__.status(
-                    os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath, m_hdfs_filename).replace('\\', '/'))
+                    os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath).replace('\\', '/'))
                 if remote_status['type'] == "DIRECTORY":
                     # 远程目录已经存在， 会尝试删除这个目录
                     self.__m_HDFS_Handler__.delete(
-                        os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath, m_hdfs_filename).replace('\\', '/'),
+                        os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath).replace('\\', '/'),
                         recursive=True)
             except HdfsError:
                 # 远程目录不存在，后续的upload会建立该目录
                 pass
-            self.__m_HDFS_Handler__.upload(
-                os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath, m_hdfs_filename).replace('\\', '/'),
-                file,
-                overwrite=True,
-                cleanup=True)
+            for root, dirs, files in os.walk(local_path):
+                # 直接上传整个目录，会无法上传空目录（HDFS限制），所以这里遍历循环上传
+                if len(files) == 0:
+                    # 空目录，远程建立该空目录
+                    memptydir = os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath, root).replace('\\', '/')
+                    if "SQLCLI_DEBUG" in os.environ:
+                        print("[DEBUG] HDFS create empty dir " + str(memptydir))
+                    self.__m_HDFS_Handler__.makedirs(memptydir)
+                for f in files:
+                    mlocalfile = os.path.join(root, f)
+                    mremotefile = os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath, mlocalfile).replace('\\', '/')
+                    if "SQLCLI_DEBUG" in os.environ:
+                        print("[DEBUG] HDFS upload local  " + str(mlocalfile) + " to remote " + str(mremotefile))
+                    self.__m_HDFS_Handler__.upload(
+                        hdfs_path=mremotefile,
+                        local_path=mlocalfile,
+                        overwrite=True,
+                        cleanup=True)
+        else:
+            for file in glob(local_path):
+                # 指定的是一个或者带有通配符的文件
+                if hdfs_path == "":
+                    m_hdfs_filepath = ""
+                    m_hdfs_filename = os.path.basename(file)
+                else:
+                    if hdfs_path.endswith("/"):
+                        m_hdfs_filepath = hdfs_path
+                        m_hdfs_filename = os.path.basename(file)
+                    else:
+                        m_hdfs_filepath = os.path.dirname(hdfs_path)
+                        m_hdfs_filename = os.path.basename(hdfs_path)
+                try:
+                    remote_status = self.__m_HDFS_Handler__.status(
+                        hdfs_path=os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath).replace('\\', '/'),
+                        strict=True)
+                    if remote_status['type'] == "FILE":
+                        # 远程以为是目录的地方其实放了一个奇怪的文件，于是删掉它
+                        self.__m_HDFS_Handler__.delete(
+                            os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath).replace('\\', '/'), recursive=True)
+                    remote_status = self.__m_HDFS_Handler__.status(
+                        os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath, m_hdfs_filename).replace('\\', '/'))
+                    if remote_status['type'] == "DIRECTORY":
+                        # 远程目录已经存在， 会尝试删除这个目录
+                        self.__m_HDFS_Handler__.delete(
+                            os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath, m_hdfs_filename).replace('\\', '/'),
+                            recursive=True)
+                except HdfsError:
+                    # 远程目录不存在，后续的upload会建立该目录
+                    pass
+                self.__m_HDFS_Handler__.upload(
+                    os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath, m_hdfs_filename).replace('\\', '/'),
+                    file,
+                    overwrite=True,
+                    cleanup=True)
 
     def Process_SQLCommand(self, p_szSQL):
         try:
