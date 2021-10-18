@@ -1515,6 +1515,8 @@ class SQLCli(object):
         # 处理HDFS数据
         matchObj = re.match(r"(\s+)?hdfs(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
+            if cls.SQLExecuteHandler.SQLScript is not None:
+                cls.HdfsHandler.HDFS_LCD(os.path.dirname(cls.SQLExecuteHandler.SQLScript))
             (title, result, headers, columntypes, status) = cls.HdfsHandler.Process_SQLCommand(arg)
             yield {
                 "title": title,

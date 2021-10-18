@@ -23,6 +23,7 @@ class HDFSWrapper(object):
         self.__m_HDFS_WebFSDir__ = None
         self.__m_HDFS_User__ = None
         self.__m_HDFS_WebFSURL__ = None
+        self.__mLocalRootDirectory = None                       # 本地文件的初始目录
 
     def HDFS_makedirs(self, hdfs_path):
         """ 创建目录 """
@@ -54,6 +55,7 @@ class HDFSWrapper(object):
         # 尝试创建目录，如果目录不存在的话
         self.__m_HDFS_Handler__.makedirs(self.__m_HDFS_WebFSDir__.replace('\\', '/'))
 
+    # 切换远程HDFS的文件目录
     def HDFS_CD(self, p_szPath):
         self.__m_HDFS_WebFSDir__ = os.path.join(self.__m_HDFS_WebFSDir__, p_szPath)
         self.__m_HDFS_Handler__ = InsecureClient(url=self.__m_HDFS_WebFSURL__,
@@ -61,6 +63,10 @@ class HDFSWrapper(object):
                                                  root=self.__m_HDFS_WebFSDir__)
         # 尝试创建目录，如果目录不存在的话
         self.__m_HDFS_Handler__.makedirs(self.__m_HDFS_WebFSDir__.replace('\\', '/'))
+
+    # 切换本地的文件目录
+    def HDFS_LCD(self, p_szPath):
+        self.__mLocalRootDirectory = p_szPath
 
     def HDFS_status(self, hdfs_path=""):
         """ 返回目录下的文件 """
@@ -136,16 +142,20 @@ class HDFSWrapper(object):
         if self.__m_HDFS_Handler__ is None:
             raise HDFSWrapperException("HDFS not connected. Please connect it first.")
 
-        if not os.path.exists(local_path):
+        if self.__mLocalRootDirectory is not None:
+            mLocalPath = os.path.join(str(self.__mLocalRootDirectory), local_path)
+        else:
+            mLocalPath = local_path
+        if not os.path.exists(mLocalPath):
             raise HDFSWrapperException("HDFS upload failed. "
-                                       "Local file or directory [" + str(local_path) + " ] does not exist.")
+                                       "Local file or directory [" + str(mLocalPath) + " ] does not exist.")
 
-        if os.path.isdir(local_path):
+        if os.path.isdir(mLocalPath):
             if hdfs_path == "" or hdfs_path.endswith("/"):
                 m_hdfs_filepath = hdfs_path
             else:
                 raise HDFSWrapperException("HDFS upload failed. " +
-                                           "You can not upload a directory [" + str(local_path) + " ] " +
+                                           "You can not upload a directory [" + str(mLocalPath) + " ] " +
                                            "to remote file [" + hdfs_path + "].")
             try:
                 remote_status = self.__m_HDFS_Handler__.status(
@@ -165,17 +175,19 @@ class HDFSWrapper(object):
             except HdfsError:
                 # 远程目录不存在，后续的upload会建立该目录
                 pass
-            for root, dirs, files in os.walk(local_path):
+            for root, dirs, files in os.walk(mLocalPath):
+                mRelPath = os.path.relpath(root, self.__mLocalRootDirectory)
                 # 直接上传整个目录，会无法上传空目录（HDFS限制），所以这里遍历循环上传
                 if len(files) == 0:
                     # 空目录，远程建立该空目录
-                    memptydir = os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath, root).replace('\\', '/')
+                    memptydir = os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath, mRelPath).replace('\\', '/')
                     if "SQLCLI_DEBUG" in os.environ:
                         print("[DEBUG] HDFS create empty dir " + str(memptydir))
                     self.__m_HDFS_Handler__.makedirs(memptydir)
                 for f in files:
                     mlocalfile = os.path.join(root, f)
-                    mremotefile = os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath, mlocalfile).replace('\\', '/')
+                    mremotefile = os.path.join(self.__m_HDFS_WebFSDir__, m_hdfs_filepath, mRelPath, f).\
+                        replace('\\', '/')
                     if "SQLCLI_DEBUG" in os.environ:
                         print("[DEBUG] HDFS upload local  " + str(mlocalfile) + " to remote " + str(mremotefile))
                     self.__m_HDFS_Handler__.upload(
@@ -184,7 +196,7 @@ class HDFSWrapper(object):
                         overwrite=True,
                         cleanup=True)
         else:
-            for file in glob(local_path):
+            for file in glob(mLocalPath):
                 # 指定的是一个或者带有通配符的文件
                 if hdfs_path == "":
                     m_hdfs_filepath = ""

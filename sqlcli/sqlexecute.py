@@ -56,6 +56,9 @@ class SQLExecute(object):
         # 脚本启动的时间
         self.StartTime = time.time()
 
+        # 当前执行的SQL脚本
+        self.SQLScript = None
+
     def setStartTime(self, p_StartTime):
         self.StartTime = p_StartTime
 
@@ -163,6 +166,9 @@ class SQLExecute(object):
         if self.SQLOptions.get("PRIORITY") != "":
             for m_Priority in self.SQLOptions.get("PRIORITY").split(','):
                 m_Priorites.append(m_Priority.strip().upper())
+
+        # 记录SQL的文件名
+        self.SQLScript = p_sqlscript
 
         # 分析SQL语句
         m_HasOutputScenarioSkipInfo = False
