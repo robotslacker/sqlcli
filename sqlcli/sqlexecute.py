@@ -419,8 +419,11 @@ class SQLExecute(object):
                         # 如果Hints中有order字样，对结果进行排序后再输出
                         if "Order" in m_SQLHint.keys() and result is not None:
                             if "SQLCLI_DEBUG" in os.environ:
-                                print("[DEBUG] Apply Sort for this result.")
-                            result = sorted(result)
+                                print("[DEBUG] Apply Sort for this result 1.")
+                            for i in range(1, len(result)):
+                                for j in range(0, len(result) - i):
+                                    if str(result[j]) > str(result[j + 1]):
+                                        result[j], result[j + 1] = result[j + 1], result[j]
 
                         # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
                         if "LogFilter" in m_SQLHint.keys() and result is not None:
@@ -577,8 +580,15 @@ class SQLExecute(object):
                             # 如果Hints中有order字样，对结果进行排序后再输出
                             if "Order" in m_SQLHint.keys() and result is not None:
                                 if "SQLCLI_DEBUG" in os.environ:
-                                    print("[DEBUG] Apply Sort for this result.")
-                                result = sorted(result)
+                                    print("[DEBUG] Apply Sort for this result 2.")
+                                # 不能用sorted函数，需要考虑None出现在列表中特定元素的问题
+                                # l =  [(-32767,), (32767,), (None,), (0,)]
+                                # l = sorted(l, key=lambda x: (x is None, x))
+                                # '<' not supported between instances of 'NoneType' and 'int'
+                                for i in range(1, len(result)):
+                                    for j in range(0, len(result) - i):
+                                        if str(result[j]) > str(result[j + 1]):
+                                            result[j], result[j + 1] = result[j + 1], result[j]
 
                             # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
                             if "LogFilter" in m_SQLHint.keys() and result is not None:
@@ -695,8 +705,11 @@ class SQLExecute(object):
                                                 result = m_Result["rows"]
                                                 if "Order" in m_SQLHint.keys() and result is not None:
                                                     if "SQLCLI_DEBUG" in os.environ:
-                                                        print("[DEBUG] Apply Sort for this result.")
-                                                    result = sorted(result)
+                                                        print("[DEBUG] Apply Sort for this result 3.")
+                                                    for i in range(1, len(result)):
+                                                        for j in range(0, len(result) - i):
+                                                            if str(result[j]) > str(result[j + 1]):
+                                                                result[j], result[j + 1] = result[j + 1], result[j]
                                                 headers = m_Result["headers"]
                                                 columntypes = m_Result["columntypes"]
                                                 status = m_Result["status"]
