@@ -118,6 +118,35 @@ class SQLExecute(object):
                 click.secho("[DEBUG] JQ Parse Error: " + repr(je))
             return "****"
 
+    @staticmethod
+    def sortresult(result):
+        for i in range(len(result) - 1, 0, -1):
+            for j in range(i - 1, -1, -1):
+                bNeedExchange = False
+                for k in range(0, len(result[i])):
+                    if len(result[i]) != len(result[j]):
+                        return
+                    if result[i][k] is None:
+                        # 空值按照最大的值来考虑
+                        break
+                    if result[j][k] is None:
+                        bNeedExchange = True
+                        break
+                    if not isinstance(result[i][k], type(result[j][k])):
+                        if str(result[i][k]) < str(result[j][k]):
+                            bNeedExchange = True
+                            break
+                        if str(result[i][k]) > str(result[j][k]):
+                            break
+                    else:
+                        if result[i][k] < result[j][k]:
+                            bNeedExchange = True
+                            break
+                        if result[i][k] > result[j][k]:
+                            break
+                if bNeedExchange:
+                    result[j], result[i] = result[i], result[j]
+
     def run(self, statement, p_sqlscript=None):
         """
         返回的结果可能是多种类型，处理的时候需要根据type的结果来判断具体的数据格式：
@@ -350,7 +379,7 @@ class SQLExecute(object):
                             m_SQLTimeOut = m_ScriptTimeOut - (time.time() - self.getStartTime())
 
                 # 首先尝试这是一个特殊命令，如果返回CommandNotFound，则认为其是一个标准SQL
-                for m_Result in execute(self.SQLCliHandler,  sql, p_nTimeout=m_SQLTimeOut):
+                for m_Result in execute(self.SQLCliHandler, sql, p_nTimeout=m_SQLTimeOut):
                     # 保存之前的运行结果
                     if "type" not in m_Result.keys():
                         m_Result.update({"type": "result"})
@@ -420,10 +449,7 @@ class SQLExecute(object):
                         if "Order" in m_SQLHint.keys() and result is not None:
                             if "SQLCLI_DEBUG" in os.environ:
                                 print("[DEBUG] Apply Sort for this result 1.")
-                            for i in range(1, len(result)):
-                                for j in range(0, len(result) - i):
-                                    if str(result[j]) > str(result[j + 1]):
-                                        result[j], result[j + 1] = result[j + 1], result[j]
+                            self.sortresult(result)
 
                         # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
                         if "LogFilter" in m_SQLHint.keys() and result is not None:
@@ -585,10 +611,7 @@ class SQLExecute(object):
                                 # l =  [(-32767,), (32767,), (None,), (0,)]
                                 # l = sorted(l, key=lambda x: (x is None, x))
                                 # '<' not supported between instances of 'NoneType' and 'int'
-                                for i in range(1, len(result)):
-                                    for j in range(0, len(result) - i):
-                                        if str(result[j]) > str(result[j + 1]):
-                                            result[j], result[j + 1] = result[j + 1], result[j]
+                                self.sortresult(result)
 
                             # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
                             if "LogFilter" in m_SQLHint.keys() and result is not None:
@@ -706,10 +729,7 @@ class SQLExecute(object):
                                                 if "Order" in m_SQLHint.keys() and result is not None:
                                                     if "SQLCLI_DEBUG" in os.environ:
                                                         print("[DEBUG] Apply Sort for this result 3.")
-                                                    for i in range(1, len(result)):
-                                                        for j in range(0, len(result) - i):
-                                                            if str(result[j]) > str(result[j + 1]):
-                                                                result[j], result[j + 1] = result[j + 1], result[j]
+                                                    self.sortresult(result)
                                                 headers = m_Result["headers"]
                                                 columntypes = m_Result["columntypes"]
                                                 status = m_Result["status"]
