@@ -126,10 +126,14 @@ class SQLExecute(object):
                 for k in range(0, len(result[i])):
                     if len(result[i]) != len(result[j]):
                         return
-                    if result[i][k] is None:
-                        # 空值按照最大的值来考虑
+                    if result[i][k] is None and result[j][k] is None:
+                        # 两边都是空值
+                        continue
+                    if result[i][k] is None and result[j][k] is not None:
+                        # 左边空值， 右侧不空， 按照最大的值来考虑
                         break
-                    if result[j][k] is None:
+                    if result[j][k] is None and result[i][k] is not None:
+                        # 右侧空值， 左边不空， 按照右侧大值来考虑
                         bNeedExchange = True
                         break
                     if not isinstance(result[i][k], type(result[j][k])):
@@ -145,7 +149,10 @@ class SQLExecute(object):
                         if result[i][k] > result[j][k]:
                             break
                 if bNeedExchange:
+                    print("Need Exchange")
                     result[j], result[i] = result[i], result[j]
+                else:
+                    print("Not need Exchange")
 
     def run(self, statement, p_sqlscript=None):
         """
