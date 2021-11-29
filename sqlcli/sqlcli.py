@@ -140,14 +140,11 @@ class SQLCli(object):
         self.SQLPerfFile = None                         # SQLPerf文件名
         self.SQLPerfFileHandle = None                   # SQLPerf文件句柄
         self.PerfFileLocker = None                      # 进程锁, 用来在输出perf文件的时候控制并发写文件
-        if clientcharset is None:                       # 客户端字符集
-            self.Client_Charset = 'UTF-8'
-        else:
-            self.Client_Charset = clientcharset
-        if resultcharset is None:
-            self.Result_Charset = self.Client_Charset  # 结果输出字符集
-        else:
-            self.Result_Charset = resultcharset
+        if clientcharset is not None:                   # 客户端脚本字符集
+            self.SQLOptions.set("SCRIPT_ENCODING", clientcharset)
+            self.SQLOptions.set("RESULT_ENCODING", resultcharset)
+        if resultcharset is not None:                   # 客户端结果字符集
+            self.SQLOptions.set("RESULT_ENCODING", resultcharset)
         self.WorkerName = WorkerName                    # 当前进程名称. 如果有参数传递，以参数为准
         self.profile = []                               # 程序的初始化脚本文件
 
@@ -234,7 +231,7 @@ class SQLCli(object):
         # 打开输出日志, 如果打开失败，就直接退出
         try:
             if self.logfilename is not None:
-                self.logfile = open(self.logfilename, mode="w", encoding=self.Result_Charset)
+                self.logfile = open(self.logfilename, mode="w", encoding=self.SQLOptions.get("RESULT_ENCODING"))
                 self.SQLExecuteHandler.logfile = self.logfile
         except IOError:
             if "SQLCLI_DEBUG" in os.environ:
@@ -951,17 +948,17 @@ class SQLCli(object):
                 "rows": None,
                 "headers": None,
                 "columntypes": None,
-                "status": str(stdoutdata.decode(encoding=cls.Result_Charset))
+                "status": str(stdoutdata.decode(encoding=cls.SQLOptions.get("RESULT_ENCODING")))
             }
             yield {
                 "title": None,
                 "rows": None,
                 "headers": None,
                 "columntypes": None,
-                "status": str(stderrdata.decode(encoding=cls.Result_Charset))
+                "status": str(stderrdata.decode(encoding=cls.SQLOptions.get("RESULT_ENCODING")))
             }
         except UnicodeDecodeError:
-            raise SQLCliException("The character set [" + cls.Result_Charset + "]" +
+            raise SQLCliException("The character set [" + cls.SQLOptions.get("RESULT_ENCODING") + "]" +
                                   " does not match the terminal character set, " +
                                   "so the terminal information cannot be output correctly.")
 
@@ -1167,7 +1164,7 @@ class SQLCli(object):
                         m_SQLFile = m_SQLFile[1:]
                     if str(m_SQLFile).endswith("'"):
                         m_SQLFile = m_SQLFile[:-1]
-                    with open(os.path.expanduser(m_SQLFile), encoding=cls.Client_Charset) as f:
+                    with open(os.path.expanduser(m_SQLFile), encoding=cls.SQLOptions.get("SCRIPT_ENCODING")) as f:
                         query = f.read()
 
                     # 空文件直接返回
@@ -1240,7 +1237,7 @@ class SQLCli(object):
 
         # 如果当前有打开的Spool文件，关闭它
         try:
-            cls.SpoolFileHandler.append(open(m_FileName, "w", encoding=cls.Result_Charset))
+            cls.SpoolFileHandler.append(open(m_FileName, "w", encoding=cls.SQLOptions.get("RESULT_ENCODING")))
         except IOError as e:
             raise SQLCliException("SQLCLI-00000: IO Exception " + repr(e))
         yield {
@@ -1295,7 +1292,7 @@ class SQLCli(object):
         # 如果当前有打开的Echo文件，关闭它
         if cls.EchoFileHandler is not None:
             cls.EchoFileHandler.close()
-        cls.EchoFileHandler = open(m_FileName, "w", encoding=cls.Result_Charset)
+        cls.EchoFileHandler = open(m_FileName, "w", encoding=cls.SQLOptions.get("RESULT_ENCODING"))
         cls.SQLExecuteHandler.echofile = cls.EchoFileHandler
         return [{
             "title": None,
