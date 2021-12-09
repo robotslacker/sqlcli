@@ -636,25 +636,29 @@ class Cursor(object):
         row = []
         for col in range(1, self._meta.getColumnCount() + 1):
             sqltype = self._meta.getColumnType(col)
-            m_ColumnClassName = self._meta.getColumnClassName(col)
-            m_ColumnTypeName = self._meta.getColumnTypeName(col)
-            if m_ColumnClassName is None:
+            columnClassName = self._meta.getColumnClassName(col)
+            columnTypeName = self._meta.getColumnTypeName(col)
+            columnDataType = type(self._rs.getObject(col))
+            if columnClassName is None:
                 # NULL值
                 converter = _DEFAULT_CONVERTERS["VARCHAR"]
-            elif m_ColumnClassName in 'org.postgresql.util.PGmoney':
+            elif columnClassName in 'org.postgresql.util.PGmoney':
                 converter = _DEFAULT_CONVERTERS["VARCHAR"]
-            elif m_ColumnClassName in ['oracle.sql.TIMESTAMPTZ']:
+            elif columnClassName in ['oracle.sql.TIMESTAMPTZ']:
                 converter = _DEFAULT_CONVERTERS["TIMESTAMP_WITH_TIMEZONE"]
-            elif m_ColumnClassName in ['oracle.sql.TIMESTAMPLTZ']:
+            elif columnClassName in ['oracle.sql.TIMESTAMPLTZ']:
                 converter = _DEFAULT_CONVERTERS["TIMESTAMP WITH LOCAL TIME ZONE"]
-            elif m_ColumnClassName.upper().find("BFILE") != -1:
+            elif columnClassName.upper().find("BFILE") != -1:
                 converter = _DEFAULT_CONVERTERS["BFILE"]
-            elif m_ColumnTypeName in ['YEAR']:              # mysql数据类型
+            elif columnTypeName in ['YEAR']:              # mysql数据类型
                 converter = _DEFAULT_CONVERTERS["YEAR"]
-            elif m_ColumnTypeName in ['timestamptz']:       # PG数据类型
+            elif columnTypeName in ['timestamptz']:       # PG数据类型
                 converter = _DEFAULT_CONVERTERS["TIMESTAMP_WITH_TIMEZONE"]
-            elif m_ColumnClassName in ['java.sql.SQLXML']:       # SQLXML
+            elif columnClassName in ['java.sql.SQLXML']:       # SQLXML
                 converter = _DEFAULT_CONVERTERS["VARCHAR"]
+            elif str(columnDataType).find("'byte[]'") != -1 and \
+                    columnTypeName.upper() in ['GEOMETRY', 'GEOGRAPHY']:
+                converter = _DEFAULT_CONVERTERS["BINARY"]
             else:
                 if sqltype in self._converters.keys():
                     converter = self._converters.get(sqltype)
@@ -665,8 +669,8 @@ class Cursor(object):
                                       ":" + self._meta.getColumnClassName(col))
             if "SQLCLI_DEBUG" in os.environ:
                 print("[DEBUG] JDBC SQLType=[" + str(converter.__name__) + "] for col [" + str(col) + "]. " +
-                      "sqltype=[" + str(sqltype) + ":" + str(m_ColumnClassName) + ":" + m_ColumnTypeName + "]")
-            v = converter(self._connection.jconn, self._rs, col, m_ColumnClassName)
+                      "sqltype=[" + str(sqltype) + ":" + str(columnClassName) + ":" + columnTypeName + "]")
+            v = converter(self._connection.jconn, self._rs, col, columnClassName)
             row.append(v)
         return tuple(row)
 
