@@ -41,6 +41,7 @@ import jpype
 from .sqlexecute import SQLExecute
 from .sqlparse import SQLMapping
 from .kafkawrapper import KafkaWrapper
+from .hbasewrapper import HBaseWrapper
 from .testwrapper import TestWrapper
 from .hdfswrapper import HDFSWrapper
 from .sqlcliexception import SQLCliException
@@ -120,6 +121,7 @@ class SQLCli(object):
         self.SQLExecuteHandler = SQLExecute()           # 函数句柄，具体来执行SQL
         self.SQLOptions = SQLOptions()                  # 程序运行中各种参数
         self.KafkaHandler = KafkaWrapper()              # Kafka消息管理器
+        self.HbaseHandler = HBaseWrapper()              # Hbase消息管理器
         self.TestHandler = TestWrapper()                # 测试管理
         self.HdfsHandler = HDFSWrapper()                # HDFS文件操作
         self.JobHandler = JOBManager()                  # 并发任务管理器
@@ -1487,6 +1489,19 @@ class SQLCli(object):
         matchObj = re.match(r"(\s+)?kafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             (title, result, headers, columntypes, status) = cls.KafkaHandler.Process_SQLCommand(arg)
+            yield {
+                "title": title,
+                "rows": result,
+                "headers": headers,
+                "columntypes": columntypes,
+                "status": status
+            }
+            return
+
+        # 处理Hbase数据
+        matchObj = re.match(r"(\s+)?hbase(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            (title, result, headers, columntypes, status) = cls.HbaseHandler.Process_SQLCommand(arg)
             yield {
                 "title": title,
                 "rows": result,
