@@ -1,11 +1,11 @@
 # -*- coding: UTF-8 -*-
 import re
-import sys
 
 from thrift.transport import TSocket, TTransport
 from thrift.protocol import TBinaryProtocol
 from hbase import Hbase
 from hbase.ttypes import ColumnDescriptor
+
 from .sqlcliexception import SQLCliException
 
 
