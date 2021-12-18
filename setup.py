@@ -70,7 +70,8 @@ setup(
     install_requires=['JPype1', 'setproctitle', 'pathlib', 'urllib3',
                       'pyparsing', 'click', 'prompt_toolkit',
                       'fs', 'hdfs', 'wget',
-                      'requests', 'websockets', 'pydantic', 'uvicorn[standard]', 'fastapi'],
+                      'requests', 'websockets', 'pydantic', 'uvicorn[standard]', 'fastapi',
+                      ],
 
     author='RobotSlacker',
     author_email='184902652@qq.com',

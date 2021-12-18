@@ -41,7 +41,6 @@ import jpype
 from .sqlexecute import SQLExecute
 from .sqlparse import SQLMapping
 from .kafkawrapper import KafkaWrapper
-from .hbasewrapper import HBaseWrapper
 from .testwrapper import TestWrapper
 from .hdfswrapper import HDFSWrapper
 from .sqlcliexception import SQLCliException
@@ -121,7 +120,6 @@ class SQLCli(object):
         self.SQLExecuteHandler = SQLExecute()           # 函数句柄，具体来执行SQL
         self.SQLOptions = SQLOptions()                  # 程序运行中各种参数
         self.KafkaHandler = KafkaWrapper()              # Kafka消息管理器
-        self.HbaseHandler = HBaseWrapper()              # Hbase消息管理器
         self.TestHandler = TestWrapper()                # 测试管理
         self.HdfsHandler = HDFSWrapper()                # HDFS文件操作
         self.JobHandler = JOBManager()                  # 并发任务管理器
@@ -693,7 +691,8 @@ class SQLCli(object):
         m_userandpasslist.whitespace_split = True
         m_userandpasslist = list(m_userandpasslist)
         if len(m_userandpasslist) == 0:
-            raise SQLCliException("Missed user or password in connect command.")
+            cls.db_username = None
+            cls.db_password = None
         elif len(m_userandpasslist) == 1:
             # 用户写法是connect user xxx password xxxx; 密码可能包含引号
             m_userandpasslist = shlex.shlex(m_connect_parameterlist[0])
@@ -817,7 +816,11 @@ class SQLCli(object):
                 if m_driverclass is None:
                     raise SQLCliException(
                         "Missed driver [" + cls.db_type.upper() + "] in config. Database Connect Failed. ")
-                m_jdbcconn_prop = {'user': cls.db_username, 'password': cls.db_password}
+                m_jdbcconn_prop = {}
+                if cls.db_username is not None:
+                    m_jdbcconn_prop['user'] = cls.db_username
+                if cls.db_password is not None:
+                    m_jdbcconn_prop['password'] = cls.db_password
                 if m_JDBCProp is not None:
                     for row in m_JDBCProp.strip().split(','):
                         props = row.split(':')
@@ -836,7 +839,8 @@ class SQLCli(object):
                         m_TimeOutLimit = int(kwargs.get('Timeout'))
                         cls.db_conn = jdbcconnect(
                             jclassname=m_driverclass,
-                            url=m_JDBCURL, driver_args=m_jdbcconn_prop,
+                            url=m_JDBCURL,
+                            driver_args=m_jdbcconn_prop,
                             jars=m_JarList,
                             TimeOutLimit=m_TimeOutLimit)
                         break
