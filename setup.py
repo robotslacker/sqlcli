@@ -71,7 +71,7 @@ setup(
                       'pyparsing', 'click', 'prompt_toolkit',
                       'fs', 'hdfs', 'wget',
                       'requests', 'websockets', 'pydantic', 'uvicorn[standard]', 'fastapi',
-                      ],
+                      'hbase-thrift', 'thrift', ''],
 
     author='RobotSlacker',
     author_email='184902652@qq.com',

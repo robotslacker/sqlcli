@@ -43,6 +43,7 @@ from .sqlparse import SQLMapping
 from .kafkawrapper import KafkaWrapper
 from .testwrapper import TestWrapper
 from .hdfswrapper import HDFSWrapper
+# from .hbasewrapper import HBaseWrapper
 from .sqlcliexception import SQLCliException
 from .sqlclimeta import SQLCliMeta
 from .sqlclijobmanager import JOBManager
@@ -122,6 +123,7 @@ class SQLCli(object):
         self.KafkaHandler = KafkaWrapper()              # Kafka消息管理器
         self.TestHandler = TestWrapper()                # 测试管理
         self.HdfsHandler = HDFSWrapper()                # HDFS文件操作
+        # self.HbaseHandler = HBaseWrapper()              # Hbase消息管理器
         self.JobHandler = JOBManager()                  # 并发任务管理器
         self.TransactionHandler = TransactionManager()  # 事务管理器
         self.DataHandler = DataWrapper()                # 随机临时数处理
@@ -1493,6 +1495,19 @@ class SQLCli(object):
         matchObj = re.match(r"(\s+)?kafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             (title, result, headers, columntypes, status) = cls.KafkaHandler.Process_SQLCommand(arg)
+            yield {
+                "title": title,
+                "rows": result,
+                "headers": headers,
+                "columntypes": columntypes,
+                "status": status
+            }
+            return
+
+        # 处理Hbase数据
+        matchObj = re.match(r"(\s+)?hbase(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            (title, result, headers, columntypes, status) = cls.HbaseHandler.Process_SQLCommand(arg)
             yield {
                 "title": title,
                 "rows": result,
