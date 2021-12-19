@@ -43,7 +43,10 @@ from .sqlparse import SQLMapping
 from .kafkawrapper import KafkaWrapper
 from .testwrapper import TestWrapper
 from .hdfswrapper import HDFSWrapper
-# from .hbasewrapper import HBaseWrapper
+try:
+    from .hbasewrapper import HBaseWrapper
+except ImportError:
+    pass
 from .sqlcliexception import SQLCliException
 from .sqlclimeta import SQLCliMeta
 from .sqlclijobmanager import JOBManager
@@ -123,7 +126,10 @@ class SQLCli(object):
         self.KafkaHandler = KafkaWrapper()              # Kafka消息管理器
         self.TestHandler = TestWrapper()                # 测试管理
         self.HdfsHandler = HDFSWrapper()                # HDFS文件操作
-        # self.HbaseHandler = HBaseWrapper()              # Hbase消息管理器
+        try:
+            self.HbaseHandler = HBaseWrapper()          # Hbase消息管理器
+        except NameError:
+            pass
         self.JobHandler = JOBManager()                  # 并发任务管理器
         self.TransactionHandler = TransactionManager()  # 事务管理器
         self.DataHandler = DataWrapper()                # 随机临时数处理
