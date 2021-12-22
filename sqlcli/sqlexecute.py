@@ -126,6 +126,7 @@ class SQLExecute(object):
 
     @staticmethod
     def sortresult(result):
+        # 无法使用系统默认的排序函数，这里空值总是置于最后
         for i in range(len(result) - 1, 0, -1):
             for j in range(i - 1, -1, -1):
                 bNeedExchange = False
@@ -136,7 +137,7 @@ class SQLExecute(object):
                         # 两边都是空值
                         continue
                     if result[i][k] is None and result[j][k] is not None:
-                        # 左边空值， 右侧不空， 按照最大的值来考虑
+                        # 左边空值， 右侧不空， 按照左侧大值来考虑
                         break
                     if result[j][k] is None and result[i][k] is not None:
                         # 右侧空值， 左边不空， 按照右侧大值来考虑
@@ -1065,8 +1066,8 @@ class SQLExecute(object):
                         m_ColumnValue = "ARRAY["
                         if self.SQLOptions.get('OUTPUT_SORT_ARRAY') == "ON":
                             # 保证Array的输出每次都一样顺序
-                            # 需要注意可能有NULL值导致字符数组无法排序的情况
-                            column.sort(key=lambda x: -1 * float('inf') if x is None else x)
+                            # 需要注意可能有NULL值导致字符数组无法排序的情况, column是一个一维数组
+                            column.sort(key=lambda x: (x is None, x))
                         for m_nPos in range(0, len(column)):
                             m_ColumnType = str(type(column[m_nPos]))
                             if m_nPos == 0:
