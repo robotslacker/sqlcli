@@ -47,6 +47,10 @@ try:
     from .hbasewrapper import HBaseWrapper
 except ImportError:
     pass
+try:
+    from .rediswrapper import RedisWrapper
+except ImportError:
+    pass
 from .sqlcliexception import SQLCliException
 from .sqlclimeta import SQLCliMeta
 from .sqlclijobmanager import JOBManager
@@ -128,6 +132,10 @@ class SQLCli(object):
         self.HdfsHandler = HDFSWrapper()                # HDFS文件操作
         try:
             self.HbaseHandler = HBaseWrapper()          # Hbase消息管理器
+        except NameError:
+            pass
+        try:
+            self.RedisHandler = RedisWrapper()          # Redis消息管理器
         except NameError:
             pass
         self.JobHandler = JOBManager()                  # 并发任务管理器
@@ -1523,10 +1531,10 @@ class SQLCli(object):
             }
             return
 
-        # 处理Hbase数据
-        matchObj = re.match(r"(\s+)?hbase(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        # 处理Redis数据
+        matchObj = re.match(r"(\s+)?redis(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
-            (title, result, headers, columntypes, status) = cls.HbaseHandler.Process_SQLCommand(arg)
+            (title, result, headers, columntypes, status) = cls.RedisHandler.Process_SQLCommand(arg)
             yield {
                 "title": title,
                 "rows": result,
