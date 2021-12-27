@@ -228,6 +228,7 @@ class SQLCli(object):
         self.SQLExecuteHandler.SQLOptions = self.SQLOptions
         self.SQLExecuteHandler.WorkerName = self.WorkerName
         self.TestHandler.SQLOptions = self.SQLOptions
+        self.DataHandler.SQLOptions = self.SQLOptions
 
         # 加载一些特殊的命令
         self.register_special_commands()
@@ -1576,7 +1577,7 @@ class SQLCli(object):
         matchObj = re.match(r"(\s+)?data(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             for (title, result, headers, columntypes, status) in \
-                    cls.DataHandler.Process_SQLCommand(arg, cls.Result_Charset):
+                    cls.DataHandler.Process_SQLCommand(arg):
                 yield {
                     "title": title,
                     "rows": result,

@@ -246,6 +246,7 @@ class DataWrapper(object):
         # 全局内存文件系统句柄
         self.g_MemoryFSHandler = None
         self.c_HDFS_ConnectedUser = None
+        self.SQLOptions = None  # 程序处理参数
 
     # 创建seed文件，默认在SQLCLI_HOME/data下
     def Create_SeedCacheFile(self,
@@ -925,7 +926,7 @@ class DataWrapper(object):
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
             raise SQLCliException(repr(e))
 
-    def Process_SQLCommand(self, p_szSQL, p_szResultCharset):
+    def Process_SQLCommand(self, p_szSQL):
         # 设置数据种子文件读取的位置，如果不设置，默认是SQLCLI_HOME\data
         matchObj = re.match(r"data\s+set\s+seedfile\s+dir\s+(.*)$",
                             p_szSQL, re.IGNORECASE | re.DOTALL)
@@ -965,7 +966,7 @@ class DataWrapper(object):
                              p_filename=m_filename,
                              p_formula_str=m_formula_str,
                              p_rows=m_rows,
-                             p_encoding=p_szResultCharset)
+                             p_encoding=self.SQLOptions.get("RESULT_ENCODING"))
             yield (
                 None,
                 None,
@@ -985,7 +986,7 @@ class DataWrapper(object):
                              p_filename=m_filename,
                              p_formula_str=m_formula_str,
                              p_rows=m_rows,
-                             p_encoding=p_szResultCharset)
+                             p_encoding=self.SQLOptions.get("RESULT_ENCODING"))
             yield (
                 None,
                 None,
