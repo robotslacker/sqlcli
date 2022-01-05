@@ -76,11 +76,11 @@ class SQLOptions(object):
                                       "Comments": '',
                                       "Hidden": False})
         self.m_SQL_OptionList.append({"Name": "DATETIME_FORMAT",
-                                      "Value": "%Y-%m-%d %H:%M:%S %f",
+                                      "Value": "%Y-%m-%d %H:%M:%S.%f",
                                       "Comments": '',
                                       "Hidden": False})
         self.m_SQL_OptionList.append({"Name": "TIME_FORMAT",
-                                      "Value": "%H:%M:%S %f",
+                                      "Value": "%H:%M:%S.%f",
                                       "Comments": '',
                                       "Hidden": False})
         self.m_SQL_OptionList.append({"Name": "DATETIME-TZ_FORMAT",
