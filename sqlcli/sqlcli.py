@@ -51,6 +51,10 @@ try:
     from .rediswrapper import RedisWrapper
 except ImportError:
     pass
+try:
+    from .rabbitmqwrapper import RabbitmqWrapper
+except ImportError:
+    pass
 from .sqlcliexception import SQLCliException
 from .sqlclimeta import SQLCliMeta
 from .sqlclijobmanager import JOBManager
@@ -136,6 +140,10 @@ class SQLCli(object):
             pass
         try:
             self.RedisHandler = RedisWrapper()          # Redis消息管理器
+        except NameError:
+            pass
+        try:
+            self.RabbitmqHandler = RabbitmqWrapper()          # Rabbitmq消息管理器
         except NameError:
             pass
         self.JobHandler = JOBManager()                  # 并发任务管理器
@@ -1536,6 +1544,19 @@ class SQLCli(object):
         matchObj = re.match(r"(\s+)?redis(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if matchObj:
             (title, result, headers, columntypes, status) = cls.RedisHandler.Process_SQLCommand(arg)
+            yield {
+                "title": title,
+                "rows": result,
+                "headers": headers,
+                "columntypes": columntypes,
+                "status": status
+            }
+            return
+
+        # 处理Rabbitmq数据
+        matchObj = re.match(r"(\s+)?rabbitmq(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            (title, result, headers, columntypes, status) = cls.RabbitmqHandler.Process_SQLCommand(arg)
             yield {
                 "title": title,
                 "rows": result,
