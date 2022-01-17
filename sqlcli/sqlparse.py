@@ -510,12 +510,6 @@ def SQLAnalyze(p_SQLCommandPlainText):
                               r'^(\s+)?BEGIN(\s+)?|' \
                               r'^(\s+)?ALTER(\s+)?|' \
                               r'^(\s+)?WITH(\s+)?'
-            print("SQL=" + str(SQLCommands[m_nPos]))
-            if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE):
-                print("Matched ...")
-            else:
-                print("Not Match ....")
-
             if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE):
                 SQLSplitResults.append(SQLCommands[m_nPos])
                 SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
