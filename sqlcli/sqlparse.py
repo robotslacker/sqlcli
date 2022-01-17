@@ -495,11 +495,27 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 continue
 
             # 如果本行每行没有包含任何关键字信息，则直接返回
-            strRegexPattern = r'^(\s+)?CREATE(\s+)?|^(\s+)?(\()?SELECT(\s+)?|^(\s+)?UPDATE(\s+)?|' \
-                              r'^(\s+)?DELETE(\s+)?|^(\s+)?INSERT(\s+)?|^(\s+)?__INTERNAL__(\s+)?|' \
-                              r'^(\s+)?DROP(\s+)?|^(\s+)?REPLACE(\s+)?|^(\s+)?LOAD(\s+)?|' \
-                              r'^(\s+)?MERGE(\s+)?|^(\s+)?DECLARE(\s+)?|^(\s+)?BEGIN(\s+)?|' \
-                              r'^(\s+)?ALTER(\s+)?|^(\s+)?WITH(\s+)?'
+            strRegexPattern = r'^(\s+)?CREATE(\s+)?|' \
+                              r'^(\s+)?(\()?SELECT(\s+)?|' \
+                              r'^(\s+)?\(|' \
+                              r'^(\s+)?UPDATE(\s+)?|' \
+                              r'^(\s+)?DELETE(\s+)?|' \
+                              r'^(\s+)?INSERT(\s+)?|' \
+                              r'^(\s+)?__INTERNAL__(\s+)?|' \
+                              r'^(\s+)?DROP(\s+)?|' \
+                              r'^(\s+)?REPLACE(\s+)?|' \
+                              r'^(\s+)?LOAD(\s+)?|' \
+                              r'^(\s+)?MERGE(\s+)?|' \
+                              r'^(\s+)?DECLARE(\s+)?|' \
+                              r'^(\s+)?BEGIN(\s+)?|' \
+                              r'^(\s+)?ALTER(\s+)?|' \
+                              r'^(\s+)?WITH(\s+)?'
+            print("SQL=" + str(SQLCommands[m_nPos]))
+            if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE):
+                print("Matched ...")
+            else:
+                print("Not Match ....")
+
             if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE):
                 SQLSplitResults.append(SQLCommands[m_nPos])
                 SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
