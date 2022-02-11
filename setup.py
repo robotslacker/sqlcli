@@ -69,7 +69,7 @@ setup(
     platforms='any',
     install_requires=['JPype1', 'setproctitle', 'pathlib', 'urllib3',
                       'pyparsing', 'click', 'prompt_toolkit',
-                      'fs', 'hdfs', 'wget', 'httptools',
+                      'fs', 'hdfs', 'wget', 'httptools', 'pika', 'paramiko',
                       'requests', 'websockets', 'pydantic', 'uvicorn[standard]', 'fastapi',
                       'hbase-thrift', 'thrift', 'redis', 'redis-py-cluster', ''],
 

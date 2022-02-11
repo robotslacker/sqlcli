@@ -1871,3 +1871,13 @@ SQL> __internal__ job timer slave_finished;
    打开DEBUG后，程序将会输出大量的调试信息，以及错误发生时的堆栈信息
 
 ```
+
+
+#### 已知问题
+```
+在Python3.7以及以上的版本中，会出现ttypes的导入错误  
+这是由于Hbase的相关程序不支持Python3.7以及以上版本  
+需要：
+下载https://github.com/data-infra/infrastructure/tree/master/hbase中内容，
+替换本地site-packages/hbase/Hbase.py和ttypes.py
+```

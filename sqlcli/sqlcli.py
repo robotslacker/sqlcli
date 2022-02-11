@@ -43,18 +43,10 @@ from .sqlparse import SQLMapping
 from .kafkawrapper import KafkaWrapper
 from .testwrapper import TestWrapper
 from .hdfswrapper import HDFSWrapper
-try:
-    from .hbasewrapper import HBaseWrapper
-except ImportError:
-    pass
-try:
-    from .rediswrapper import RedisWrapper
-except ImportError:
-    pass
-try:
-    from .rabbitmqwrapper import RabbitmqWrapper
-except ImportError:
-    pass
+from .sshwrapper import SshWrapper
+from .hbasewrapper import HBaseWrapper
+from .rediswrapper import RedisWrapper
+from .rabbitmqwrapper import RabbitmqWrapper
 from .sqlcliexception import SQLCliException
 from .sqlclimeta import SQLCliMeta
 from .sqlclijobmanager import JOBManager
@@ -150,6 +142,7 @@ class SQLCli(object):
         self.TransactionHandler = TransactionManager()  # 事务管理器
         self.DataHandler = DataWrapper()                # 随机临时数处理
         self.MetaHandler = SQLCliMeta()                 # SQLCli元数据
+        self.sshHandler = SshWrapper()                  # 处理SSH连接
         self.SpoolFileHandler = []                      # Spool文件句柄, 是一个数组，可能发生嵌套
         self.EchoFileHandler = None                     # 当前回显文件句柄
         self.AppOptions = None                          # 应用程序的配置参数
@@ -1599,6 +1592,20 @@ class SQLCli(object):
         if matchObj:
             for (title, result, headers, columntypes, status) in \
                     cls.DataHandler.Process_SQLCommand(arg):
+                yield {
+                    "title": title,
+                    "rows": result,
+                    "headers": headers,
+                    "columntypes": columntypes,
+                    "status": status
+                }
+            return
+
+        # 处理远程主机命令
+        matchObj = re.match(r"(\s+)?ssh(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            for (title, result, headers, columntypes, status) in \
+                    cls.sshHandler.processCommand(arg):
                 yield {
                     "title": title,
                     "rows": result,
