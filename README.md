@@ -1713,19 +1713,19 @@ SQL> __internal__ job timer slave_finished;
     m_SQLCli = SQLCli(HeadlessMode=True)
 
     # SQLExecuteHandler.run会用yield的方式分批返回SQL执行结果    
-    for title, cur, headers, columntypes, status in \
+    for title, cur, headers, columnTypes, status in \
             m_SQLCli.SQLExecuteHandler.run("Connect ....."):
-        print(title, cur, headers, columntypes, status)
+        print(title, cur, headers, columnTypes, status)
 
-    for title, cur, headers, columntypes, status in \
+    for title, cur, headers, columnTypes, status in \
             m_SQLCli.SQLExecuteHandler.run("Select * FROM XXX"):
-        print(title, cur, headers, columntypes, status)
+        print(title, cur, headers, columnTypes, status)
     
-    # 返回结果包含5个方面的内容 (title, rows, headers, columntypes, status).
+    # 返回结果包含5个方面的内容 (title, rows, headers, columnTypes, status).
     #     title       表头信息
     #     rows        结果数据集
     #     headers     结果集的header定义，列名信息
-    #     columntypes 列类型，字符串格式
+    #     columnTypes 列类型，字符串格式
     #     status       返回结果汇总消息
  
     # 其中SQLCli初始化参数有：
@@ -1808,7 +1808,7 @@ SQL> __internal__ job timer slave_finished;
                 "title": "表头信息",
                 "rows": "结果数据集",
                 "headers": "结果集的header定义，列名信息",
-                "columntypes": "列类型，字符串格式",
+                "columnTypes": "列类型，字符串格式",
                 "status": "返回结果汇总消息"
             }
             SQL错误信息：

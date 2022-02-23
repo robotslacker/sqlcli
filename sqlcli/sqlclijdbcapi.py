@@ -807,9 +807,9 @@ def _to_varbinary(conn, rs, col, p_objColumnSQLType=None):
     if m_TypeName == "byte[]":
         # 截断所有后面为0的字节数组内容
         m_TrimPos = -1
-        for m_nPos in range(len(java_val) - 1, 0, -1):
-            if java_val[m_nPos] != 0:
-                m_TrimPos = m_nPos
+        for pos in range(len(java_val) - 1, 0, -1):
+            if java_val[pos] != 0:
+                m_TrimPos = pos
                 break
         if m_TrimPos == -1:
             return bytearray(java_val)
@@ -926,9 +926,9 @@ def _javaobj_to_pyobj(p_javaobj, p_objColumnSQLType=None):
         if p_objColumnSQLType in ["VARBINARY", "LONGVARBINARY"]:
             # 截断所有后面为0的字节数组内容
             m_TrimPos = -1
-            for m_nPos in range(len(p_javaobj) - 1, 0, -1):
-                if p_javaobj[m_nPos] != 0:
-                    m_TrimPos = m_nPos
+            for pos in range(len(p_javaobj) - 1, 0, -1):
+                if p_javaobj[pos] != 0:
+                    m_TrimPos = pos
                     break
             if m_TrimPos == -1:
                 return bytearray(p_javaobj)

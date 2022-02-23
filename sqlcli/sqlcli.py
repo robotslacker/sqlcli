@@ -557,7 +557,7 @@ class SQLCli(object):
                         "title": None,
                         "rows": None,
                         "headers": None,
-                        "columntypes": None,
+                        "columnTypes": None,
                         "status": "Please wait all background process complete."
                     }
                 else:
@@ -580,7 +580,7 @@ class SQLCli(object):
                 "title": "Current Drivers: ",
                 "rows": m_Result,
                 "headers": ["Database", "ClassName", "FileName", "JDBCURL", "ODBCURL", "JDBCProp"],
-                "columntypes": None,
+                "columnTypes": None,
                 "status": "Driver loaded."
             }
             return
@@ -601,7 +601,7 @@ class SQLCli(object):
                 "title": "Current Drivers: ",
                 "rows": m_Result,
                 "headers": ["Database", "ClassName", "FileName", "JDBCURL", "ODBCURL", "JDBCProp"],
-                "columntypes": None,
+                "columnTypes": None,
                 "status": "Driver loaded."
             }
             return
@@ -616,20 +616,20 @@ class SQLCli(object):
                 m_DriverFullName = os.path.abspath(os.path.join(os.path.dirname(cls.sqlscript), m_DriverFullName))
             if not os.path.isfile(m_DriverFullName):
                 raise SQLCliException("Driver not loaded. file [" + m_DriverFullName + "] does not exist!")
-            bFound = False
+            found = False
             for nPos in range(0, len(cls.connection_configs)):
                 if cls.connection_configs[nPos]["Database"].upper() == m_DriverName.strip().upper():
                     m_Config = cls.connection_configs[nPos]
                     m_Config["FullName"] = [m_DriverFullName, ]
-                    bFound = True
+                    found = True
                     cls.connection_configs[nPos] = m_Config
-            if not bFound:
+            if not found:
                 raise SQLCliException("Driver not loaded. Please config it in configfile first.")
             yield {
                 "title": None,
                 "rows": None,
                 "headers": None,
-                "columntypes": None,
+                "columnTypes": None,
                 "status": "Driver [" + m_DriverName.strip() + "] loaded."
             }
             return
@@ -646,7 +646,7 @@ class SQLCli(object):
             "title": None,
             "rows": None,
             "headers": None,
-            "columntypes": None,
+            "columnTypes": None,
             "status": 'Mapping file loaded.'
         }
 
@@ -920,7 +920,7 @@ class SQLCli(object):
             "title": None,
             "rows": None,
             "headers": None,
-            "columntypes": None,
+            "columnTypes": None,
             "status": 'Database connected.'
         }
 
@@ -937,7 +937,7 @@ class SQLCli(object):
             "title": None,
             "rows": None,
             "headers": None,
-            "columntypes": None,
+            "columnTypes": None,
             "status": 'Database disconnected.'
         }
 
@@ -971,14 +971,14 @@ class SQLCli(object):
                 "title": None,
                 "rows": None,
                 "headers": None,
-                "columntypes": None,
+                "columnTypes": None,
                 "status": str(stdoutdata.decode(encoding=cls.SQLOptions.get("RESULT_ENCODING")))
             }
             yield {
                 "title": None,
                 "rows": None,
                 "headers": None,
-                "columntypes": None,
+                "columnTypes": None,
                 "status": str(stderrdata.decode(encoding=cls.SQLOptions.get("RESULT_ENCODING")))
             }
         except UnicodeDecodeError:
@@ -1014,7 +1014,7 @@ class SQLCli(object):
                     "title": None,
                     "rows": None,
                     "headers": None,
-                    "columntypes": None,
+                    "columnTypes": None,
                     "status": "No saved sesssions."
                 }
             else:
@@ -1022,7 +1022,7 @@ class SQLCli(object):
                     "title": "Saved Sessions:",
                     "rows": m_Result,
                     "headers": ["Session", "Sesssion Name", "User Name", "Password", "URL"],
-                    "columntypes": None,
+                    "columnTypes": None,
                     "status": "Total " + str(len(m_Result)) + " saved sesssions."
                 }
             return
@@ -1061,12 +1061,12 @@ class SQLCli(object):
                 cls.db_url = cls.db_saved_conn[m_Session_Name][3]
                 if cls.db_saved_conn[m_Session_Name][0] is None:
                     result = cls.connect_db(cls.db_username + "/" + cls.db_password + "@" + cls.db_url)
-                    for title, cur, headers, columntypes, status in result:
+                    for title, cur, headers, columnTypes, status in result:
                         yield {
                             "title": title,
                             "rows": cur,
                             "headers": headers,
-                            "columntypes": columntypes,
+                            "columnTypes": columnTypes,
                             "status": status
                         }
                 else:
@@ -1084,7 +1084,7 @@ class SQLCli(object):
                 "title": None,
                 "rows": None,
                 "headers": None,
-                "columntypes": None,
+                "columnTypes": None,
                 "status": "Session saved Successful."
             }
         if m_Parameters[0].lower() == 'release':
@@ -1092,7 +1092,7 @@ class SQLCli(object):
                 "title": None,
                 "rows": None,
                 "headers": None,
-                "columntypes": None,
+                "columnTypes": None,
                 "status": "Session release Successful."
             }
         if m_Parameters[0].lower() == 'restore':
@@ -1101,7 +1101,7 @@ class SQLCli(object):
                 "title": None,
                 "rows": None,
                 "headers": None,
-                "columntypes": None,
+                "columnTypes": None,
                 "status": "Session restored Successful."
             }
 
@@ -1116,7 +1116,7 @@ class SQLCli(object):
                 "title": None,
                 "rows": None,
                 "headers": None,
-                "columntypes": None,
+                "columnTypes": None,
                 "status": message
             }]
         try:
@@ -1127,7 +1127,7 @@ class SQLCli(object):
                     "title": None,
                     "rows": None,
                     "headers": None,
-                    "columntypes": None,
+                    "columnTypes": None,
                     "status": message
                 }]
             m_TimeOutLimit = int(kwargs.get('Timeout'))
@@ -1143,14 +1143,14 @@ class SQLCli(object):
                 "title": None,
                 "rows": None,
                 "headers": None,
-                "columntypes": None,
+                "columnTypes": None,
                 "status": message
             }]
         return [{
             "title": None,
             "rows": None,
             "headers": None,
-            "columntypes": None,
+            "columnTypes": None,
             "status": None
         }]
 
@@ -1163,7 +1163,7 @@ class SQLCli(object):
                 "title": None,
                 "rows": None,
                 "headers": None,
-                "columntypes": None,
+                "columnTypes": None,
                 "status": message
             }
             return
@@ -1218,7 +1218,7 @@ class SQLCli(object):
                         "title": None,
                         "rows": None,
                         "headers": None,
-                        "columntypes": None,
+                        "columnTypes": None,
                         "status": str(e)
                     }
 
@@ -1236,7 +1236,7 @@ class SQLCli(object):
                     "title": None,
                     "rows": None,
                     "headers": None,
-                    "columntypes": None,
+                    "columnTypes": None,
                     "status": "not spooling currently"
                 }
                 return
@@ -1247,7 +1247,7 @@ class SQLCli(object):
                     "title": None,
                     "rows": None,
                     "headers": None,
-                    "columntypes": None,
+                    "columnTypes": None,
                     "status": None
                 }
                 return
@@ -1268,7 +1268,7 @@ class SQLCli(object):
             "title": None,
             "rows": None,
             "headers": None,
-            "columntypes": None,
+            "columnTypes": None,
             "status": None
         }
         return
@@ -1282,7 +1282,7 @@ class SQLCli(object):
                 "title": None,
                 "rows": None,
                 "headers": None,
-                "columntypes": None,
+                "columnTypes": None,
                 "status": message
             }
             return
@@ -1295,7 +1295,7 @@ class SQLCli(object):
                     "title": None,
                     "rows": None,
                     "headers": None,
-                    "columntypes": None,
+                    "columnTypes": None,
                     "status": message
                 }]
             else:
@@ -1306,7 +1306,7 @@ class SQLCli(object):
                     "title": None,
                     "rows": None,
                     "headers": None,
-                    "columntypes": None,
+                    "columnTypes": None,
                     "status": None
                 }]
 
@@ -1322,7 +1322,7 @@ class SQLCli(object):
             "title": None,
             "rows": None,
             "headers": None,
-            "columntypes": None,
+            "columnTypes": None,
             "status": None
         }]
 
@@ -1340,7 +1340,7 @@ class SQLCli(object):
                 "title": "Current Options: ",
                 "rows": m_Result,
                 "headers": ["Name", "Value", "Comments"],
-                "columntypes": None,
+                "columnTypes": None,
                 "status": None
             }
         else:
@@ -1374,7 +1374,7 @@ class SQLCli(object):
                     "title": None,
                     "rows": None,
                     "headers": None,
-                    "columntypes": None,
+                    "columnTypes": None,
                     "status": None
                 }, ]
 
@@ -1463,7 +1463,7 @@ class SQLCli(object):
                     "title": None,
                     "rows": None,
                     "headers": None,
-                    "columntypes": None,
+                    "columnTypes": None,
                     "status": None
                 }
             elif cls.SQLOptions.get(options_parameters[0].upper()) is not None:
@@ -1472,7 +1472,7 @@ class SQLCli(object):
                     "title": None,
                     "rows": None,
                     "headers": None,
-                    "columntypes": None,
+                    "columnTypes": None,
                     "status": None
                 }
             else:
@@ -1482,135 +1482,135 @@ class SQLCli(object):
     @staticmethod
     def execute_internal_command(cls, arg, **_):
         # 处理并发JOB
-        matchObj = re.match(r"(\s+)?job(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            (title, result, headers, columntypes, status) = cls.JobHandler.Process_Command(arg)
+        match_obj = re.match(r"(\s+)?job(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            (title, result, headers, columnTypes, status) = cls.JobHandler.Process_Command(arg)
             yield {
                 "title": title,
                 "rows": result,
                 "headers": headers,
-                "columntypes": columntypes,
+                "columnTypes": columnTypes,
                 "status": status
             }
             return
 
         # 处理Transaction
-        matchObj = re.match(r"(\s+)?transaction(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            (title, result, headers, columntypes, status) = cls.TransactionHandler.Process_Command(arg)
+        match_obj = re.match(r"(\s+)?transaction(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            (title, result, headers, columnTypes, status) = cls.TransactionHandler.Process_Command(arg)
             yield {
                 "title": title,
                 "rows": result,
                 "headers": headers,
-                "columntypes": columntypes,
+                "columnTypes": columnTypes,
                 "status": status
             }
             return
 
         # 处理kafka数据
-        matchObj = re.match(r"(\s+)?kafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            (title, result, headers, columntypes, status) = cls.KafkaHandler.Process_SQLCommand(arg)
+        match_obj = re.match(r"(\s+)?kafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            (title, result, headers, columnTypes, status) = cls.KafkaHandler.Process_SQLCommand(arg)
             yield {
                 "title": title,
                 "rows": result,
                 "headers": headers,
-                "columntypes": columntypes,
+                "columnTypes": columnTypes,
                 "status": status
             }
             return
 
         # 处理Hbase数据
-        matchObj = re.match(r"(\s+)?hbase(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            (title, result, headers, columntypes, status) = cls.HbaseHandler.Process_SQLCommand(arg)
+        match_obj = re.match(r"(\s+)?hbase(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            (title, result, headers, columnTypes, status) = cls.HbaseHandler.Process_SQLCommand(arg)
             yield {
                 "title": title,
                 "rows": result,
                 "headers": headers,
-                "columntypes": columntypes,
+                "columnTypes": columnTypes,
                 "status": status
             }
             return
 
         # 处理Redis数据
-        matchObj = re.match(r"(\s+)?redis(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            (title, result, headers, columntypes, status) = cls.RedisHandler.Process_SQLCommand(arg)
+        match_obj = re.match(r"(\s+)?redis(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            (title, result, headers, columnTypes, status) = cls.RedisHandler.Process_SQLCommand(arg)
             yield {
                 "title": title,
                 "rows": result,
                 "headers": headers,
-                "columntypes": columntypes,
+                "columnTypes": columnTypes,
                 "status": status
             }
             return
 
         # 处理Rabbitmq数据
-        matchObj = re.match(r"(\s+)?rabbitmq(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            (title, result, headers, columntypes, status) = cls.RabbitmqHandler.Process_SQLCommand(arg)
+        match_obj = re.match(r"(\s+)?rabbitmq(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            (title, result, headers, columnTypes, status) = cls.RabbitmqHandler.Process_SQLCommand(arg)
             yield {
                 "title": title,
                 "rows": result,
                 "headers": headers,
-                "columntypes": columntypes,
+                "columnTypes": columnTypes,
                 "status": status
             }
             return
 
         # 测试管理
-        matchObj = re.match(r"(\s+)?test(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            (title, result, headers, columntypes, status) = cls.TestHandler.Process_SQLCommand(arg)
+        match_obj = re.match(r"(\s+)?test(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            (title, result, headers, columnTypes, status) = cls.TestHandler.Process_SQLCommand(arg)
             yield {
                 "title": title,
                 "rows": result,
                 "headers": headers,
-                "columntypes": columntypes,
+                "columnTypes": columnTypes,
                 "status": status
             }
             return
 
         # 处理HDFS数据
-        matchObj = re.match(r"(\s+)?hdfs(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
+        match_obj = re.match(r"(\s+)?hdfs(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if match_obj:
             if cls.SQLExecuteHandler.SQLScript is not None:
                 cls.HdfsHandler.HDFS_LCD(os.path.dirname(cls.SQLExecuteHandler.SQLScript))
-            (title, result, headers, columntypes, status) = cls.HdfsHandler.Process_SQLCommand(arg)
+            (title, result, headers, columnTypes, status) = cls.HdfsHandler.Process_SQLCommand(arg)
             yield {
                 "title": title,
                 "rows": result,
                 "headers": headers,
-                "columntypes": columntypes,
+                "columnTypes": columnTypes,
                 "status": status
             }
             return
 
         # 处理随机数据文件
-        matchObj = re.match(r"(\s+)?data(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            for (title, result, headers, columntypes, status) in \
+        match_obj = re.match(r"(\s+)?data(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            for (title, result, headers, columnTypes, status) in \
                     cls.DataHandler.Process_SQLCommand(arg):
                 yield {
                     "title": title,
                     "rows": result,
                     "headers": headers,
-                    "columntypes": columntypes,
+                    "columnTypes": columnTypes,
                     "status": status
                 }
             return
 
         # 处理远程主机命令
-        matchObj = re.match(r"(\s+)?ssh(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            for (title, result, headers, columntypes, status) in \
+        match_obj = re.match(r"(\s+)?ssh(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            for (title, result, headers, columnTypes, status) in \
                     cls.sshHandler.processCommand(arg):
                 yield {
                     "title": title,
                     "rows": result,
                     "headers": headers,
-                    "columntypes": columntypes,
+                    "columnTypes": columnTypes,
                     "status": status
                 }
             return
@@ -1714,7 +1714,7 @@ class SQLCli(object):
                         title = p_result["title"]
                         cur = p_result["rows"]
                         headers = p_result["headers"]
-                        columntypes = p_result["columntypes"]
+                        columnTypes = p_result["columnTypes"]
                         status = p_result["status"]
 
                         # 不控制每行的长度
@@ -1728,7 +1728,7 @@ class SQLCli(object):
                         #   csv                csv格式显示
                         #   tab                表格形式（用format_output_tab自己编写)
                         formatted = self.format_output(
-                            title, cur, headers, columntypes,
+                            title, cur, headers, columnTypes,
                             self.SQLOptions.get("OUTPUT_FORMAT").lower(),
                             max_width
                         )
@@ -1971,8 +1971,8 @@ class SQLCli(object):
                 m_OutputPrefix = self.SQLOptions.get('OUTPUT_PREFIX') + " "
             else:
                 m_OutputPrefix = ''
-            matchObj = re.match(r"SQL>(\s+)?set(\s+)?OUTPUT_PREFIX(\s+)?$", s, re.IGNORECASE | re.DOTALL)
-            if matchObj:
+            match_obj = re.match(r"SQL>(\s+)?set(\s+)?OUTPUT_PREFIX(\s+)?$", s, re.IGNORECASE | re.DOTALL)
+            if match_obj:
                 m_OutputPrefix = ''
             if Flags & OFLAG_LOGFILE:
                 if self.logfile is not None:
@@ -2035,7 +2035,7 @@ class SQLCli(object):
         if status:
             self.echo(status)
 
-    def format_output_csv(self, headers, columntypes, cur):
+    def format_output_csv(self, headers, columnTypes, cur):
         # 将屏幕输出按照CSV格式进行输出
         m_csv_delimiter = self.SQLOptions.get("CSV_DELIMITER")
         m_csv_quotechar = self.SQLOptions.get("CSV_QUOTECHAR")
@@ -2047,29 +2047,29 @@ class SQLCli(object):
         # 打印字段名称
         if self.SQLOptions.get("CSV_HEADER") == "ON":
             m_row = ""
-            for m_nPos in range(0, len(headers)):
-                m_row = m_row + str(headers[m_nPos])
-                if m_nPos != len(headers) - 1:
+            for pos in range(0, len(headers)):
+                m_row = m_row + str(headers[pos])
+                if pos != len(headers) - 1:
                     m_row = m_row + m_csv_delimiter
             yield str(m_row)
 
         # 打印字段内容
         for row in cur:
             m_row = ""
-            for m_nPos in range(0, len(row)):
-                if row[m_nPos] is None:
-                    if columntypes is not None:
-                        if columntypes[m_nPos] in ("VARCHAR", "LONGVARCHAR", "CHAR", "CLOB", "NCLOB"):
+            for pos in range(0, len(row)):
+                if row[pos] is None:
+                    if columnTypes is not None:
+                        if columnTypes[pos] in ("VARCHAR", "LONGVARCHAR", "CHAR", "CLOB", "NCLOB"):
                             m_row = m_row + m_csv_quotechar + m_csv_quotechar
                 else:
-                    if columntypes is None:
-                        m_row = m_row + str(row[m_nPos])
+                    if columnTypes is None:
+                        m_row = m_row + str(row[pos])
                     else:
-                        if columntypes[m_nPos] in ("VARCHAR", "LONGVARCHAR", "CHAR", "CLOB", "NCLOB"):
-                            m_row = m_row + m_csv_quotechar + str(row[m_nPos]) + m_csv_quotechar
+                        if columnTypes[pos] in ("VARCHAR", "LONGVARCHAR", "CHAR", "CLOB", "NCLOB"):
+                            m_row = m_row + m_csv_quotechar + str(row[pos]) + m_csv_quotechar
                         else:
-                            m_row = m_row + str(row[m_nPos])
-                if m_nPos != len(row) - 1:
+                            m_row = m_row + str(row[pos])
+                if pos != len(row) - 1:
                     m_row = m_row + m_csv_delimiter
             yield str(m_row)
 
@@ -2098,20 +2098,20 @@ class SQLCli(object):
             m_ColumnLength.append(len(m_Header) + wide_chars(m_Header))
         # 查找列的最大字段长度
         for m_Row in cur:
-            for m_nPos in range(0, len(m_Row)):
-                if m_Row[m_nPos] is None:
+            for pos in range(0, len(m_Row)):
+                if m_Row[pos] is None:
                     # 空值打印为<null>
-                    if m_ColumnLength[m_nPos] < len('<null>'):
-                        m_ColumnLength[m_nPos] = len('<null>')
-                elif isinstance(m_Row[m_nPos], str):
-                    m_PrintValue = m_Row[m_nPos]
+                    if m_ColumnLength[pos] < len('<null>'):
+                        m_ColumnLength[pos] = len('<null>')
+                elif isinstance(m_Row[pos], str):
+                    m_PrintValue = m_Row[pos]
                     m_PrintValue = m_PrintValue.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
-                    if len(m_PrintValue) + wide_chars(m_PrintValue) > m_ColumnLength[m_nPos]:
+                    if len(m_PrintValue) + wide_chars(m_PrintValue) > m_ColumnLength[pos]:
                         # 为了保持长度一致，长度计算的时候扣掉中文的显示长度
-                        m_ColumnLength[m_nPos] = len(m_PrintValue) + wide_chars(m_PrintValue)
+                        m_ColumnLength[pos] = len(m_PrintValue) + wide_chars(m_PrintValue)
                 else:
-                    if len(str(m_Row[m_nPos])) + wide_chars(m_Row[m_nPos]) > m_ColumnLength[m_nPos]:
-                        m_ColumnLength[m_nPos] = len(str(m_Row[m_nPos])) + wide_chars(m_Row[m_nPos])
+                    if len(str(m_Row[pos])) + wide_chars(m_Row[pos]) > m_ColumnLength[pos]:
+                        m_ColumnLength[pos] = len(str(m_Row[pos])) + wide_chars(m_Row[pos])
         # 打印表格上边框
         # 计算表格输出的长度, 开头有一个竖线，随后每个字段内容前有一个空格，后有一个空格加上竖线
         # 1 + [（字段长度+3） *]
@@ -2121,9 +2121,9 @@ class SQLCli(object):
         yield m_TableBoxLine
         # 打印表头以及表头下面的分割线
         m_TableContentLine = '|'
-        for m_nPos in range(0, len(headers)):
+        for pos in range(0, len(headers)):
             m_TableContentLine = m_TableContentLine + ' ' + \
-                                 str(headers[m_nPos]).ljust(m_ColumnLength[m_nPos] - wide_chars(headers[m_nPos])) + ' |'
+                                 str(headers[pos]).ljust(m_ColumnLength[pos] - wide_chars(headers[pos])) + ' |'
         yield m_TableContentLine
         yield m_TableBoxLine
         # 打印字段内容
@@ -2131,23 +2131,23 @@ class SQLCli(object):
             m_output = [m_Row]
             for m_iter in m_output:
                 m_TableContentLine = '|'
-                for m_nPos in range(0, len(m_iter)):
-                    if m_iter[m_nPos] is None:
+                for pos in range(0, len(m_iter)):
+                    if m_iter[pos] is None:
                         m_PrintValue = '<null>'
-                    elif isinstance(m_iter[m_nPos], str):
-                        m_PrintValue = m_Row[m_nPos]
+                    elif isinstance(m_iter[pos], str):
+                        m_PrintValue = m_Row[pos]
                         m_PrintValue = m_PrintValue.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
                     else:
-                        m_PrintValue = str(m_iter[m_nPos])
+                        m_PrintValue = str(m_iter[pos])
                     # 所有内容字符串左对齐
                     m_TableContentLine = \
                         m_TableContentLine + ' ' + \
-                        m_PrintValue.ljust(m_ColumnLength[m_nPos] - wide_chars(m_PrintValue)) + ' |'
+                        m_PrintValue.ljust(m_ColumnLength[pos] - wide_chars(m_PrintValue)) + ' |'
                 yield m_TableContentLine
         # 打印表格下边框
         yield m_TableBoxLine
 
-    def format_output_tab(self, headers, columntypes, cur):
+    def format_output_tab(self, headers, columnTypes, cur):
         def wide_chars(s):
             # 判断字符串中包含的中文字符数量
             if isinstance(s, str):
@@ -2171,19 +2171,19 @@ class SQLCli(object):
             m_ColumnLength.append(len(m_Header) + wide_chars(m_Header))
         # 查找列的最大字段长度
         for m_Row in cur:
-            for m_nPos in range(0, len(m_Row)):
-                if m_Row[m_nPos] is None:
+            for pos in range(0, len(m_Row)):
+                if m_Row[pos] is None:
                     # 空值打印为<null>
-                    if m_ColumnLength[m_nPos] < len('<null>'):
-                        m_ColumnLength[m_nPos] = len('<null>')
-                elif isinstance(m_Row[m_nPos], str):
-                    for m_iter in m_Row[m_nPos].split('\n'):
-                        if len(m_iter) + wide_chars(m_iter) > m_ColumnLength[m_nPos]:
+                    if m_ColumnLength[pos] < len('<null>'):
+                        m_ColumnLength[pos] = len('<null>')
+                elif isinstance(m_Row[pos], str):
+                    for m_iter in m_Row[pos].split('\n'):
+                        if len(m_iter) + wide_chars(m_iter) > m_ColumnLength[pos]:
                             # 为了保持长度一致，长度计算的时候扣掉中文的显示长度
-                            m_ColumnLength[m_nPos] = len(m_iter) + wide_chars(m_iter)
+                            m_ColumnLength[pos] = len(m_iter) + wide_chars(m_iter)
                 else:
-                    if len(str(m_Row[m_nPos])) + wide_chars(m_Row[m_nPos]) > m_ColumnLength[m_nPos]:
-                        m_ColumnLength[m_nPos] = len(str(m_Row[m_nPos])) + wide_chars(m_Row[m_nPos])
+                    if len(str(m_Row[pos])) + wide_chars(m_Row[pos]) > m_ColumnLength[pos]:
+                        m_ColumnLength[pos] = len(str(m_Row[pos])) + wide_chars(m_Row[pos])
         # 打印表格上边框
         # 计算表格输出的长度, 开头有一个竖线，随后每个字段内容前有一个空格，后有一个空格加上竖线
         # 1 + [（字段长度+3） *]
@@ -2193,10 +2193,10 @@ class SQLCli(object):
         yield m_TableBoxLine
         # 打印表头以及表头下面的分割线
         m_TableContentLine = '|   ##   |'
-        for m_nPos in range(0, len(headers)):
+        for pos in range(0, len(headers)):
             m_TableContentLine = \
                 m_TableContentLine + \
-                ' ' + str(headers[m_nPos]).center(m_ColumnLength[m_nPos] - wide_chars(headers[m_nPos])) + ' |'
+                ' ' + str(headers[pos]).center(m_ColumnLength[pos] - wide_chars(headers[pos])) + ' |'
         yield m_TableContentLine
         yield m_TableBoxLine
         # 打印字段内容
@@ -2205,10 +2205,10 @@ class SQLCli(object):
             m_RowNo = m_RowNo + 1
             # 首先计算改行应该打印的高度（行中的内容可能右换行符号）
             m_RowHeight = 1
-            for m_nPos in range(0, len(m_Row)):
-                if isinstance(m_Row[m_nPos], str):
-                    if len(m_Row[m_nPos].split('\n')) > m_RowHeight:
-                        m_RowHeight = len(m_Row[m_nPos].split('\n'))
+            for pos in range(0, len(m_Row)):
+                if isinstance(m_Row[pos], str):
+                    if len(m_Row[pos].split('\n')) > m_RowHeight:
+                        m_RowHeight = len(m_Row[pos].split('\n'))
             # 首先构造一个空的结果集，行数为计划打印的行高
             m_output = []
             if m_RowHeight == 1:
@@ -2217,11 +2217,11 @@ class SQLCli(object):
                 for m_iter in range(0, m_RowHeight):
                     m_output.append(())
                 # 依次填入数据
-                for m_nPos in range(0, len(m_Row)):
-                    if isinstance(m_Row[m_nPos], str):
-                        m_SplitColumnValue = m_Row[m_nPos].split('\n')
+                for pos in range(0, len(m_Row)):
+                    if isinstance(m_Row[pos], str):
+                        m_SplitColumnValue = m_Row[pos].split('\n')
                     else:
-                        m_SplitColumnValue = [m_Row[m_nPos], ]
+                        m_SplitColumnValue = [m_Row[pos], ]
                     for m_iter in range(0, m_RowHeight):
                         if len(m_SplitColumnValue) > m_iter:
                             if str(m_SplitColumnValue[m_iter]).endswith('\r'):
@@ -2237,32 +2237,32 @@ class SQLCli(object):
                     m_RowNoPrinted = True
                 else:
                     m_TableContentLine = m_TableContentLine + '        |'
-                for m_nPos in range(0, len(m_iter)):
-                    if m_iter[m_nPos] is None:
+                for pos in range(0, len(m_iter)):
+                    if m_iter[pos] is None:
                         m_PrintValue = '<null>'
                     else:
-                        m_PrintValue = str(m_iter[m_nPos])
-                    if columntypes is not None:
-                        if columntypes[m_nPos] in \
+                        m_PrintValue = str(m_iter[pos])
+                    if columnTypes is not None:
+                        if columnTypes[pos] in \
                                 ("VARCHAR", "LONGVARCHAR", "CHAR", "CLOB", "NCLOB", "STRUCT", "ARRAY", "DATE"):
                             # 字符串左对齐
                             m_TableContentLine = \
                                 m_TableContentLine + ' ' + \
-                                m_PrintValue.ljust(m_ColumnLength[m_nPos] - wide_chars(m_PrintValue)) + ' |'
+                                m_PrintValue.ljust(m_ColumnLength[pos] - wide_chars(m_PrintValue)) + ' |'
                         else:
                             # 数值类型右对齐, 不需要考虑wide_chars
                             m_TableContentLine = m_TableContentLine + ' ' + \
-                                                 m_PrintValue.rjust(m_ColumnLength[m_nPos]) + ' |'
+                                                 m_PrintValue.rjust(m_ColumnLength[pos]) + ' |'
                     else:
                         # 没有返回columntype, 按照字符串处理
                         m_TableContentLine = \
                             m_TableContentLine + ' ' + \
-                            m_PrintValue.ljust(m_ColumnLength[m_nPos] - wide_chars(m_PrintValue)) + ' |'
+                            m_PrintValue.ljust(m_ColumnLength[pos] - wide_chars(m_PrintValue)) + ' |'
                 yield m_TableContentLine
         # 打印表格下边框
         yield m_TableBoxLine
 
-    def format_output(self, title, cur, headers, columntypes, p_format_name, max_width=None):
+    def format_output(self, title, cur, headers, columnTypes, p_format_name, max_width=None):
         output = []
 
         if title:  # Only print the title if it's not None.
@@ -2274,10 +2274,10 @@ class SQLCli(object):
 
             if p_format_name.upper() == 'CSV':
                 # 按照CSV格式输出查询结果
-                formatted = self.format_output_csv(headers, columntypes, cur)
+                formatted = self.format_output_csv(headers, columnTypes, cur)
             elif p_format_name.upper() == 'TAB':
                 # 按照TAB格式输出查询结果
-                formatted = self.format_output_tab(headers, columntypes, cur)
+                formatted = self.format_output_tab(headers, columnTypes, cur)
             elif p_format_name.upper() == 'LEGACY':
                 # 按照TAB格式输出查询结果
                 formatted = self.format_output_leagcy(headers, cur)

@@ -50,10 +50,10 @@ class POSIXCompare:
                 else:
                     m_CompiledPattern = re.compile(p_str2)
                 self.CompiledRegexPattern[p_str2] = m_CompiledPattern
-            matchObj = re.match(m_CompiledPattern, p_str1)
-            if matchObj is None:
+            match_obj = re.match(m_CompiledPattern, p_str1)
+            if match_obj is None:
                 return False
-            elif str(matchObj.group()) != p_str1:
+            elif str(match_obj.group()) != p_str1:
                 return False
             else:
                 return True
@@ -156,77 +156,77 @@ class POSIXCompare:
 
         lineno1 = []
         lineno2 = []
-        for m_nPos in range(0, len(workfilecontent)):
-            lineno1.append(m_nPos + 1)
-        for m_nPos in range(0, len(reffilecontent)):
-            lineno2.append(m_nPos + 1)
+        for pos in range(0, len(workfilecontent)):
+            lineno1.append(pos + 1)
+        for pos in range(0, len(reffilecontent)):
+            lineno2.append(pos + 1)
 
         # 去掉filecontent中的回车换行
-        for m_nPos in range(0, len(workfilecontent)):
-            if workfilecontent[m_nPos].endswith('\n'):
-                workfilecontent[m_nPos] = workfilecontent[m_nPos][:-1]
-        for m_nPos in range(0, len(reffilecontent)):
-            if reffilecontent[m_nPos].endswith('\n'):
-                reffilecontent[m_nPos] = reffilecontent[m_nPos][:-1]
+        for pos in range(0, len(workfilecontent)):
+            if workfilecontent[pos].endswith('\n'):
+                workfilecontent[pos] = workfilecontent[pos][:-1]
+        for pos in range(0, len(reffilecontent)):
+            if reffilecontent[pos].endswith('\n'):
+                reffilecontent[pos] = reffilecontent[pos][:-1]
 
         # 去掉fileconent中的首尾空格
         if CompareIgnoreTailOrHeadBlank:
-            for m_nPos in range(0, len(workfilecontent)):
-                workfilecontent[m_nPos] = workfilecontent[m_nPos].lstrip().rstrip()
-            for m_nPos in range(0, len(reffilecontent)):
-                reffilecontent[m_nPos] = reffilecontent[m_nPos].lstrip().rstrip()
+            for pos in range(0, len(workfilecontent)):
+                workfilecontent[pos] = workfilecontent[pos].lstrip().rstrip()
+            for pos in range(0, len(reffilecontent)):
+                reffilecontent[pos] = reffilecontent[pos].lstrip().rstrip()
 
         # 去除在SkipLine里头的所有内容
         if skiplines is not None:
-            m_nPos = 0
-            while m_nPos < len(workfilecontent):
+            pos = 0
+            while pos < len(workfilecontent):
                 bMatch = False
                 for pattern in skiplines:
-                    if self.compare_string(workfilecontent[m_nPos], pattern, p_compare_maskEnabled=True):
-                        workfilecontent.pop(m_nPos)
-                        lineno1.pop(m_nPos)
+                    if self.compare_string(workfilecontent[pos], pattern, p_compare_maskEnabled=True):
+                        workfilecontent.pop(pos)
+                        lineno1.pop(pos)
                         bMatch = True
                         break
                 if not bMatch:
-                    m_nPos = m_nPos + 1
+                    pos = pos + 1
 
-            m_nPos = 0
-            while m_nPos < len(reffilecontent):
+            pos = 0
+            while pos < len(reffilecontent):
                 bMatch = False
                 for pattern in skiplines:
-                    if self.compare_string(reffilecontent[m_nPos], pattern, p_compare_maskEnabled=True):
-                        reffilecontent.pop(m_nPos)
-                        lineno2.pop(m_nPos)
+                    if self.compare_string(reffilecontent[pos], pattern, p_compare_maskEnabled=True):
+                        reffilecontent.pop(pos)
+                        lineno2.pop(pos)
                         bMatch = True
                         break
                 if not bMatch:
-                    m_nPos = m_nPos + 1
+                    pos = pos + 1
 
         # 去除所有的空行
         if CompareIgnoreEmptyLine:
-            m_nPos = 0
-            while m_nPos < len(workfilecontent):
-                if len(workfilecontent[m_nPos].strip()) == 0:
-                    workfilecontent.pop(m_nPos)
-                    lineno1.pop(m_nPos)
+            pos = 0
+            while pos < len(workfilecontent):
+                if len(workfilecontent[pos].strip()) == 0:
+                    workfilecontent.pop(pos)
+                    lineno1.pop(pos)
                 else:
-                    m_nPos = m_nPos + 1
-            m_nPos = 0
-            while m_nPos < len(reffilecontent):
-                if len(reffilecontent[m_nPos].strip()) == 0:
-                    reffilecontent.pop(m_nPos)
-                    lineno2.pop(m_nPos)
+                    pos = pos + 1
+            pos = 0
+            while pos < len(reffilecontent):
+                if len(reffilecontent[pos].strip()) == 0:
+                    reffilecontent.pop(pos)
+                    lineno2.pop(pos)
                 else:
-                    m_nPos = m_nPos + 1
+                    pos = pos + 1
 
         # 处理MaskLine中的信息，对ref文件进行替换
         if MaskLines is not None:
-            m_nPos = 0
-            while m_nPos < len(reffilecontent):
+            pos = 0
+            while pos < len(reffilecontent):
                 for pattern in MaskLines:
-                    if self.compare_string(reffilecontent[m_nPos], pattern, p_compare_maskEnabled=True):
-                        reffilecontent[m_nPos] = pattern
-                m_nPos = m_nPos + 1
+                    if self.compare_string(reffilecontent[pos], pattern, p_compare_maskEnabled=True):
+                        reffilecontent[pos] = pattern
+                pos = pos + 1
 
         # 输出两个信息
         # 1：  Compare的结果是否存在dif，True/False
@@ -258,8 +258,8 @@ class POSIXCompare:
                 # 补充填写那些已经被忽略规则略掉的内容，只填写LOG文件中的对应信息
                 if m_LineNo > (m_nWorkLastPos + 1):
                     # 当前日志中存在，但是比较的过程中被Skip掉的内容，要首先补充进来
-                    for m_nPos in range(m_nWorkLastPos + 1, m_LineNo):
-                        m_AppendLine = "S{:>{}} ".format(m_nPos, 6) + file1rawcontent[m_nPos - 1]
+                    for pos in range(m_nWorkLastPos + 1, m_LineNo):
+                        m_AppendLine = "S{:>{}} ".format(pos, 6) + file1rawcontent[pos - 1]
                         if m_AppendLine.endswith("\n"):
                             m_AppendLine = m_AppendLine[:-1]
                         m_NewCompareResultList.append(m_AppendLine)
@@ -275,8 +275,8 @@ class POSIXCompare:
                 # 补充填写那些已经被忽略规则略掉的内容，只填写LOG文件中的对应信息
                 if m_LineNo > (m_nWorkLastPos + 1):
                     # 当前日志中存在，但是比较的过程中被Skip掉的内容，要首先补充进来
-                    for m_nPos in range(m_nWorkLastPos + 1, m_LineNo):
-                        m_AppendLine = "S{:>{}} ".format(m_nPos, 6) + file1rawcontent[m_nPos - 1]
+                    for pos in range(m_nWorkLastPos + 1, m_LineNo):
+                        m_AppendLine = "S{:>{}} ".format(pos, 6) + file1rawcontent[pos - 1]
                         if m_AppendLine.endswith("\n"):
                             m_AppendLine = m_AppendLine[:-1]
                         m_NewCompareResultList.append(m_AppendLine)
@@ -370,15 +370,15 @@ class TestWrapper(object):
             return
 
         if p_szParameter.upper() == "CompareNotSkip".upper():
-            for m_nPos in range(0, len(self.c_SkipLines)):
-                if self.c_SkipLines[m_nPos] == p_szValue:
-                    self.c_SkipLines.pop(m_nPos)
+            for pos in range(0, len(self.c_SkipLines)):
+                if self.c_SkipLines[pos] == p_szValue:
+                    self.c_SkipLines.pop(pos)
                     break
             return
         if p_szParameter.upper() == "CompareNotMask".upper():
-            for m_nPos in range(0, len(self.c_MaskLines)):
-                if self.c_MaskLines[m_nPos] == p_szValue:
-                    self.c_MaskLines.pop(m_nPos)
+            for pos in range(0, len(self.c_MaskLines)):
+                if self.c_MaskLines[pos] == p_szValue:
+                    self.c_MaskLines.pop(pos)
                     break
             return
         raise SQLCliException("Invalid parameter [" + str(p_szParameter) + "].")
@@ -419,11 +419,11 @@ class TestWrapper(object):
             m_ScenariosPos = {}
 
             # 首先记录下来每一个Senario的开始位置，结束位置
-            m_nPos = 0
+            pos = 0
             m_ScenarioName = None
             m_ScenarioPriority = None
             while True:
-                if m_nPos >= len(m_CompareResultList):
+                if pos >= len(m_CompareResultList):
                     break
 
                 # Scenario定义
@@ -444,161 +444,161 @@ class TestWrapper(object):
                 # -- [Hint] scenario:end:
                 # -- [scenario:end]
 
-                matchObj = re.search(r"--(\s+)?\[Hint](\s+)?setup:end", m_CompareResultList[m_nPos],
+                match_obj = re.search(r"--(\s+)?\[Hint](\s+)?setup:end", m_CompareResultList[pos],
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     if m_ScenarioName is None:
                         m_ScenarioName = "setup"
                     m_ScenariosPos[m_ScenarioName] = {
                         "ScenarioStartPos": m_ScenarioStartPos,
-                        "ScenarioEndPos": m_nPos,
+                        "ScenarioEndPos": pos,
                         "ScenarioPriority": m_ScenarioPriority
                     }
-                    m_ScenarioStartPos = m_nPos + 1
-                    m_nPos = m_nPos + 1
+                    m_ScenarioStartPos = pos + 1
+                    pos = pos + 1
                     m_ScenarioName = None
                     m_ScenarioPriority = None
                     continue
 
-                matchObj = re.search(r"--(\s+)?\[(\s+)?setup:end]", m_CompareResultList[m_nPos],
+                match_obj = re.search(r"--(\s+)?\[(\s+)?setup:end]", m_CompareResultList[pos],
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     if m_ScenarioName is None:
                         m_ScenarioName = "setup"
                     m_ScenariosPos[m_ScenarioName] = {
                         "ScenarioStartPos": m_ScenarioStartPos,
-                        "ScenarioEndPos": m_nPos,
+                        "ScenarioEndPos": pos,
                         "ScenarioPriority": m_ScenarioPriority
                     }
-                    m_ScenarioStartPos = m_nPos + 1
-                    m_nPos = m_nPos + 1
+                    m_ScenarioStartPos = pos + 1
+                    pos = pos + 1
                     m_ScenarioName = None
                     m_ScenarioPriority = None
                     continue
 
-                matchObj = re.search(r"--(\s+)?\[Hint](\s+)?cleanup:end", m_CompareResultList[m_nPos],
+                match_obj = re.search(r"--(\s+)?\[Hint](\s+)?cleanup:end", m_CompareResultList[pos],
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     if m_ScenarioName is None:
                         m_ScenarioName = "cleanup"
                     m_ScenariosPos[m_ScenarioName] = {
                         "ScenarioStartPos": m_ScenarioStartPos,
-                        "ScenarioEndPos": m_nPos,
+                        "ScenarioEndPos": pos,
                         "ScenarioPriority": m_ScenarioPriority
                     }
-                    m_ScenarioStartPos = m_nPos + 1
-                    m_nPos = m_nPos + 1
+                    m_ScenarioStartPos = pos + 1
+                    pos = pos + 1
                     m_ScenarioName = None
                     m_ScenarioPriority = None
                     continue
 
-                matchObj = re.search(r"--(\s+)?\[(\s+)?cleanup:end]", m_CompareResultList[m_nPos],
+                match_obj = re.search(r"--(\s+)?\[(\s+)?cleanup:end]", m_CompareResultList[pos],
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     if m_ScenarioName is None:
                         m_ScenarioName = "cleanup"
                     m_ScenariosPos[m_ScenarioName] = {
                         "ScenarioStartPos": m_ScenarioStartPos,
-                        "ScenarioEndPos": m_nPos,
+                        "ScenarioEndPos": pos,
                         "ScenarioPriority": m_ScenarioPriority
                     }
-                    m_ScenarioStartPos = m_nPos + 1
-                    m_nPos = m_nPos + 1
+                    m_ScenarioStartPos = pos + 1
+                    pos = pos + 1
                     m_ScenarioName = None
                     m_ScenarioPriority = None
                     continue
 
-                matchObj = re.search(r"--(\s+)?\[Hint](\s+)?scenario:end", m_CompareResultList[m_nPos],
+                match_obj = re.search(r"--(\s+)?\[Hint](\s+)?scenario:end", m_CompareResultList[pos],
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     if m_ScenarioName is None:
                         m_ScenarioName = "none-" + str(m_ScenarioStartPos)
                     m_ScenariosPos[m_ScenarioName] = {
                         "ScenarioStartPos": m_ScenarioStartPos,
-                        "ScenarioEndPos": m_nPos,
+                        "ScenarioEndPos": pos,
                         "ScenarioPriority": m_ScenarioPriority
                     }
-                    m_ScenarioStartPos = m_nPos + 1
-                    m_nPos = m_nPos + 1
+                    m_ScenarioStartPos = pos + 1
+                    pos = pos + 1
                     m_ScenarioName = None
                     m_ScenarioPriority = None
                     continue
 
-                matchObj = re.search(r"--(\s+)?\[(\s+)?scenario:end]", m_CompareResultList[m_nPos],
+                match_obj = re.search(r"--(\s+)?\[(\s+)?scenario:end]", m_CompareResultList[pos],
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     if m_ScenarioName is None:
                         m_ScenarioName = "none-" + str(m_ScenarioStartPos)
                     m_ScenariosPos[m_ScenarioName] = {
                         "ScenarioStartPos": m_ScenarioStartPos,
-                        "ScenarioEndPos": m_nPos,
+                        "ScenarioEndPos": pos,
                         "ScenarioPriority": m_ScenarioPriority
                     }
-                    m_ScenarioStartPos = m_nPos + 1
-                    m_nPos = m_nPos + 1
+                    m_ScenarioStartPos = pos + 1
+                    pos = pos + 1
                     m_ScenarioName = None
                     m_ScenarioPriority = None
                     continue
 
-                matchObj = re.search(r"--(\s+)?\[Hint](\s+)?setup:", m_CompareResultList[m_nPos],
+                match_obj = re.search(r"--(\s+)?\[Hint](\s+)?setup:", m_CompareResultList[pos],
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     m_ScenarioName = "setup"
                     m_ScenarioPriority = None
-                    m_ScenarioStartPos = m_nPos
-                    m_nPos = m_nPos + 1
+                    m_ScenarioStartPos = pos
+                    pos = pos + 1
                     continue
 
-                matchObj = re.search(r"--(\s+)?\[(\s+)?setup:]", m_CompareResultList[m_nPos],
+                match_obj = re.search(r"--(\s+)?\[(\s+)?setup:]", m_CompareResultList[pos],
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     m_ScenarioName = "setup"
                     m_ScenarioPriority = None
-                    m_ScenarioStartPos = m_nPos
-                    m_nPos = m_nPos + 1
+                    m_ScenarioStartPos = pos
+                    pos = pos + 1
                     continue
 
-                matchObj = re.search(r"--(\s+)?\[Hint](\s+)?cleanup:", m_CompareResultList[m_nPos],
+                match_obj = re.search(r"--(\s+)?\[Hint](\s+)?cleanup:", m_CompareResultList[pos],
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     m_ScenarioName = "cleanup"
                     m_ScenarioPriority = None
-                    m_ScenarioStartPos = m_nPos
-                    m_nPos = m_nPos + 1
+                    m_ScenarioStartPos = pos
+                    pos = pos + 1
                     continue
 
-                matchObj = re.search(r"--(\s+)?\[(\s+)?cleanup:]", m_CompareResultList[m_nPos],
+                match_obj = re.search(r"--(\s+)?\[(\s+)?cleanup:]", m_CompareResultList[pos],
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     m_ScenarioName = "cleanup"
                     m_ScenarioPriority = None
-                    m_ScenarioStartPos = m_nPos
-                    m_nPos = m_nPos + 1
+                    m_ScenarioStartPos = pos
+                    pos = pos + 1
                     continue
 
-                matchObj = re.search(r"--(\s+)?\[Hint](\s+)?Scenario:(.*)", m_CompareResultList[m_nPos],
+                match_obj = re.search(r"--(\s+)?\[Hint](\s+)?Scenario:(.*)", m_CompareResultList[pos],
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    m_SenarioAndPriority = matchObj.group(3).strip()
+                if match_obj:
+                    m_SenarioAndPriority = match_obj.group(3).strip()
                     if len(m_SenarioAndPriority.split(':')) == 2:
                         # 重复的Scenario开始
                         if m_ScenarioName is not None and \
                                 m_SenarioAndPriority.split(':')[1].strip() == m_ScenarioName:
-                            m_ScenarioStartPos = m_nPos
-                            m_nPos = m_nPos + 1
+                            m_ScenarioStartPos = pos
+                            pos = pos + 1
                             continue
                     else:
                         # 重复的Scenario开始
                         if m_ScenarioName is not None and \
                                 m_ScenarioName == m_SenarioAndPriority:
-                            m_ScenarioStartPos = m_nPos
-                            m_nPos = m_nPos + 1
+                            m_ScenarioStartPos = pos
+                            pos = pos + 1
                             continue
                     if m_ScenarioName is not None:
                         # 如果上一个Scenario没有正常结束，这里标记结束
                         m_ScenariosPos[m_ScenarioName] = {
                             "ScenarioStartPos": m_ScenarioStartPos,
-                            "ScenarioEndPos": m_nPos - 1,
+                            "ScenarioEndPos": pos - 1,
                             "ScenarioPriority": m_ScenarioPriority
                         }
                     if len(m_SenarioAndPriority.split(':')) == 2:
@@ -609,33 +609,33 @@ class TestWrapper(object):
                         # 如果只有一个内容， 规则是:Scenario:ScenarioName
                         m_ScenarioName = m_SenarioAndPriority
                         m_ScenarioPriority = None
-                    m_ScenarioStartPos = m_nPos
-                    m_nPos = m_nPos + 1
+                    m_ScenarioStartPos = pos
+                    pos = pos + 1
                     continue
 
-                matchObj = re.search(r"--(\s+)?\[(\s+)?Scenario:(.*)]", m_CompareResultList[m_nPos],
+                match_obj = re.search(r"--(\s+)?\[(\s+)?Scenario:(.*)]", m_CompareResultList[pos],
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    m_SenarioAndPriority = matchObj.group(3).strip()
+                if match_obj:
+                    m_SenarioAndPriority = match_obj.group(3).strip()
                     if len(m_SenarioAndPriority.split(':')) == 2:
                         # 重复的Scenario开始
                         if m_ScenarioName is not None and \
                                 m_SenarioAndPriority.split(':')[1].strip() == m_ScenarioName:
-                            m_ScenarioStartPos = m_nPos
-                            m_nPos = m_nPos + 1
+                            m_ScenarioStartPos = pos
+                            pos = pos + 1
                             continue
                     else:
                         # 重复的Scenario开始
                         if m_ScenarioName is not None and \
                                 m_ScenarioName == m_SenarioAndPriority:
-                            m_ScenarioStartPos = m_nPos
-                            m_nPos = m_nPos + 1
+                            m_ScenarioStartPos = pos
+                            pos = pos + 1
                             continue
                     if m_ScenarioName is not None:
                         # 如果上一个Scenario没有正常结束，这里标记结束
                         m_ScenariosPos[m_ScenarioName] = {
                             "ScenarioStartPos": m_ScenarioStartPos,
-                            "ScenarioEndPos": m_nPos - 1,
+                            "ScenarioEndPos": pos - 1,
                             "ScenarioPriority": m_ScenarioPriority
                         }
                     if len(m_SenarioAndPriority.split(':')) == 2:
@@ -646,12 +646,12 @@ class TestWrapper(object):
                         # 如果只有一个内容， 规则是:Scenario:ScenarioName
                         m_ScenarioName = m_SenarioAndPriority
                         m_ScenarioPriority = None
-                    m_ScenarioStartPos = m_nPos
-                    m_nPos = m_nPos + 1
+                    m_ScenarioStartPos = pos
+                    pos = pos + 1
                     continue
 
                 # 不是什么特殊内容，这里是标准文本
-                m_nPos = m_nPos + 1
+                pos = pos + 1
 
             # 最后一个Senario的情况记录下来
             if m_ScenarioStartPos < len(m_CompareResultList):
@@ -663,17 +663,17 @@ class TestWrapper(object):
                     }
             # 遍历每一个Senario的情况
             for m_ScenarioName, m_Senario_Pos in m_ScenariosPos.items():
-                m_StartPos = m_Senario_Pos['ScenarioStartPos']
+                start_pos = m_Senario_Pos['ScenarioStartPos']
                 m_EndPos = m_Senario_Pos['ScenarioEndPos']
                 m_ScenarioPriority = m_Senario_Pos['ScenarioPriority']
-                bFoundDif = False
+                foundDif = False
                 m_DifStartPos = 0
-                for m_nPos in range(m_StartPos, m_EndPos):
-                    if m_CompareResultList[m_nPos].startswith('-') or m_CompareResultList[m_nPos].startswith('+'):
-                        m_DifStartPos = m_nPos
-                        bFoundDif = True
+                for pos in range(start_pos, m_EndPos):
+                    if m_CompareResultList[pos].startswith('-') or m_CompareResultList[pos].startswith('+'):
+                        m_DifStartPos = pos
+                        foundDif = True
                         break
-                if not bFoundDif:
+                if not foundDif:
                     m_ScenarioResults[m_ScenarioName] = \
                         {
                             "Status": "Successful",
@@ -682,10 +682,10 @@ class TestWrapper(object):
                         }
                 else:
                     # 错误信息只记录前后20行信息,前5行，多余的不记录
-                    if m_DifStartPos - 5 > m_StartPos:
+                    if m_DifStartPos - 5 > start_pos:
                         m_DifStartPos = m_DifStartPos - 5
                     else:
-                        m_DifStartPos = m_StartPos
+                        m_DifStartPos = start_pos
                     if m_DifStartPos + 20 < m_EndPos:
                         m_DifEndPos = m_DifStartPos + 20
                     else:
@@ -866,39 +866,39 @@ class TestWrapper(object):
     def Process_SQLCommand(self, p_szSQL):
         m_szSQL = p_szSQL.strip()
 
-        matchObj = re.match(r"test\s+set\s+(.*?)\s+(.*?)$",
+        match_obj = re.match(r"test\s+set\s+(.*?)\s+(.*?)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_Parameter = matchObj.group(1).strip()
-            m_Value = matchObj.group(2).strip()
+        if match_obj:
+            m_Parameter = match_obj.group(1).strip()
+            m_Value = match_obj.group(2).strip()
             self.setTestOptions(m_Parameter, m_Value)
             return None, None, None, None, "set successful."
 
-        matchObj = re.match(r"test\s+compare\s+(.*)\s+with\s+(.*)$",
+        match_obj = re.match(r"test\s+compare\s+(.*)\s+with\s+(.*)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_WorkFile = matchObj.group(1).strip()
-            m_RefFile = matchObj.group(2).strip()
+        if match_obj:
+            m_WorkFile = match_obj.group(1).strip()
+            m_RefFile = match_obj.group(2).strip()
             if m_WorkFile.startswith("'") and m_WorkFile.endswith("'"):
                 m_WorkFile = m_WorkFile[1:-1]
             if m_RefFile.startswith("'") and m_RefFile.endswith("'"):
                 m_RefFile = m_RefFile[1:-1]
-            (title, result, headers, columntypes, status) = self.Compare_Files(m_WorkFile, m_RefFile)
-            return title, result, headers, columntypes, status
+            (title, result, headers, columnTypes, status) = self.Compare_Files(m_WorkFile, m_RefFile)
+            return title, result, headers, columnTypes, status
 
-        matchObj = re.match(r"test\s+assert\s+(.*)$",
+        match_obj = re.match(r"test\s+assert\s+(.*)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_formular = matchObj.group(1).strip()
-            (title, result, headers, columntypes, status) = self.AssertFormular(m_formular)
-            return title, result, headers, columntypes, status
+        if match_obj:
+            m_formular = match_obj.group(1).strip()
+            (title, result, headers, columnTypes, status) = self.AssertFormular(m_formular)
+            return title, result, headers, columnTypes, status
 
-        matchObj = re.match(r"test\s+loadenv\s+(.*)\s+(.*)$",
+        match_obj = re.match(r"test\s+loadenv\s+(.*)\s+(.*)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_EnvFileName = matchObj.group(1).strip()
-            m_EnvSectionName = matchObj.group(2).strip()
-            (title, result, headers, columntypes, status) = self.LoadEnv(m_EnvFileName, m_EnvSectionName)
-            return title, result, headers, columntypes, status
+        if match_obj:
+            m_EnvFileName = match_obj.group(1).strip()
+            m_EnvSectionName = match_obj.group(2).strip()
+            (title, result, headers, columnTypes, status) = self.LoadEnv(m_EnvFileName, m_EnvSectionName)
+            return title, result, headers, columnTypes, status
 
         return None, None, None, None, "Unknown test Command."

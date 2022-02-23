@@ -83,10 +83,10 @@ class RedisWrapper(object):
 
     def Process_SQLCommand(self, p_szSQL):
         m_szSQL = p_szSQL.strip()
-        matchObj = re.match(r"redis\s+connect\s+(.*?)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            self.type = matchObj.group(1).strip()
-            m_redis_conn_paramters = matchObj.group(2).split()
+        match_obj = re.match(r"redis\s+connect\s+(.*?)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            self.type = match_obj.group(1).strip()
+            m_redis_conn_paramters = match_obj.group(2).split()
             if self.type == 'standalone':
                 self.host = m_redis_conn_paramters[0]
                 self.port = m_redis_conn_paramters[1]
@@ -103,21 +103,21 @@ class RedisWrapper(object):
                 self.redis_connect(self.sentinel_list)
             return None, None, None, None, "Redis Server connect successful."
 
-        matchObj = re.match(r"redis\s+set\s+(.*?)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_data_name = str(matchObj.group(1)).strip()
-            m_data_value = str(matchObj.group(2)).strip()
+        match_obj = re.match(r"redis\s+set\s+(.*?)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            m_data_name = str(match_obj.group(1)).strip()
+            m_data_value = str(match_obj.group(2)).strip()
             m_ReturnMessage = self.redis_set(m_data_name, m_data_value)
             return None, None, None, None, m_ReturnMessage
 
-        matchObj = re.match(r"redis\s+get\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_data_name = str(matchObj.group(1)).strip()
+        match_obj = re.match(r"redis\s+get\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            m_data_name = str(match_obj.group(1)).strip()
             m_ReturnMessage = str(self.redis_get(m_data_name))
             return None, None, None, None, m_ReturnMessage
 
-        matchObj = re.search(r"redis\s+flushall", m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
+        match_obj = re.search(r"redis\s+flushall", m_szSQL, re.IGNORECASE | re.DOTALL)
+        if match_obj:
             m_ReturnMessage = str(self.redis_flushall())
             return None, None, None, None, m_ReturnMessage
 

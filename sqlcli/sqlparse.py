@@ -67,19 +67,19 @@ class SQLMapping(object):
                 m_SQL_Mapping_Contents = f.readlines()
 
             # 去掉配置文件中的注释信息, 包含空行，单行完全注释，以及文件行内注释的注释部分
-            m_nPos = 0
-            while m_nPos < len(m_SQL_Mapping_Contents):
-                if (m_SQL_Mapping_Contents[m_nPos].startswith('#') and
-                    not m_SQL_Mapping_Contents[m_nPos].startswith('#.')) or \
-                        len(m_SQL_Mapping_Contents[m_nPos]) == 0:
-                    m_SQL_Mapping_Contents.pop(m_nPos)
+            pos = 0
+            while pos < len(m_SQL_Mapping_Contents):
+                if (m_SQL_Mapping_Contents[pos].startswith('#') and
+                    not m_SQL_Mapping_Contents[pos].startswith('#.')) or \
+                        len(m_SQL_Mapping_Contents[pos]) == 0:
+                    m_SQL_Mapping_Contents.pop(pos)
                 else:
-                    m_nPos = m_nPos + 1
-            for m_nPos in range(0, len(m_SQL_Mapping_Contents)):
-                if m_SQL_Mapping_Contents[m_nPos].find('#') != -1 and \
-                        not m_SQL_Mapping_Contents[m_nPos].startswith('#.'):
-                    m_SQL_Mapping_Contents[m_nPos] = \
-                        m_SQL_Mapping_Contents[m_nPos][0:m_SQL_Mapping_Contents[m_nPos].find('#')]
+                    pos = pos + 1
+            for pos in range(0, len(m_SQL_Mapping_Contents)):
+                if m_SQL_Mapping_Contents[pos].find('#') != -1 and \
+                        not m_SQL_Mapping_Contents[pos].startswith('#.'):
+                    m_SQL_Mapping_Contents[pos] = \
+                        m_SQL_Mapping_Contents[pos][0:m_SQL_Mapping_Contents[pos].find('#')]
 
             # 分段加载配置文件
             m_inSection = False
@@ -155,9 +155,9 @@ class SQLMapping(object):
                     # 函数的参数处理，即函数的参数可能包含， 如 func(a,b)，将a，b作为数组记录
                     m_function_struct = re.split(r'[(,)]', m_row_struct[m_nRowPos])
                     # 特殊替换本地标识符:1， :1表示=>前面的内容
-                    for m_nPos in range(1, len(m_function_struct)):
-                        if m_function_struct[m_nPos] == ":1":
-                            m_function_struct[m_nPos] = m_SearchedKey
+                    for pos in range(1, len(m_function_struct)):
+                        if m_function_struct[pos] == ":1":
+                            m_function_struct[pos] = m_SearchedKey
 
                     # 执行替换函数
                     if len(m_function_struct) <= 1:
@@ -170,9 +170,9 @@ class SQLMapping(object):
                     # 函数的参数处理，即函数的参数可能包含， 如 func(a,b)，将a，b作为数组记录
                     m_function_struct = re.split(r'[(,)]', m_row_struct[m_nRowPos])
                     # 特殊替换本地标识符:1， :1表示=>前面的内容
-                    for m_nPos in range(1, len(m_function_struct)):
-                        if m_function_struct[m_nPos] == ":1":
-                            m_function_struct[m_nPos] = m_SearchedKey
+                    for pos in range(1, len(m_function_struct)):
+                        if m_function_struct[pos] == ":1":
+                            m_function_struct[pos] = m_SearchedKey
                     # 执行替换函数
                     if len(m_function_struct) <= 1:
                         raise SQLCliException("[WARNING] Invalid random macro, use random(). "
@@ -242,13 +242,13 @@ def SQLFormatWithPrefix(p_szCommentSQLScript, p_szOutputPrefix=""):
 
     # 拼接字符串
     bSQLPrefix = 'SQL> '
-    for m_nPos in range(0, len(m_CommentSQLLists)):
-        if m_nPos == 0:
-            m_FormattedString = p_szOutputPrefix + bSQLPrefix + m_CommentSQLLists[m_nPos]
+    for pos in range(0, len(m_CommentSQLLists)):
+        if pos == 0:
+            m_FormattedString = p_szOutputPrefix + bSQLPrefix + m_CommentSQLLists[pos]
         else:
             m_FormattedString = \
-                m_FormattedString + '\n' + p_szOutputPrefix + bSQLPrefix + m_CommentSQLLists[m_nPos]
-        if len(m_CommentSQLLists[m_nPos].strip()) != 0:
+                m_FormattedString + '\n' + p_szOutputPrefix + bSQLPrefix + m_CommentSQLLists[pos]
+        if len(m_CommentSQLLists[pos].strip()) != 0:
             bSQLPrefix = '   > '
     return m_FormattedString
 
@@ -275,32 +275,32 @@ def SQLAnalyze(p_SQLCommandPlainText):
     # 从SQLCommands中删除所有的注释信息，但是不能删除ECHO中的注释信息
     m_bInCommentBlock = False         # 是否在多行注释内
     m_bInEchoSQL = False              # 是否在ECHO语句内部
-    for m_nPos in range(0, len(SQLCommands)):
+    for pos in range(0, len(SQLCommands)):
         while True:  # 不排除一行内多个注释的问题
             # 首先处理特殊的ECHO信息
             if m_bInEchoSQL:
                 # ECHO信息已经结束
-                if re.match(r'echo\s+off', SQLCommands[m_nPos], re.IGNORECASE):
+                if re.match(r'echo\s+off', SQLCommands[pos], re.IGNORECASE):
                     m_bInEchoSQL = False
                 break
             # 如果当前是ECHO文件开头，进入ECHO模式
-            if re.match(r'echo\s+.*', SQLCommands[m_nPos], re.IGNORECASE):
+            if re.match(r'echo\s+.*', SQLCommands[pos], re.IGNORECASE):
                 m_bInEchoSQL = True
                 break
 
             # 如果存在行内的块注释, 且当前不是在注释中
             if not m_bInCommentBlock:
                 # 如果存在行注释
-                m_nLineCommentStart = SQLCommands[m_nPos].find('--')
+                m_nLineCommentStart = SQLCommands[pos].find('--')
                 if m_nLineCommentStart != -1:
                     # 将行注释中的内容替换成空格
-                    SQLCommands[m_nPos] = SQLCommands[m_nPos][0:m_nLineCommentStart] + \
-                                          re.sub(r'.', ' ', SQLCommands[m_nPos][m_nLineCommentStart:])
+                    SQLCommands[pos] = SQLCommands[pos][0:m_nLineCommentStart] + \
+                                          re.sub(r'.', ' ', SQLCommands[pos][m_nLineCommentStart:])
                     continue
 
                 # 检查段落注释
-                m_nBlockCommentsStart = SQLCommands[m_nPos].find('/*')
-                m_nBlockCommentsEnd = SQLCommands[m_nPos].find('*/')
+                m_nBlockCommentsStart = SQLCommands[pos].find('/*')
+                m_nBlockCommentsEnd = SQLCommands[pos].find('*/')
 
                 # 单行内块注释
                 if (
@@ -308,10 +308,10 @@ def SQLAnalyze(p_SQLCommandPlainText):
                         m_nBlockCommentsEnd != -1 and
                         m_nBlockCommentsStart < m_nBlockCommentsEnd
                 ):
-                    SQLCommands[m_nPos] = SQLCommands[m_nPos][0:m_nBlockCommentsStart] + \
+                    SQLCommands[pos] = SQLCommands[pos][0:m_nBlockCommentsStart] + \
                                           re.sub(r'.', ' ',
-                                                 SQLCommands[m_nPos][m_nBlockCommentsStart:m_nBlockCommentsEnd + 2]) + \
-                                          SQLCommands[m_nPos][m_nBlockCommentsEnd + 2:]
+                                                 SQLCommands[pos][m_nBlockCommentsStart:m_nBlockCommentsEnd + 2]) + \
+                                          SQLCommands[pos][m_nBlockCommentsEnd + 2:]
                     continue
 
                 # 单行内块注释开始
@@ -320,25 +320,25 @@ def SQLAnalyze(p_SQLCommandPlainText):
                         m_nBlockCommentsEnd == -1
                 ):
                     m_bInCommentBlock = True
-                    SQLCommands[m_nPos] = \
-                        SQLCommands[m_nPos][0:m_nBlockCommentsStart] + \
-                        re.sub(r'.', ' ', SQLCommands[m_nPos][m_nBlockCommentsStart:])
+                    SQLCommands[pos] = \
+                        SQLCommands[pos][0:m_nBlockCommentsStart] + \
+                        re.sub(r'.', ' ', SQLCommands[pos][m_nBlockCommentsStart:])
                     break
 
                 # 没有找到任何注释
                 break
             else:
                 # 当前已经在注释中，需要找到*/ 来标记注释的结束
-                m_nBlockCommentsEnd = SQLCommands[m_nPos].find('*/')
+                m_nBlockCommentsEnd = SQLCommands[pos].find('*/')
                 if m_nBlockCommentsEnd != -1:
                     # 注释已经结束， 注释部分替换为空格
-                    SQLCommands[m_nPos] = re.sub(r'.', ' ', SQLCommands[m_nPos][0:m_nBlockCommentsEnd + 2]) + \
-                                          SQLCommands[m_nPos][m_nBlockCommentsEnd + 2:]
+                    SQLCommands[pos] = re.sub(r'.', ' ', SQLCommands[pos][0:m_nBlockCommentsEnd + 2]) + \
+                                          SQLCommands[pos][m_nBlockCommentsEnd + 2:]
                     m_bInCommentBlock = False
                     continue
                 else:
                     # 本行完全还在注释中，全部替换为空格
-                    SQLCommands[m_nPos] = re.sub(r'.', ' ', SQLCommands[m_nPos])
+                    SQLCommands[pos] = re.sub(r'.', ' ', SQLCommands[pos])
                     break
 
     # 开始分析SQL
@@ -366,31 +366,31 @@ def SQLAnalyze(p_SQLCommandPlainText):
     m_NewSQLWithCommentsLastPos = 0            # 注释已经截止到的行中列位置
     m_NewSQLWithCommentPos = 0                 # 注释已经截止到的行号
 
-    for m_nPos in range(0, len(SQLCommands)):
+    for pos in range(0, len(SQLCommands)):
         # 首先处理特殊的ECHO信息
         if m_bInEchoSQL:
             # ECHO信息已经结束
-            if re.match(r'echo\s+off', SQLCommands[m_nPos], re.IGNORECASE):
+            if re.match(r'echo\s+off', SQLCommands[pos], re.IGNORECASE):
                 # 添加ECHO信息到解析后的SQL中
                 if m_EchoMessages is not None:
                     SQLSplitResults.append(m_EchoMessages)
                     SQLSplitResultsWithComments.append(m_EchoMessages)
-                SQLSplitResults.append(SQLCommands[m_nPos])
-                SQLSplitResultsWithComments.append(SQLCommands[m_nPos])
+                SQLSplitResults.append(SQLCommands[pos])
+                SQLSplitResultsWithComments.append(SQLCommands[pos])
                 m_EchoMessages = None
                 m_bInEchoSQL = False
                 continue
             # 当前是一段ECHO信息
             if m_EchoMessages is None:
-                m_EchoMessages = SQLCommands[m_nPos]
+                m_EchoMessages = SQLCommands[pos]
                 continue
             else:
-                m_EchoMessages = m_EchoMessages + "\n" + SQLCommands[m_nPos]
+                m_EchoMessages = m_EchoMessages + "\n" + SQLCommands[pos]
                 continue
         # 如果当前是ECHO文件开头，则当前的ECHO语句作为一个SQL返回，随后进入ECHO模式
-        if re.match(r'echo\s+.*', SQLCommands[m_nPos], re.IGNORECASE):
-            SQLSplitResults.append(SQLCommands[m_nPos])
-            SQLSplitResultsWithComments.append(SQLCommands[m_nPos])
+        if re.match(r'echo\s+.*', SQLCommands[pos], re.IGNORECASE):
+            SQLSplitResults.append(SQLCommands[pos])
+            SQLSplitResultsWithComments.append(SQLCommands[pos])
             m_bInEchoSQL = True
             continue
 
@@ -399,17 +399,17 @@ def SQLAnalyze(p_SQLCommandPlainText):
             # 这是一个单行语句, 要求单行结束， 属于内部执行，需要去掉其中的注释信息
             if re.match(r'^(\s+)?loaddriver\s|^(\s+)?connect\s|^(\s+)?start\s|^(\s+)?set\s|'
                         r'^(\s+)?exit(\s+)?$|^(\s+)?quit(\s+)?$|^(\s+)?loadsqlmap\s',
-                        SQLCommands[m_nPos], re.IGNORECASE):
-                m_SQL = SQLCommands[m_nPos].strip()
+                        SQLCommands[pos], re.IGNORECASE):
+                m_SQL = SQLCommands[pos].strip()
                 SQLSplitResults.append(m_SQL)
-                SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
-                if m_nPos == len(SQLCommands) - 1:
+                SQLSplitResultsWithComments.append(SQLCommandsWithComments[pos])
+                if pos == len(SQLCommands) - 1:
                     # 如果本行就是最后一行
                     m_NewSQLWithCommentsLastPos = 0
                 else:
                     # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
                     m_CommentSQL = None
-                    for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
+                    for m_CommentPos in range(pos + 1, len(SQLCommands)):
                         if len(SQLCommands[m_CommentPos].lstrip()) != 0:
                             # 这是一个非完全空行，有效内容从第一个字符开始
                             nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
@@ -433,16 +433,16 @@ def SQLAnalyze(p_SQLCommandPlainText):
 
             # 如果本行只有唯一的内容，就是段落终止符的话，本语句没有意义，不会执行；但是注释有意义
             # / 不能送给SQL解析器
-            if re.match(r'^(\s+)?/(\s+)?$', SQLCommands[m_nPos]):
+            if re.match(r'^(\s+)?/(\s+)?$', SQLCommands[pos]):
                 SQLSplitResults.append("")
-                SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
-                if m_nPos == len(SQLCommands) - 1:
+                SQLSplitResultsWithComments.append(SQLCommandsWithComments[pos])
+                if pos == len(SQLCommands) - 1:
                     # 如果本行就是最后一行
                     m_NewSQLWithCommentsLastPos = 0
                 else:
                     # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
                     m_CommentSQL = None
-                    for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
+                    for m_CommentPos in range(pos + 1, len(SQLCommands)):
                         if len(SQLCommands[m_CommentPos].lstrip()) != 0:
                             # 这是一个非完全空行，有效内容从第一个字符开始
                             nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
@@ -465,13 +465,13 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 continue
 
             # 如何本行没有任何内容，就是空行，直接结束，本语句没有任何意义
-            if SQLCommands[m_nPos].strip() == "":
-                if m_NewSQLWithCommentPos > m_nPos:
+            if SQLCommands[pos].strip() == "":
+                if m_NewSQLWithCommentPos > pos:
                     continue
 
                 # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
-                m_CommentSQL = SQLCommandsWithComments[m_nPos]
-                for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
+                m_CommentSQL = SQLCommandsWithComments[pos]
+                for m_CommentPos in range(pos + 1, len(SQLCommands)):
                     if len(SQLCommands[m_CommentPos].lstrip()) != 0:
                         # 这是一个非完全空行，有效内容从第一个字符开始
                         nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
@@ -510,16 +510,16 @@ def SQLAnalyze(p_SQLCommandPlainText):
                               r'^(\s+)?BEGIN(\s+)?|' \
                               r'^(\s+)?ALTER(\s+)?|' \
                               r'^(\s+)?WITH(\s+)?'
-            if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE):
-                SQLSplitResults.append(SQLCommands[m_nPos])
-                SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
-                if m_nPos == len(SQLCommands) - 1:
+            if not re.match(strRegexPattern, SQLCommands[pos], re.IGNORECASE):
+                SQLSplitResults.append(SQLCommands[pos])
+                SQLSplitResultsWithComments.append(SQLCommandsWithComments[pos])
+                if pos == len(SQLCommands) - 1:
                     # 如果本行就是最后一行
                     m_NewSQLWithCommentsLastPos = 0
                 else:
                     # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
                     m_CommentSQL = None
-                    for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
+                    for m_CommentPos in range(pos + 1, len(SQLCommands)):
                         if len(SQLCommands[m_CommentPos].lstrip()) != 0:
                             # 这是一个非完全空行，有效内容从第一个字符开始
                             nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
@@ -542,25 +542,25 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 continue
 
             # 以下本行内一定包含了关键字，是多行SQL，或者多段SQL, 也可能是单行；结尾
-            m_NewSQL = SQLCommands[m_nPos]
-            m_NewSQLWithComments = SQLCommandsWithComments[m_nPos][m_NewSQLWithCommentsLastPos:]
-            if re.match(r'(.*);(\s+)?$', SQLCommands[m_nPos]):  # 本行以；结尾
+            m_NewSQL = SQLCommands[pos]
+            m_NewSQLWithComments = SQLCommandsWithComments[pos][m_NewSQLWithCommentsLastPos:]
+            if re.match(r'(.*);(\s+)?$', SQLCommands[pos]):  # 本行以；结尾
                 strRegexPattern = \
                     r'^((\s+)?CREATE(\s+)|^(\s+)?REPLACE(\s+))((\s+)?(OR)?(\s+)?(REPLACE)?(\s+)?)?(FUNCTION|PROCEDURE)'
                 strRegexPattern2 = \
                     r'^(\s+)?DECLARE(\s+)|^(\s+)?BEGIN(\s+)'
-                if not re.match(strRegexPattern, SQLCommands[m_nPos], re.IGNORECASE) and \
-                        not re.match(strRegexPattern2, SQLCommands[m_nPos], re.IGNORECASE):
+                if not re.match(strRegexPattern, SQLCommands[pos], re.IGNORECASE) and \
+                        not re.match(strRegexPattern2, SQLCommands[pos], re.IGNORECASE):
                     # 这不是一个存储过程，本行可以结束了
-                    SQLSplitResults.append(SQLCommands[m_nPos])
-                    SQLSplitResultsWithComments.append(SQLCommandsWithComments[m_nPos])
-                    if m_nPos == len(SQLCommands) - 1:
+                    SQLSplitResults.append(SQLCommands[pos])
+                    SQLSplitResultsWithComments.append(SQLCommandsWithComments[pos])
+                    if pos == len(SQLCommands) - 1:
                         # 如果本行就是最后一行
                         m_NewSQLWithCommentsLastPos = 0
                     else:
                         # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
                         m_CommentSQL = None
-                        for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
+                        for m_CommentPos in range(pos + 1, len(SQLCommands)):
                             if len(SQLCommands[m_CommentPos].lstrip()) != 0:
                                 # 这是一个非完全空行，有效内容从第一个字符开始
                                 nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
@@ -591,17 +591,17 @@ def SQLAnalyze(p_SQLCommandPlainText):
                 m_bInMultiLineSQL = True
         else:  # 工作在多行语句中
             # 本行只有唯一的内容，就是段落终止符的话，语句应该可以提交了
-            if re.match(r'^(\s+)?/(\s+)?$', SQLCommands[m_nPos]):
+            if re.match(r'^(\s+)?/(\s+)?$', SQLCommands[pos]):
                 SQLSplitResults.append(m_NewSQL)
                 # 注释信息包含/符号
                 SQLSplitResultsWithComments.append(m_NewSQLWithComments + "\n/")
-                if m_nPos == len(SQLCommands) - 1:
+                if pos == len(SQLCommands) - 1:
                     # 如果本行就是最后一行
                     m_NewSQLWithCommentsLastPos = 0
                 else:
                     # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
                     m_CommentSQL = None
-                    for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
+                    for m_CommentPos in range(pos + 1, len(SQLCommands)):
                         if len(SQLCommands[m_CommentPos].lstrip()) != 0:
                             # 这是一个非完全空行，有效内容从第一个字符开始
                             nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
@@ -627,16 +627,16 @@ def SQLAnalyze(p_SQLCommandPlainText):
 
             if m_bInBlockSQL:
                 # 只要开始不是/，就一直拼接下去
-                m_NewSQL = m_NewSQL + '\n' + SQLCommands[m_nPos]
-                m_NewSQLWithComments = m_NewSQLWithComments + '\n' + SQLCommandsWithComments[m_nPos]
+                m_NewSQL = m_NewSQL + '\n' + SQLCommands[pos]
+                m_NewSQLWithComments = m_NewSQLWithComments + '\n' + SQLCommandsWithComments[pos]
             else:
                 # 多行语句，首先进行SQL的拼接
-                m_NewSQL = m_NewSQL + '\n' + SQLCommands[m_nPos]
+                m_NewSQL = m_NewSQL + '\n' + SQLCommands[pos]
                 m_NewSQLWithComments = \
                     m_NewSQLWithComments + '\n' + \
-                    SQLCommandsWithComments[m_nPos][m_NewSQLWithCommentsLastPos:]
+                    SQLCommandsWithComments[pos][m_NewSQLWithCommentsLastPos:]
                 # 工作在多行语句中，查找;结尾的内容
-                if re.match(r'(.*);(\s+)?$', SQLCommands[m_nPos]):  # 本行以；结尾
+                if re.match(r'(.*);(\s+)?$', SQLCommands[pos]):  # 本行以；结尾
                     # 查找这个多行语句是否就是一个存储过程
                     strRegexPattern = \
                         r'^((\s+)?CREATE(\s+)|' \
@@ -650,7 +650,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                         SQLSplitResultsWithComments.append(m_NewSQLWithComments)
                         # 从当前语句开始，一直找到下一个有效语句的开始，中间全部是注释
                         m_CommentSQL = None
-                        for m_CommentPos in range(m_nPos + 1, len(SQLCommands)):
+                        for m_CommentPos in range(pos + 1, len(SQLCommands)):
                             if len(SQLCommands[m_CommentPos].lstrip()) != 0:
                                 # 这是一个非完全空行，有效内容从第一个字符开始
                                 nLeadSpace = len(SQLCommands[m_CommentPos]) - len(SQLCommands[m_CommentPos].lstrip())
@@ -690,72 +690,72 @@ def SQLAnalyze(p_SQLCommandPlainText):
         SQLSplitResultsWithComments.append(m_NewSQLWithComments)
 
     # 去掉SQL语句中的最后一个； ORACLE数据库不支持带有；的语句
-    for m_nPos in range(0, len(SQLSplitResults)):
+    for pos in range(0, len(SQLSplitResults)):
         # 去掉行尾的空格
-        SQLSplitResults[m_nPos] = SQLSplitResults[m_nPos].rstrip()
+        SQLSplitResults[pos] = SQLSplitResults[pos].rstrip()
         # 去掉行尾的最后一个分号, “但是开头是BEGIN或者DECLARE开头的，不去掉
         strRegexPattern = \
             r'^((\s+)?CREATE(\s+)|' \
             r'^(\s+)?REPLACE(\s+))((\s+)?(OR)?(\s+)?(REPLACE)?(\s+)?)?(FUNCTION|PROCEDURE)'
-        if SQLSplitResults[m_nPos][-1:] == ';' and \
-                not SQLSplitResults[m_nPos].upper().startswith("BEGIN") and \
-                not SQLSplitResults[m_nPos].upper().startswith("DECLARE") and \
-                not re.match(strRegexPattern, SQLSplitResults[m_nPos], flags=re.IGNORECASE | re.DOTALL):
-            SQLSplitResults[m_nPos] = SQLSplitResults[m_nPos][:-1]
+        if SQLSplitResults[pos][-1:] == ';' and \
+                not SQLSplitResults[pos].upper().startswith("BEGIN") and \
+                not SQLSplitResults[pos].upper().startswith("DECLARE") and \
+                not re.match(strRegexPattern, SQLSplitResults[pos], flags=re.IGNORECASE | re.DOTALL):
+            SQLSplitResults[pos] = SQLSplitResults[pos][:-1]
 
     # 去掉注释信息中的最后一个回车换行符
-    for m_nPos in range(0, len(SQLSplitResultsWithComments)):
-        if SQLSplitResultsWithComments[m_nPos] is not None:
-            if SQLSplitResultsWithComments[m_nPos][-1:] == '\n':
-                SQLSplitResultsWithComments[m_nPos] = SQLSplitResultsWithComments[m_nPos][:-1]
+    for pos in range(0, len(SQLSplitResultsWithComments)):
+        if SQLSplitResultsWithComments[pos] is not None:
+            if SQLSplitResultsWithComments[pos][-1:] == '\n':
+                SQLSplitResultsWithComments[pos] = SQLSplitResultsWithComments[pos][:-1]
         else:
-            SQLSplitResultsWithComments[m_nPos] = ""
+            SQLSplitResultsWithComments[pos] = ""
 
     # 把Scenaio:End的信息要单独分拆出来，作为一个独立的语句
-    m_nPos = 0
-    while m_nPos < len(SQLSplitResultsWithComments):
-        m_CommandSplitList = SQLSplitResultsWithComments[m_nPos].split('\n')
+    pos = 0
+    while pos < len(SQLSplitResultsWithComments):
+        m_CommandSplitList = SQLSplitResultsWithComments[pos].split('\n')
         if len(m_CommandSplitList) > 1:
-            for m_nPos3 in range(0, len(m_CommandSplitList)):
-                matchObj1 = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?Scenario:End", m_CommandSplitList[m_nPos3],
+            for pos3 in range(0, len(m_CommandSplitList)):
+                match_obj1 = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?Scenario:End", m_CommandSplitList[pos3],
                                       re.IGNORECASE | re.DOTALL)
-                matchObj2 = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:End]", m_CommandSplitList[m_nPos3],
+                match_obj2 = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:End]", m_CommandSplitList[pos3],
                                       re.IGNORECASE | re.DOTALL)
-                if matchObj1 or matchObj2:
-                    if m_nPos3 != 0:
+                if match_obj1 or match_obj2:
+                    if pos3 != 0:
                         # 把Scenario_End之前的内容送入解析
                         # 不要怀疑这里为啥不用JOIN，因为JOIN在处理\n数组的时候会丢掉一个
                         m_Prefix = ""
-                        for m_nPos4 in range(0, m_nPos3):
-                            m_Prefix = m_Prefix + m_CommandSplitList[m_nPos4] + "\n"
-                        SQLSplitResults.insert(m_nPos, "")
-                        SQLSplitResultsWithComments.insert(m_nPos, m_Prefix)
-                        m_nPos = m_nPos + 1
+                        for pos4 in range(0, pos3):
+                            m_Prefix = m_Prefix + m_CommandSplitList[pos4] + "\n"
+                        SQLSplitResults.insert(pos, "")
+                        SQLSplitResultsWithComments.insert(pos, m_Prefix)
+                        pos = pos + 1
 
-                    if m_nPos3 != len(m_CommandSplitList) - 1:
+                    if pos3 != len(m_CommandSplitList) - 1:
                         # 把Scenario_End送入解析
-                        SQLSplitResults.insert(m_nPos, "")
-                        SQLSplitResultsWithComments.insert(m_nPos, m_CommandSplitList[m_nPos3])
-                        m_nPos = m_nPos + 1
+                        SQLSplitResults.insert(pos, "")
+                        SQLSplitResultsWithComments.insert(pos, m_CommandSplitList[pos3])
+                        pos = pos + 1
                         #  随后的语句将继续作为下一步分拆的内容
-                        SQLSplitResultsWithComments[m_nPos] = "\n".join(m_CommandSplitList[m_nPos3 + 1:])
+                        SQLSplitResultsWithComments[pos] = "\n".join(m_CommandSplitList[pos3 + 1:])
                     else:
-                        SQLSplitResultsWithComments[m_nPos] = m_CommandSplitList[m_nPos3]
+                        SQLSplitResultsWithComments[pos] = m_CommandSplitList[pos3]
                     break
-        m_nPos = m_nPos + 1
+        pos = pos + 1
 
     # 解析SQLHints
     m_SQLHints = []      # 所有的SQLHint信息，是一个字典的列表
     m_SQLHint = {}       # SQLHint信息，为Key-Value字典信息
-    for m_nPos in range(0, len(SQLSplitResultsWithComments)):
-        if len(SQLSplitResults[m_nPos]) == 0:
+    for pos in range(0, len(SQLSplitResultsWithComments)):
+        if len(SQLSplitResults[pos]) == 0:
             # 这里为一个注释信息，解析注释信息中是否包含必要的tag
-            for line in SQLSplitResultsWithComments[m_nPos].splitlines():
+            for line in SQLSplitResultsWithComments[pos].splitlines():
                 # [Hint]  Scenario:XXXX   -- 相关SQL的Scenariox信息，仅仅作为日志信息供查看
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?Scenario:(.*)", line,
+                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?Scenario:(.*)", line,
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    m_SenarioAndPriority = matchObj.group(4)
+                if match_obj:
+                    m_SenarioAndPriority = match_obj.group(4)
                     if len(m_SenarioAndPriority.split(':')) == 2:
                         # 如果有两个内容， 规则是:Scenario:Priority:ScenarioName
                         m_SQLHint["PRIORITY"] = m_SenarioAndPriority.split(':')[0].strip()
@@ -763,10 +763,10 @@ def SQLAnalyze(p_SQLCommandPlainText):
                     else:
                         # 如果只有一个内容， 规则是:Scenario:ScenarioName
                         m_SQLHint["SCENARIO"] = m_SenarioAndPriority
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:(.*)]", line,
+                match_obj = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:(.*)]", line,
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    m_SenarioAndPriority = matchObj.group(4)
+                if match_obj:
+                    m_SenarioAndPriority = match_obj.group(4)
                     if len(m_SenarioAndPriority.split(':')) == 2:
                         # 如果有两个内容， 规则是:Scenario:Priority:ScenarioName
                         m_SQLHint["PRIORITY"] = m_SenarioAndPriority.split(':')[0].strip()
@@ -776,55 +776,55 @@ def SQLAnalyze(p_SQLCommandPlainText):
                         m_SQLHint["SCENARIO"] = m_SenarioAndPriority
 
                 # [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?order", line,
+                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?order", line,
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     m_SQLHint["Order"] = True
 
                 # [Hint]  LogFilter      -- SQLCli会过滤随后显示的输出信息，对于符合过滤条件的，将会被过滤
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LogFilter(\s+)(.*)", line,
+                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LogFilter(\s+)(.*)", line,
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     # 可能有多个Filter信息
-                    m_SQLFilter = matchObj.group(5).strip()
+                    m_SQLFilter = match_obj.group(5).strip()
                     if "LogFilter" in m_SQLHint:
                         m_SQLHint["LogFilter"].append(m_SQLFilter)
                     else:
                         m_SQLHint["LogFilter"] = [m_SQLFilter, ]
 
                 # [Hint]  LogMask      -- SQLCli会掩码随后显示的输出信息，对于符合掩码条件的，将会被掩码
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LogMask(\s+)(.*)", line,
+                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LogMask(\s+)(.*)", line,
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
-                    m_SQLMask = matchObj.group(5).strip()
+                if match_obj:
+                    m_SQLMask = match_obj.group(5).strip()
                     if "LogMask" in m_SQLHint:
                         m_SQLHint["LogMask"].append(m_SQLMask)
                     else:
                         m_SQLHint["LogMask"] = [m_SQLMask]
 
                 # [Hint]  SQL_DIRECT   -- SQLCli执行的时候将不再尝试解析语句，而是直接解析执行
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?SQL_DIRECT", line,
+                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?SQL_DIRECT", line,
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     m_SQLHint["SQL_DIRECT"] = True
 
                 # [Hint]  SQL_PREPARE   -- SQLCli执行的时候将首先尝试解析语句，随后执行
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?SQL_PREPARE", line,
+                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?SQL_PREPARE", line,
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     m_SQLHint["SQL_PREPARE"] = True
 
                 # [Hint]  Loop   -- 循环执行特定的SQL
                 # --[Hint] LOOP [LoopTimes] UNTIL [EXPRESSION] INTERVAL [INTERVAL]
-                matchObj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LOOP\s+(\d+)"
+                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LOOP\s+(\d+)"
                                      r"\s+UNTIL\s+(.*)"
                                      r"\s+INTERVAL\s+(\d+)(\s+)?", line,
                                      re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     m_SQLHint["SQL_LOOP"] = {
-                        "LoopTimes": matchObj.group(4),
-                        "LoopUntil": matchObj.group(5),
-                        "LoopInterval": matchObj.group(6)
+                        "LoopTimes": match_obj.group(4),
+                        "LoopUntil": match_obj.group(5),
+                        "LoopInterval": match_obj.group(6)
                     }
             # 对于Scneario:End 作为一个单独的语句
             if "SCENARIO" in m_SQLHint.keys():

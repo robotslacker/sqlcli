@@ -77,9 +77,9 @@ class HBaseWrapper(object):
 
     def Process_SQLCommand(self, p_szSQL):
         m_szSQL = p_szSQL.strip()
-        matchObj = re.match(r"hbase\s+connect\s+server\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_HbaseServer_list = str(matchObj.group(1)).strip().split(':')
+        match_obj = re.match(r"hbase\s+connect\s+server\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            m_HbaseServer_list = str(match_obj.group(1)).strip().split(':')
             self.__hbase_server_ip = m_HbaseServer_list[0]
             if len(m_HbaseServer_list) == 2:
                 self.__hbase_server_port = int(m_HbaseServer_list[1])
@@ -88,21 +88,21 @@ class HBaseWrapper(object):
             self.hbase_connect()
             return None, None, None, None, "Hbase Server set successful."
 
-        matchObj = re.match(r"hbase\s+create\s+table\s+(.*?)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_TableName = str(matchObj.group(1)).strip()
-            m_columnFamilies = str(matchObj.group(2)).split()
+        match_obj = re.match(r"hbase\s+create\s+table\s+(.*?)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            m_TableName = str(match_obj.group(1)).strip()
+            m_columnFamilies = str(match_obj.group(2)).split()
             m_ReturnMessage = self.hbase_create_table(m_TableName, m_columnFamilies)
             return None, None, None, None, m_ReturnMessage
 
-        matchObj = re.match(r"hbase\s+delete\s+table\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_TableName = str(matchObj.group(1)).strip()
+        match_obj = re.match(r"hbase\s+delete\s+table\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            m_TableName = str(match_obj.group(1)).strip()
             m_ReturnMessage = self.hbase_delete_table(m_TableName)
             return None, None, None, None, m_ReturnMessage
 
-        matchObj = re.search(r"hbase\s+get\s+tables", m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
+        match_obj = re.search(r"hbase\s+get\s+tables", m_szSQL, re.IGNORECASE | re.DOTALL)
+        if match_obj:
             m_ReturnMessage = str(self.hbase_get_tables())
             return None, None, None, None, m_ReturnMessage
 
