@@ -163,22 +163,13 @@ def identity(p_arg):
 #   identity_name   自增序列号的名字
 #   stime   开始时间
 #     若stime写作current_timestamp, 则自增上从当前时间开始
-#   frmt    日期格式，可以忽略，默认为%Y-%m-%d %H:%M:%S
+#   frmt    日期格式， 如%Y-%m-%d %H:%M:%S
 #   step    步长，可以用ms,us,s来表示，默认情况下是ms
 def identity_timestamp(p_arg):
     identity_name = str(p_arg[0])
-    if len(p_arg) == 3:
-        ptime = str(p_arg[1])
-        frmt = "%Y-%m-%d %H:%M:%S"
-        step = str(p_arg[2])
-    elif len(p_arg) == 4:
-        ptime = str(p_arg[1])
-        frmt = str(p_arg[2])
-        if len(frmt) == 0:
-            frmt = "%Y-%m-%d %H:%M:%S"
-        step = str(p_arg[3])
-    else:
-        raise SQLCliException("Parameter error [" + str(p_arg[0]) + "].  Please use 2 or 3 parameters. double check it")
+    ptime = str(p_arg[1])
+    frmt = str(p_arg[2])
+    step = str(p_arg[3])
     if not hasattr(identity_timestamp, 'x'):
         identity_timestamp.x = {}
     if identity_name not in identity_timestamp.x.keys():
@@ -348,9 +339,11 @@ class DataWrapper(object):
 
     # 将传递的SQL字符串转换成一个带有函数指针的数组
     def parse_formula_str(self, p_formula_str):
+        # 首先按照{}来把所有的函数定义分拆到数组中
         m_row_struct = re.split('[{}]', p_formula_str)
         m_return_row_struct = []
 
+        # 在分拆的数组中依次查找关键字，作为后续函数替换的需要
         for m_nRowPos in range(0, len(m_row_struct)):
             if re.search('random_ascii_lowercase|random_ascii_uppercase|random_ascii_letters' +
                          '|random_digits|identity|identity_timestamp|random_ascii_letters_and_digits|random_from_seed' +
@@ -450,7 +443,13 @@ class DataWrapper(object):
                 elif m_function_struct[0].upper() == "IDENTITY_TIMESTAMP":
                     m_call_out_struct.append(identity_timestamp)
                     # 如果没有列名，第一个参数信息是identity#加上列号的信息
-                    m_function_struct[0] = "identity#" + str(m_nRowPos)
+                    if len(m_function_struct) == 5:
+                        m_function_struct = m_function_struct[1:]
+                    elif len(m_function_struct) == 4:
+                        m_function_struct[0] = "identity#" + str(m_nRowPos)
+                    else:
+                        raise SQLCliException("Invalid pattern. "
+                                              "Please make sure IDENTITY_TIMESTAMP has correct parameters.")
                     m_call_out_struct.append(m_function_struct)
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):IDENTITY_TIMESTAMP", m_function_struct[0].upper()):
@@ -1051,4 +1050,4 @@ class DataWrapper(object):
                 'seed file created Successful.')
             return
 
-        return None, None, None, None, "Unknown data Command."
+        yield None, None, None, None, "Unknown data Command."

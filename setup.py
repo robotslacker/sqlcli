@@ -71,7 +71,7 @@ setup(
                       'pyparsing', 'click', 'prompt_toolkit',
                       'fs', 'hdfs', 'wget', 'httptools', 'pika', 'paramiko',
                       'requests', 'websockets', 'pydantic', 'uvicorn[standard]', 'fastapi',
-                      'hbase-thrift', 'thrift', 'redis', 'redis-py-cluster', ''],
+                      'hbase-thrift', 'thrift', 'redis', 'redis-py-cluster'],
 
     author='RobotSlacker',
     author_email='184902652@qq.com',
