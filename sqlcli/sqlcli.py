@@ -135,7 +135,7 @@ class SQLCli(object):
         except NameError:
             pass
         try:
-            self.RabbitmqHandler = RabbitmqWrapper()          # Rabbitmq消息管理器
+            self.RabbitmqHandler = RabbitmqWrapper()    # Rabbitmq消息管理器
         except NameError:
             pass
         self.JobHandler = JOBManager()                  # 并发任务管理器
@@ -177,8 +177,7 @@ class SQLCli(object):
         self.HeadlessMode = HeadlessMode
         self.SQLPerfFile = sqlperf
         if HeadlessMode:
-            HeadLessConsole = open(os.devnull, "w")
-            self.Console = HeadLessConsole
+            self.Console = open(os.devnull, "w")
         self.logger = logger
         self.suitename = suitename
         self.casename = casename
@@ -1173,24 +1172,23 @@ class SQLCli(object):
         temp1 = shlex.shlex(temp1)
         temp1.whitespace = ' '
         temp1.whitespace_split = True
-        m_SQLFileList = list(temp1)
+        script_filelist = list(temp1)
 
-        m_nLoop = 1
-        if len(m_SQLFileList) >= 3 and \
-                m_SQLFileList[len(m_SQLFileList) - 2].lower() == 'loop' and \
-                m_SQLFileList[len(m_SQLFileList) - 1].isnumeric():
-            m_nLoop = int(m_SQLFileList[len(m_SQLFileList) - 1])
-            m_SQLFileList = m_SQLFileList[:-2]
-        for m_curLoop in range(0, m_nLoop):
-            for m_SQLFile in m_SQLFileList:
+        loop_iter = 1
+        if len(script_filelist) >= 3 and \
+                script_filelist[len(script_filelist) - 2].lower() == 'loop' and \
+                script_filelist[len(script_filelist) - 1].isnumeric():
+            loop_iter = int(script_filelist[len(script_filelist) - 1])
+            script_filelist = script_filelist[:-2]
+        for m_curLoop in range(0, loop_iter):
+            for script_file in script_filelist:
                 try:
-                    if str(m_SQLFile).startswith("'"):
-                        m_SQLFile = m_SQLFile[1:]
-                    if str(m_SQLFile).endswith("'"):
-                        m_SQLFile = m_SQLFile[:-1]
-                    with open(os.path.expanduser(m_SQLFile), encoding=cls.SQLOptions.get("SCRIPT_ENCODING")) as f:
+                    if str(script_file).startswith("'"):
+                        script_file = script_file[1:]
+                    if str(script_file).endswith("'"):
+                        script_file = script_file[:-1]
+                    with open(os.path.expanduser(script_file), encoding=cls.SQLOptions.get("SCRIPT_ENCODING")) as f:
                         query = f.read()
-
                     # 空文件直接返回
                     if len(query) == 0:
                         continue
@@ -1210,7 +1208,7 @@ class SQLCli(object):
 
                     # 执行指定的SQL文件
                     for m_ExecuteResult in \
-                            cls.SQLExecuteHandler.run(query, os.path.expanduser(m_SQLFile)):
+                            cls.SQLExecuteHandler.run(query, os.path.expanduser(script_file)):
                         # 记录命令结束的时间
                         yield m_ExecuteResult
                 except IOError as e:

@@ -283,9 +283,9 @@ class DataWrapper(object):
     def load_seed_ache(self):
         if self.c_SeedFileDir is None:
             if "SQLCLI_HOME" not in os.environ:
-                raise SQLCliException(
-                    "Missed SQLCLI_HOME, please set it first. Seed file will created in SQLCLI_HOME/data")
-            self.c_SeedFileDir = os.path.join(os.environ["SQLCLI_HOME"], "data")
+                self.c_SeedFileDir = os.getcwd()
+            else:
+                self.c_SeedFileDir = os.path.join(os.environ["SQLCLI_HOME"], "data")
         seed_path = os.path.join(self.c_SeedFileDir, "*.seed")
         for seed_file in glob(seed_path):
             seed_name = os.path.basename(seed_file)[:-5]  # 去掉.seed的后缀
@@ -305,10 +305,13 @@ class DataWrapper(object):
             # 从指定位置开始截取数据内容
             start_pos = int(p_arg[1])
             max_length = int(p_arg[2])
-        else:
+        elif len(p_arg) == 2:
             # 从头开始截取文件内容
             start_pos = 0
             max_length = int(p_arg[1])
+        else:
+            start_pos = 0
+            max_length = -1
 
         # 如果还没有加载种子，就先尝试加载
         if seed_name not in self.seed_cache:
@@ -324,7 +327,10 @@ class DataWrapper(object):
                 if n == 0:
                     raise SQLCliException("Seed cache is zero. [" + str(p_arg[0]) + "].")
             random_lines = self.seed_cache[seed_name][random.randint(0, n - 1)]
-            return random_lines[start_pos:start_pos + max_length]
+            if max_length == -1:
+                return random_lines[start_pos:]
+            else:
+                return random_lines[start_pos:start_pos + max_length]
         else:
             raise SQLCliException("Unknown seed [" + str(p_arg[0]) + "].  Please create it first.")
 
