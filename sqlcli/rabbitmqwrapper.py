@@ -96,38 +96,38 @@ class RabbitmqWrapper(object):
         m_szSQL = p_szSQL.strip()
 
         # rabbitmq connect 192.168.11.95:5672 ldb 123456
-        matchObj = re.match(r"rabbitmq\s+connect\s+(.*?)\s+(.*)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            connect_parameters = matchObj.group(1).split(':')
+        match_obj = re.match(r"rabbitmq\s+connect\s+(.*?)\s+(.*)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        if match_obj:
+            connect_parameters = match_obj.group(1).split(':')
             connect_host = connect_parameters[0]
             connect_port = connect_parameters[1]
-            connect_username = matchObj.group(2).strip()
-            connect_password = matchObj.group(3).strip()
+            connect_username = match_obj.group(2).strip()
+            connect_password = match_obj.group(3).strip()
             self.rabbitmq_connect(connect_host, connect_port, connect_username, connect_password)
             return None, None, None, None, "Rabbitmq Server connect successful."
 
-        matchObj = re.match(r"rabbitmq\s+create\s+queue\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"rabbitmq\s+create\s+queue\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         # rabbitmq create queue hello
-        if matchObj:
-            queue_name = matchObj.group(1).strip()
+        if match_obj:
+            queue_name = match_obj.group(1).strip()
             m_ReturnMessage = self.rabbitmq_create_queue(queue_name=queue_name)
             return None, None, None, None, m_ReturnMessage
 
-        matchObj = re.match(r"rabbitmq\s+create\s+exchange\s+(.*)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"rabbitmq\s+create\s+exchange\s+(.*)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         # rabbitmq create exchange test_hello direct
-        if matchObj:
-            exchange_name = matchObj.group(1).strip()
-            exchange_type = matchObj.group(2).strip()
+        if match_obj:
+            exchange_name = match_obj.group(1).strip()
+            exchange_type = match_obj.group(2).strip()
             m_ReturnMessage = self.rabbit_create_exchange(
                 exchange_name=exchange_name,
                 exchange_type=exchange_type)
             return None, None, None, None, m_ReturnMessage
 
-        matchObj = re.match(r"rabbitmq\s+queue\s+bind\s+(.*?)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"rabbitmq\s+queue\s+bind\s+(.*?)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         # rabbitmq queue bind hello test_hello test_route
-        if matchObj:
-            queue_name = matchObj.group(1).strip()
-            exchange_list = matchObj.group(2).strip().split()
+        if match_obj:
+            queue_name = match_obj.group(1).strip()
+            exchange_list = match_obj.group(2).strip().split()
             exchange_name = exchange_list[0]
             if len(exchange_list) == 1:
                 routing_key = None
@@ -139,36 +139,36 @@ class RabbitmqWrapper(object):
                 route_key=routing_key)
             return None, None, None, None, m_ReturnMessage
 
-        matchObj = re.match(r"rabbitmq\s+queue\s+unbind\s+(.*)\s+(.*)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"rabbitmq\s+queue\s+unbind\s+(.*)\s+(.*)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         # rabbitmq queue unbind hello test_hello test_route
-        if matchObj:
-            queue_name = matchObj.group(1).strip()
-            exchange_name = matchObj.group(2).strip()
-            routing_key = matchObj.group(3).strip()
+        if match_obj:
+            queue_name = match_obj.group(1).strip()
+            exchange_name = match_obj.group(2).strip()
+            routing_key = match_obj.group(3).strip()
             m_ReturnMessage = self.rabbit_queue_unbind_exchange(
                 queue_name=queue_name,
                 exchange_name=exchange_name,
                 route_key=routing_key)
             return None, None, None, None, m_ReturnMessage
 
-        matchObj = re.match(r"rabbitmq\s+delete\s+queue\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"rabbitmq\s+delete\s+queue\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         # rabbitmq delete queue hello
-        if matchObj:
-            queue_name = matchObj.group(1).strip()
+        if match_obj:
+            queue_name = match_obj.group(1).strip()
             m_ReturnMessage = self.rabbitmq_delete_queue(queue_name=queue_name)
             return None, None, None, None, m_ReturnMessage
 
-        matchObj = re.match(r"rabbitmq\s+delete\s+exchange\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"rabbitmq\s+delete\s+exchange\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         # rabbitmq delete exchange test_hello
-        if matchObj:
-            exchange_name = matchObj.group(1).strip()
+        if match_obj:
+            exchange_name = match_obj.group(1).strip()
             m_ReturnMessage = self.rabbit_delete_exchange(exchange_name=exchange_name)
             return None, None, None, None, m_ReturnMessage
 
-        matchObj = re.match(r"rabbitmq\s+count\s+queue\s+message\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"rabbitmq\s+count\s+queue\s+message\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         # rabbitmq delete exchange test_hello
-        if matchObj:
-            queue_name = matchObj.group(1).strip()
+        if match_obj:
+            queue_name = match_obj.group(1).strip()
             m_ReturnMessage = self.rabbitmq_count_queue_message(queue_name=queue_name)
             return None, None, None, None, m_ReturnMessage
 

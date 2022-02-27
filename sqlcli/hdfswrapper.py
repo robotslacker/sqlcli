@@ -235,25 +235,25 @@ class HDFSWrapper(object):
     def Process_SQLCommand(self, p_szSQL):
         try:
             m_szSQL = p_szSQL.strip()
-            matchObj = re.match(r"hdfs\s+connect\s+(.*)\s+with\s+user\s+(.*)$",
+            match_obj = re.match(r"hdfs\s+connect\s+(.*)\s+with\s+user\s+(.*)$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_HDFSServer = str(matchObj.group(1)).strip()
-                m_HDFSUser = str(matchObj.group(2)).strip()
+            if match_obj:
+                m_HDFSServer = str(match_obj.group(1)).strip()
+                m_HDFSUser = str(match_obj.group(2)).strip()
                 self.HDFS_Connect(m_HDFSServer, m_HDFSUser)
                 return None, None, None, None, "Hdfs Server set successful."
 
-            matchObj = re.match(r"hdfs\s+cd\s+(.*)$",
+            match_obj = re.match(r"hdfs\s+cd\s+(.*)$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_HDFSPath = str(matchObj.group(1)).strip()
+            if match_obj:
+                m_HDFSPath = str(match_obj.group(1)).strip()
                 self.HDFS_CD(m_HDFSPath)
                 return None, None, None, None, "Hdfs root dir change successful."
 
-            matchObj = re.match(r"hdfs\s+status\s+(.*)$",
+            match_obj = re.match(r"hdfs\s+status\s+(.*)$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_TargetFileList = str(matchObj.group(1)).strip()
+            if match_obj:
+                m_TargetFileList = str(match_obj.group(1)).strip()
                 m_ReturnFileList = self.HDFS_status(m_TargetFileList)
                 m_Result = []
                 for (m_FileName, m_FileProperties) in m_ReturnFileList:
@@ -264,22 +264,22 @@ class HDFSWrapper(object):
                     else:
                         m_PermissionMask = "?"
                     if len(m_FileProperties["permission"]) == 3:
-                        for m_nPos in range(0, 3):
-                            if m_FileProperties["permission"][m_nPos] == "0":
+                        for pos in range(0, 3):
+                            if m_FileProperties["permission"][pos] == "0":
                                 m_PermissionMask = m_PermissionMask + "---"
-                            elif m_FileProperties["permission"][m_nPos] == "1":
+                            elif m_FileProperties["permission"][pos] == "1":
                                 m_PermissionMask = m_PermissionMask + "--x"
-                            elif m_FileProperties["permission"][m_nPos] == "2":
+                            elif m_FileProperties["permission"][pos] == "2":
                                 m_PermissionMask = m_PermissionMask + "-w-"
-                            elif m_FileProperties["permission"][m_nPos] == "3":
+                            elif m_FileProperties["permission"][pos] == "3":
                                 m_PermissionMask = m_PermissionMask + "-wx"
-                            elif m_FileProperties["permission"][m_nPos] == "4":
+                            elif m_FileProperties["permission"][pos] == "4":
                                 m_PermissionMask = m_PermissionMask + "r--"
-                            elif m_FileProperties["permission"][m_nPos] == "5":
+                            elif m_FileProperties["permission"][pos] == "5":
                                 m_PermissionMask = m_PermissionMask + "r-x"
-                            elif m_FileProperties["permission"][m_nPos] == "6":
+                            elif m_FileProperties["permission"][pos] == "6":
                                 m_PermissionMask = m_PermissionMask + "rw-"
-                            elif m_FileProperties["permission"][m_nPos] == "7":
+                            elif m_FileProperties["permission"][pos] == "7":
                                 m_PermissionMask = m_PermissionMask + "rwx"
                             else:
                                 m_PermissionMask = m_PermissionMask + "???"
@@ -294,12 +294,12 @@ class HDFSWrapper(object):
                 return "HDFS file status:", m_Result, ["Path", "Permission", "owner", "group", "Size", "Modified"], \
                        None, "Total " + str(len(m_Result)) + " files listed."
 
-            matchObj = re.match(r"hdfs\s+rm\s+(.*)$",
+            match_obj = re.match(r"hdfs\s+rm\s+(.*)$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
+            if match_obj:
                 # 不支持在rm的路径中加入通配符，但是最后文件名可以包含通配符
                 m_Bak_WebFSDir = self.__m_HDFS_WebFSDir__
-                m_FileDeleted = str(matchObj.group(1)).strip()
+                m_FileDeleted = str(match_obj.group(1)).strip()
                 m_FileDeletedPath = os.path.dirname(m_FileDeleted)
                 m_FileDeletedName = os.path.basename(m_FileDeleted)
                 if len(m_FileDeletedName.strip()) == 0:
@@ -316,62 +316,62 @@ class HDFSWrapper(object):
                 self.HDFS_CD(m_Bak_WebFSDir)
                 return None, None, None, None, "Hdfs file deleted successful."
 
-            matchObj = re.match(r"hdfs\s+makedirs\s+(.*)$",
+            match_obj = re.match(r"hdfs\s+makedirs\s+(.*)$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_Dir = str(matchObj.group(1)).strip()
+            if match_obj:
+                m_Dir = str(match_obj.group(1)).strip()
                 self.HDFS_makedirs(m_Dir)
                 return None, None, None, None, "Hdfs directory created successful."
 
-            matchObj = re.match(r"hdfs\s+set_permission\s+(.*)\s+(.*)$",
+            match_obj = re.match(r"hdfs\s+set_permission\s+(.*)\s+(.*)$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_File = str(matchObj.group(1)).strip()
-                m_FilePermission = str(matchObj.group(2)).strip()
+            if match_obj:
+                m_File = str(match_obj.group(1)).strip()
+                m_FilePermission = str(match_obj.group(2)).strip()
                 self.HDFS_setPermission(m_File, m_FilePermission)
                 return None, None, None, None, "Hdfs set permission successful."
 
             m_FileUpload = ""
             m_TargetDir = None
-            matchObj = re.match(r"hdfs\s+upload\s+(.*)$",
+            match_obj = re.match(r"hdfs\s+upload\s+(.*)$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_FileUpload = str(matchObj.group(1)).strip()
+            if match_obj:
+                m_FileUpload = str(match_obj.group(1)).strip()
                 m_TargetDir = ""
-            matchObj = re.match(r"hdfs\s+upload\s+(.*)\s+(.*)$",
+            match_obj = re.match(r"hdfs\s+upload\s+(.*)\s+(.*)$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_FileUpload = str(matchObj.group(1)).strip()
-                m_TargetDir = str(matchObj.group(2)).strip()
+            if match_obj:
+                m_FileUpload = str(match_obj.group(1)).strip()
+                m_TargetDir = str(match_obj.group(2)).strip()
             if m_TargetDir is not None:
                 self.HDFS_Upload(m_FileUpload, m_TargetDir)
                 return None, None, None, None, "Hdfs file upload successful."
 
             m_FileDownload = ""
             m_TargetDir = None
-            matchObj = re.match(r"hdfs\s+download\s+(.*)$",
+            match_obj = re.match(r"hdfs\s+download\s+(.*)$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_FileDownload = str(matchObj.group(1)).strip()
+            if match_obj:
+                m_FileDownload = str(match_obj.group(1)).strip()
                 m_TargetDir = ""
-            matchObj = re.match(r"hdfs\s+download\s+(.*)\s+(.*)$",
+            match_obj = re.match(r"hdfs\s+download\s+(.*)\s+(.*)$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_FileDownload = str(matchObj.group(1)).strip()
-                m_TargetDir = str(matchObj.group(2)).strip()
+            if match_obj:
+                m_FileDownload = str(match_obj.group(1)).strip()
+                m_TargetDir = str(match_obj.group(2)).strip()
             if m_TargetDir is not None:
                 self.HDFS_Download(m_FileDownload, m_TargetDir)
                 return None, None, None, None, "Hdfs file download successful."
 
             m_TargetFileList = None
-            matchObj = re.match(r"hdfs\s+list(\s+)?$",
+            match_obj = re.match(r"hdfs\s+list(\s+)?$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
+            if match_obj:
                 m_TargetFileList = ""
-            matchObj = re.match(r"hdfs\s+list\s+(.*)?$",
+            match_obj = re.match(r"hdfs\s+list\s+(.*)?$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_TargetFileList = str(matchObj.group(1)).strip()
+            if match_obj:
+                m_TargetFileList = str(match_obj.group(1)).strip()
             if m_TargetFileList is not None:
                 m_ReturnFileList = self.HDFS_list(m_TargetFileList, recusive=True)
                 m_Result = []
@@ -383,22 +383,22 @@ class HDFSWrapper(object):
                     else:
                         m_PermissionMask = "?"
                     if len(m_FileProperties["permission"]) == 3:
-                        for m_nPos in range(0, 3):
-                            if m_FileProperties["permission"][m_nPos] == "0":
+                        for pos in range(0, 3):
+                            if m_FileProperties["permission"][pos] == "0":
                                 m_PermissionMask = m_PermissionMask + "---"
-                            elif m_FileProperties["permission"][m_nPos] == "1":
+                            elif m_FileProperties["permission"][pos] == "1":
                                 m_PermissionMask = m_PermissionMask + "--x"
-                            elif m_FileProperties["permission"][m_nPos] == "2":
+                            elif m_FileProperties["permission"][pos] == "2":
                                 m_PermissionMask = m_PermissionMask + "-w-"
-                            elif m_FileProperties["permission"][m_nPos] == "3":
+                            elif m_FileProperties["permission"][pos] == "3":
                                 m_PermissionMask = m_PermissionMask + "-wx"
-                            elif m_FileProperties["permission"][m_nPos] == "4":
+                            elif m_FileProperties["permission"][pos] == "4":
                                 m_PermissionMask = m_PermissionMask + "r--"
-                            elif m_FileProperties["permission"][m_nPos] == "5":
+                            elif m_FileProperties["permission"][pos] == "5":
                                 m_PermissionMask = m_PermissionMask + "r-x"
-                            elif m_FileProperties["permission"][m_nPos] == "6":
+                            elif m_FileProperties["permission"][pos] == "6":
                                 m_PermissionMask = m_PermissionMask + "rw-"
-                            elif m_FileProperties["permission"][m_nPos] == "7":
+                            elif m_FileProperties["permission"][pos] == "7":
                                 m_PermissionMask = m_PermissionMask + "rwx"
                             else:
                                 m_PermissionMask = m_PermissionMask + "???"

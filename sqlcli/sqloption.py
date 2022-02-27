@@ -177,8 +177,8 @@ class SQLOptions(object):
 
     def set(self, p_ParameterName, p_ParameterValue, p_ParameterDefaultValue=None, p_Hidden=False):
         """设置运行参数， 若p_ParameterValue为空，则加载默认参数"""
-        for m_nPos in range(0, len(self.m_SQL_OptionList)):
-            if self.m_SQL_OptionList[m_nPos]["Name"] == p_ParameterName:
+        for pos in range(0, len(self.m_SQL_OptionList)):
+            if self.m_SQL_OptionList[pos]["Name"] == p_ParameterName:
                 if p_ParameterValue is None:
                     m_ParameterValue = None
                 else:
@@ -194,7 +194,7 @@ class SQLOptions(object):
                         m_ParameterValue = ""
                     else:
                         m_ParameterValue = p_ParameterDefaultValue
-                self.m_SQL_OptionList[m_nPos]["Value"] = m_ParameterValue
+                self.m_SQL_OptionList[pos]["Value"] = m_ParameterValue
                 return True
 
         # 对@开头的进行保存和处理

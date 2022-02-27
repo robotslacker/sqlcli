@@ -148,11 +148,11 @@ def random_ascii_letters_and_digits(p_arg):
 #   步长目前没有支持，都是1
 def identity(p_arg):
     identity_name = str(p_arg[0])
-    nStart = int(p_arg[1])
+    start = int(p_arg[1])
     if not hasattr(identity, 'x'):
         identity.x = {}
     if identity_name not in identity.x.keys():
-        identity.x[identity_name] = nStart
+        identity.x[identity_name] = start
     else:
         identity.x[identity_name] = identity.x[identity_name] + 1
     return str(identity.x[identity_name])
@@ -240,12 +240,12 @@ class DataWrapper(object):
         self.SQLOptions = None  # 程序处理参数
 
     # 创建seed文件，默认在SQLCLI_HOME/data下
-    def Create_SeedCacheFile(self,
-                             p_szDataType,  # 种子文件的数据类型，目前支持String和integer
-                             p_nDataLength,  # 每个随机数的最大数据长度
-                             p_nRows,  # 种子文件的行数，即随机数的数量
-                             p_szSeedName,
-                             p_nNullValueCount=0):
+    def create_seed_cache(self,
+                          data_type,  # 种子文件的数据类型，目前支持String和integer
+                          data_length,  # 每个随机数的最大数据长度
+                          row_count,  # 种子文件的行数，即随机数的数量
+                          seed_name,
+                          null_count=0):
 
         if self.c_SeedFileDir is None:
             if "SQLCLI_HOME" not in os.environ:
@@ -257,83 +257,74 @@ class DataWrapper(object):
             os.makedirs(self.c_SeedFileDir)
 
         # 检查输入的参数
-        if p_szDataType.upper() not in ('STRING', 'INTEGER'):
+        if data_type.upper() not in ('STRING', 'INTEGER'):
             raise SQLCliException("Data Type must be String or integer.")
-        if p_nDataLength <= 0:
+        if data_length <= 0:
             raise SQLCliException("Data Length must great then zero.")
-        if p_nRows <= 0:
+        if row_count <= 0:
             raise SQLCliException("rows must great then zero.")
 
-        if p_szDataType.upper() == "STRING":
-            buf = []
-            for n in range(0, p_nRows):
-                buf.append(random_ascii_letters_and_digits([p_nDataLength, ]) + "\n")
-            if p_nNullValueCount > 0:
-                for n in range(0, p_nNullValueCount):
-                    m_nPos = random.randint(0, p_nRows - 1)
-                    buf[m_nPos] = "\n"
-            seed_file = os.path.join(self.c_SeedFileDir, p_szSeedName + ".seed")
-            with open(seed_file, 'w') as f:
-                f.writelines(buf)
-
-        if p_szDataType.upper() == "INTEGER":
-            buf = []
-            for n in range(0, p_nRows):
-                buf.append(random_digits([p_nDataLength, ]) + "\n")
-            if p_nNullValueCount > 0:
-                for n in range(0, p_nNullValueCount):
-                    m_nPos = random.randint(0, p_nRows - 1)
-                    buf[m_nPos] = "\n"
-            seed_file = os.path.join(self.c_SeedFileDir, p_szSeedName + ".seed")
-            with open(seed_file, 'w') as f:
-                f.writelines(buf)
+        buf = []
+        if data_type.upper() == "STRING":
+            for n in range(0, row_count):
+                buf.append(random_ascii_letters_and_digits([data_length, ]) + "\n")
+        if data_type.upper() == "INTEGER":
+            for n in range(0, row_count):
+                buf.append(random_digits([data_length, ]) + "\n")
+        if null_count > 0:
+            for n in range(0, null_count):
+                pos = random.randint(0, row_count - 1)
+                buf[pos] = "\n"
+        seed_file = os.path.join(self.c_SeedFileDir, seed_name + ".seed")
+        with open(seed_file, 'w') as f:
+            f.writelines(buf)
 
     # 缓存seed文件，默认在SQLCLI_HOME/data下
-    def Load_SeedCacheFile(self):
+    def load_seed_ache(self):
         if self.c_SeedFileDir is None:
             if "SQLCLI_HOME" not in os.environ:
                 raise SQLCliException(
                     "Missed SQLCLI_HOME, please set it first. Seed file will created in SQLCLI_HOME/data")
             self.c_SeedFileDir = os.path.join(os.environ["SQLCLI_HOME"], "data")
-        m_seedpath = os.path.join(self.c_SeedFileDir, "*.seed")
-        for seed_file in glob(m_seedpath):
-            m_seedName = os.path.basename(seed_file)[:-5]  # 去掉.seed的后缀
+        seed_path = os.path.join(self.c_SeedFileDir, "*.seed")
+        for seed_file in glob(seed_path):
+            seed_name = os.path.basename(seed_file)[:-5]  # 去掉.seed的后缀
             with open(seed_file, 'r', encoding="utf-8") as f:
-                m_seedlines = f.readlines()
-            for m_nPos in range(0, len(m_seedlines)):
-                if m_seedlines[m_nPos].endswith("\n"):
-                    m_seedlines[m_nPos] = m_seedlines[m_nPos][:-1]  # 去掉回车换行
-            self.seed_cache[m_seedName] = m_seedlines
+                seed_lines = f.readlines()
+            for pos in range(0, len(seed_lines)):
+                if seed_lines[pos].endswith("\n"):
+                    seed_lines[pos] = seed_lines[pos][:-1]  # 去掉回车换行
+            self.seed_cache[seed_name] = seed_lines
 
     # 第一个参数是seed的名字,
     # 第二个参数是开始截取的位置，可以省略。 如果指定，这里的开始位置从0开始计算
     # 第三个参数是截取的最大长度
     def random_from_seed(self, p_arg):
-        m_SeedName = str(p_arg[0])
+        seed_name = str(p_arg[0])
         if len(p_arg) == 3:
             # 从指定位置开始截取数据内容
-            m_StartPos = int(p_arg[1])
-            m_nMaxLength = int(p_arg[2])
+            start_pos = int(p_arg[1])
+            max_length = int(p_arg[2])
         else:
             # 从头开始截取文件内容
-            m_StartPos = 0
-            m_nMaxLength = int(p_arg[1])
+            start_pos = 0
+            max_length = int(p_arg[1])
 
         # 如果还没有加载种子，就先尝试加载
-        if m_SeedName not in self.seed_cache:
-            self.Load_SeedCacheFile()
+        if seed_name not in self.seed_cache:
+            self.load_seed_ache()
 
         # 在种子中查找需要的内容
-        if m_SeedName in self.seed_cache:
-            n = len(self.seed_cache[m_SeedName])
+        if seed_name in self.seed_cache:
+            n = len(self.seed_cache[seed_name])
             if n == 0:
                 # 空的Seed文件，可能是由于Seed文件刚刚创建，则尝试重新加载数据
-                self.Load_SeedCacheFile()
-                n = len(self.seed_cache[m_SeedName])
+                self.load_seed_ache()
+                n = len(self.seed_cache[seed_name])
                 if n == 0:
                     raise SQLCliException("Seed cache is zero. [" + str(p_arg[0]) + "].")
-            m_RandomRow = self.seed_cache[m_SeedName][random.randint(0, n - 1)]
-            return m_RandomRow[m_StartPos:m_StartPos + m_nMaxLength]
+            random_lines = self.seed_cache[seed_name][random.randint(0, n - 1)]
+            return random_lines[start_pos:start_pos + max_length]
         else:
             raise SQLCliException("Unknown seed [" + str(p_arg[0]) + "].  Please create it first.")
 
@@ -351,12 +342,12 @@ class DataWrapper(object):
                          'current_timestamp|current_unixtimestamp|value',
                          m_row_struct[m_nRowPos], re.IGNORECASE):
                 m_function_struct = re.split(r'[(,)]', m_row_struct[m_nRowPos])
-                for m_nPos in range(0, len(m_function_struct)):
-                    m_function_struct[m_nPos] = m_function_struct[m_nPos].strip()
-                    if m_function_struct[m_nPos].startswith("'"):
-                        m_function_struct[m_nPos] = m_function_struct[m_nPos][1:]
-                    if m_function_struct[m_nPos].endswith("'"):
-                        m_function_struct[m_nPos] = m_function_struct[m_nPos][0:-1]
+                for pos in range(0, len(m_function_struct)):
+                    m_function_struct[pos] = m_function_struct[pos].strip()
+                    if m_function_struct[pos].startswith("'"):
+                        m_function_struct[pos] = m_function_struct[pos][1:]
+                    if m_function_struct[pos].endswith("'"):
+                        m_function_struct[pos] = m_function_struct[pos][0:-1]
                 if len(m_function_struct[-1]) == 0:
                     m_function_struct.pop()
                 m_call_out_struct = []
@@ -365,81 +356,81 @@ class DataWrapper(object):
                     m_call_out_struct.append(m_function_struct[1:])
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):RANDOM_ASCII_LOWERCASE", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):RANDOM_ASCII_LOWERCASE", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):RANDOM_ASCII_LOWERCASE", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(random_ascii_lowercase)
                     m_call_out_struct.append(m_function_struct[1:])
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "RANDOM_ASCII_UPPERCASE":
                     m_call_out_struct.append(random_ascii_uppercase)
                     m_call_out_struct.append(m_function_struct[1:])
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):RANDOM_ASCII_UPPERCASE", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):RANDOM_ASCII_UPPERCASE", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):RANDOM_ASCII_UPPERCASE", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(random_ascii_uppercase)
                     m_call_out_struct.append(m_function_struct[1:])
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "RANDOM_ASCII_LETTERS":
                     m_call_out_struct.append(random_ascii_letters)
                     m_call_out_struct.append(m_function_struct[1:])
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):RANDOM_ASCII_LETTERS", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):RANDOM_ASCII_LETTERS", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):RANDOM_ASCII_LETTERS", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(random_ascii_letters)
                     m_call_out_struct.append(m_function_struct[1:])
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "RANDOM_DIGITS":
                     m_call_out_struct.append(random_digits)
                     m_call_out_struct.append(m_function_struct[1:])
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):RANDOM_DIGITS", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):RANDOM_DIGITS", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):RANDOM_DIGITS", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(random_digits)
                     m_call_out_struct.append(m_function_struct[1:])
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "IDENTITY_TIMESTAMP":
                     m_call_out_struct.append(identity_timestamp)
                     # 如果没有列名，第一个参数信息是identity#加上列号的信息
@@ -453,23 +444,23 @@ class DataWrapper(object):
                     m_call_out_struct.append(m_function_struct)
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):IDENTITY_TIMESTAMP", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):IDENTITY_TIMESTAMP", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):IDENTITY_TIMESTAMP", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(identity_timestamp)
                     # 如果有列名，第一个参数信息是identity#加上列名的信息
-                    m_function_struct[0] = "identity#" + m_ColumnName
+                    m_function_struct[0] = "identity#" + column_name
                     m_call_out_struct.append(m_function_struct)
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "IDENTITY":
                     m_call_out_struct.append(identity)
                     # 如果没有列名，第一个参数信息是identity#加上列号的信息
@@ -477,242 +468,242 @@ class DataWrapper(object):
                     m_call_out_struct.append(m_function_struct)
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):IDENTITY", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):IDENTITY", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):IDENTITY", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(identity)
                     # 如果有列名，第一个参数信息是identity#加上列名的信息
-                    m_function_struct[0] = "identity#" + m_ColumnName
+                    m_function_struct[0] = "identity#" + column_name
                     m_call_out_struct.append(m_function_struct)
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "RANDOM_ASCII_LETTERS_AND_DIGITS":
                     m_call_out_struct.append(random_ascii_letters_and_digits)
                     m_call_out_struct.append(m_function_struct[1:])
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):RANDOM_ASCII_LETTERS_AND_DIGITS", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):RANDOM_ASCII_LETTERS_AND_DIGITS", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):RANDOM_ASCII_LETTERS_AND_DIGITS", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(random_ascii_letters_and_digits)
                     m_call_out_struct.append(m_function_struct[1:])
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "RANDOM_FROM_SEED":
                     m_call_out_struct.append(self.random_from_seed)
                     m_call_out_struct.append(m_function_struct[1:])
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):RANDOM_FROM_SEED", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):RANDOM_FROM_SEED", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):RANDOM_FROM_SEED", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(self.random_from_seed)
                     m_call_out_struct.append(m_function_struct[1:])
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "RANDOM_DATE":
                     m_call_out_struct.append(random_date)
                     m_call_out_struct.append(m_function_struct[1:])
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):RANDOM_DATE", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):RANDOM_DATE", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):RANDOM_DATE", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(random_date)
                     m_call_out_struct.append(m_function_struct[1:])
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "RANDOM_TIMESTAMP":
                     m_call_out_struct.append(random_timestamp)
                     m_call_out_struct.append(m_function_struct[1:])
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):RANDOM_TIMESTAMP", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):RANDOM_TIMESTAMP", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):RANDOM_TIMESTAMP", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(random_timestamp)
                     m_call_out_struct.append(m_function_struct[1:])
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "RANDOM_TIME":
                     m_call_out_struct.append(random_time)
                     m_call_out_struct.append(m_function_struct[1:])
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):RANDOM_TIME", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):RANDOM_TIME", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):RANDOM_TIME", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(random_time)
                     m_call_out_struct.append(m_function_struct[1:])
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "RANDOM_BOOLEAN":
                     m_call_out_struct.append(random_boolean)
                     m_call_out_struct.append(m_function_struct[1:])
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):RANDOM_BOOLEAN", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):RANDOM_BOOLEAN", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):RANDOM_BOOLEAN", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(random_boolean)
                     m_call_out_struct.append(m_function_struct[1:])
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "CURRENT_TIMESTAMP":
                     m_call_out_struct.append(current_timestamp)
                     m_call_out_struct.append(m_function_struct[1:])
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):CURRENT_TIMESTAMP", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):CURRENT_TIMESTAMP", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):CURRENT_TIMESTAMP", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(current_timestamp)
                     m_call_out_struct.append(m_function_struct[1:])
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "CURRENT_UNIXTIMESTAMP":
                     m_call_out_struct.append(current_unixtimestamp)
                     m_call_out_struct.append(m_function_struct[1:])
                     m_call_out_struct.append("__NO_NAME__")
                 elif re.search(r"(.*):CURRENT_UNIXTIMESTAMP", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):CURRENT_UNIXTIMESTAMP", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):CURRENT_UNIXTIMESTAMP", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     m_call_out_struct.append(current_unixtimestamp)
                     m_call_out_struct.append(m_function_struct[1:])
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                 elif m_function_struct[0].upper() == "VALUE":
                     # 必须用：开头来表示字段名称
                     if not m_function_struct[1:][0].startswith(":"):
                         raise SQLCliException("Invalid pattern. Please use Value(:ColumnName).")
                     else:
-                        m_ColumnName = m_function_struct[1:][0][1:]
+                        column_name = m_function_struct[1:][0][1:]
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName.upper():
-                                bFound = True
+                            if row[2] == column_name.upper():
+                                found = True
                                 break
-                    if not bFound:
+                    if not found:
                         m_ValidColumn = ""
                         for row in m_return_row_struct:
                             if isinstance(row, list):
                                 m_ValidColumn = m_ValidColumn + row[2] + "|"
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is valid.\n" +
+                                              "Please make sure column [" + column_name + "] is valid.\n" +
                                               "Valid Column=[" + m_ValidColumn + "]")
                     m_call_out_struct.append(None)
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                     m_call_out_struct.append("VALUE")
                 elif re.search(r"(.*):VALUE", m_function_struct[0].upper()):
-                    matchObj = re.search(r"(.*):VALUE", m_function_struct[0].upper())
-                    m_ColumnName = matchObj.group(1).upper().strip()
+                    match_obj = re.search(r"(.*):VALUE", m_function_struct[0].upper())
+                    column_name = match_obj.group(1).upper().strip()
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName:
-                                bFound = True
+                            if row[2] == column_name:
+                                found = True
                                 break
-                    if bFound:
+                    if found:
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is not duplicate.")
+                                              "Please make sure column [" + column_name + "] is not duplicate.")
                     # 必须用：开头来表示字段名称
                     if not m_function_struct[1:][0].startswith(":"):
                         raise SQLCliException("Invalid pattern. Please use Value(:ColumnName).")
                     else:
-                        m_ColumnName = m_function_struct[1:][0][1:]
+                        column_name = m_function_struct[1:][0][1:]
                     # 检查列名是否已经定义
-                    bFound = False
+                    found = False
                     for row in m_return_row_struct:
                         if isinstance(row, list):
-                            if row[2] == m_ColumnName.upper():
-                                bFound = True
+                            if row[2] == column_name.upper():
+                                found = True
                                 break
-                    if not bFound:
+                    if not found:
                         m_ValidColumn = ""
                         for row in m_return_row_struct:
                             if isinstance(row, list):
                                 m_ValidColumn = m_ValidColumn + row[2] + "|"
                         raise SQLCliException("Invalid pattern. "
-                                              "Please make sure column [" + m_ColumnName + "] is valid.\n" +
+                                              "Please make sure column [" + column_name + "] is valid.\n" +
                                               "Valid Column=[" + m_ValidColumn + "]")
                     m_call_out_struct.append(None)
-                    m_call_out_struct.append(m_ColumnName)
+                    m_call_out_struct.append(column_name)
                     m_call_out_struct.append("VALUE")
                 else:
                     raise SQLCliException("Invalid pattern. parse [" + m_row_struct[m_nRowPos] + "] failed. ")
@@ -729,8 +720,8 @@ class DataWrapper(object):
         for col in p_row_struct:
             if isinstance(col, list):
                 if col[2] == "VALUE":
-                    m_ColumnName = col[1]
-                    m_Value = m_Saved_ColumnData[m_ColumnName.upper()]
+                    column_name = col[1]
+                    m_Value = m_Saved_ColumnData[column_name.upper()]
                     m_Result = m_Result + m_Value
                 elif col[2] == "__NO_NAME__":
                     m_Result = m_Result + col[0](col[1])
@@ -927,10 +918,10 @@ class DataWrapper(object):
 
     def Process_SQLCommand(self, p_szSQL):
         # 设置数据种子文件读取的位置，如果不设置，默认是SQLCLI_HOME\data
-        matchObj = re.match(r"data\s+set\s+seedfile\s+dir\s+(.*)$",
+        match_obj = re.match(r"data\s+set\s+seedfile\s+dir\s+(.*)$",
                             p_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            self.c_SeedFileDir = str(matchObj.group(1)).strip()
+        if match_obj:
+            self.c_SeedFileDir = str(match_obj.group(1)).strip()
             yield (
                 None,
                 None,
@@ -940,10 +931,10 @@ class DataWrapper(object):
             return
 
         # 设置HDFS连接用户，如果不设置，将会默认为dr.who，即匿名用户
-        matchObj = re.match(r"data\s+set\s+hdfsuser\s+(.*)$",
+        match_obj = re.match(r"data\s+set\s+hdfsuser\s+(.*)$",
                             p_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            self.c_HDFS_ConnectedUser = str(matchObj.group(1)).strip()
+        if match_obj:
+            self.c_HDFS_ConnectedUser = str(match_obj.group(1)).strip()
             yield (
                 None,
                 None,
@@ -954,13 +945,13 @@ class DataWrapper(object):
 
         # 创建数据文件, 根据末尾的rows来决定创建的行数
         # 此时，SQL语句中的回车换行符没有意义
-        matchObj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+(\d+)(\s+)?$",
+        match_obj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+(\d+)(\s+)?$",
                             p_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_filetype = str(matchObj.group(1)).strip()
-            m_filename = str(matchObj.group(2)).strip().replace('\r', '').replace('\n', '')
-            m_formula_str = str(matchObj.group(3).replace('\r', '').replace('\n', '').strip())
-            m_rows = int(matchObj.group(5))
+        if match_obj:
+            m_filetype = str(match_obj.group(1)).strip()
+            m_filename = str(match_obj.group(2)).strip().replace('\r', '').replace('\n', '')
+            m_formula_str = str(match_obj.group(3).replace('\r', '').replace('\n', '').strip())
+            m_rows = int(match_obj.group(5))
             self.Create_file(p_filetype=m_filetype,
                              p_filename=m_filename,
                              p_formula_str=m_formula_str,
@@ -974,12 +965,12 @@ class DataWrapper(object):
                 str(m_rows) + ' rows created Successful.')
             return
 
-        matchObj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?$",
+        match_obj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?$",
                             p_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_filetype = str(matchObj.group(1)).strip()
-            m_filename = str(matchObj.group(2)).strip().replace('\r', '').replace('\n', '')
-            m_formula_str = str(matchObj.group(3).strip())
+        if match_obj:
+            m_filetype = str(match_obj.group(1)).strip()
+            m_filename = str(match_obj.group(2)).strip().replace('\r', '').replace('\n', '')
+            m_formula_str = str(match_obj.group(3).strip())
             m_rows = 1
             self.Create_file(p_filetype=m_filetype,
                              p_filename=m_filename,
@@ -995,14 +986,14 @@ class DataWrapper(object):
             return
 
         #  在不同的文件中进行相互转换
-        matchObj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\s+from\s+(.*?)file(.*?)(\s+)?$",
+        match_obj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\s+from\s+(.*?)file(.*?)(\s+)?$",
                             p_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
+        if match_obj:
             # 在不同的文件中相互转换
-            self.Convert_file(p_srcfileType=str(matchObj.group(3)).strip(),
-                              p_srcfilename=str(matchObj.group(4)).strip(),
-                              p_dstfileType=str(matchObj.group(1)).strip(),
-                              p_dstfilename=str(matchObj.group(2)).strip())
+            self.Convert_file(p_srcfileType=str(match_obj.group(3)).strip(),
+                              p_srcfilename=str(match_obj.group(4)).strip(),
+                              p_dstfileType=str(match_obj.group(1)).strip(),
+                              p_dstfilename=str(match_obj.group(2)).strip())
             yield (
                 None,
                 None,
@@ -1012,17 +1003,17 @@ class DataWrapper(object):
             return
 
         # 创建随机数Seed的缓存文件
-        matchObj = re.match(r"data\s+create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
+        match_obj = re.match(r"data\s+create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
                             r"length\s+(\d+)\s+rows\s+(\d+)\s+with\s+null\s+rows\s+(\d+)$",
                             p_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_DataType = str(matchObj.group(1)).lstrip().rstrip()
-            m_SeedFileName = str(matchObj.group(2)).lstrip().rstrip()
-            m_DataLength = int(matchObj.group(3))
-            m_nRows = int(matchObj.group(4))
-            m_nNullValueCount = int(matchObj.group(5))
-            self.Create_SeedCacheFile(p_szDataType=m_DataType, p_nDataLength=m_DataLength, p_nRows=m_nRows,
-                                      p_szSeedName=m_SeedFileName, p_nNullValueCount=m_nNullValueCount)
+        if match_obj:
+            m_DataType = str(match_obj.group(1)).lstrip().rstrip()
+            m_SeedFileName = str(match_obj.group(2)).lstrip().rstrip()
+            m_DataLength = int(match_obj.group(3))
+            m_nRows = int(match_obj.group(4))
+            m_nNullValueCount = int(match_obj.group(5))
+            self.create_seed_cache(data_type=m_DataType, data_length=m_DataLength, row_count=m_nRows,
+                                      seed_name=m_SeedFileName, null_count=m_nNullValueCount)
             yield (
                 None,
                 None,
@@ -1032,16 +1023,16 @@ class DataWrapper(object):
             return
 
         # 创建随机数Seed的缓存文件
-        matchObj = re.match(r"data\s+create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
+        match_obj = re.match(r"data\s+create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
                             r"length\s+(\d+)\s+rows\s+(\d+)(\s+)?$",
                             p_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_DataType = str(matchObj.group(1)).lstrip().rstrip()
-            m_SeedFileName = str(matchObj.group(2)).lstrip().rstrip()
-            m_DataLength = int(matchObj.group(3))
-            m_nRows = int(matchObj.group(4))
-            self.Create_SeedCacheFile(p_szDataType=m_DataType, p_nDataLength=m_DataLength,
-                                      p_nRows=m_nRows, p_szSeedName=m_SeedFileName)
+        if match_obj:
+            m_DataType = str(match_obj.group(1)).lstrip().rstrip()
+            m_SeedFileName = str(match_obj.group(2)).lstrip().rstrip()
+            m_DataLength = int(match_obj.group(3))
+            m_nRows = int(match_obj.group(4))
+            self.create_seed_cache(data_type=m_DataType, data_length=m_DataLength,
+                                      row_count=m_nRows, seed_name=m_SeedFileName)
             yield (
                 None,
                 None,

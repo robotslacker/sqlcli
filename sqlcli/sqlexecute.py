@@ -175,7 +175,7 @@ class SQLExecute(object):
             "title": "表头信息",
             "rows": "结果数据集",
             "headers": "结果集的header定义，列名信息",
-            "columntypes": "列类型，字符串格式",
+            "columnTypes": "列类型，字符串格式",
             "status": "返回结果汇总消息"
         }
         SQL错误信息：
@@ -215,8 +215,8 @@ class SQLExecute(object):
         (ret_bSQLCompleted, ret_SQLSplitResults,
          ret_SQLSplitResultsWithComments, ret_SQLHints) = SQLAnalyze(statement)
 
-        for m_nPos in range(0, len(ret_SQLSplitResults)):
-            m_raw_sql = ret_SQLSplitResults[m_nPos]                 # 记录原始SQL
+        for pos in range(0, len(ret_SQLSplitResults)):
+            m_raw_sql = ret_SQLSplitResults[pos]                 # 记录原始SQL
             m_SQL_ErrorMessage = ""                                 # 错误日志信息
             m_SQL_Status = 0                                        # SQL 运行结果， 0 成功， 1 失败
             # 如果当前是在回显一个文件，则不再做任何处理，直接返回
@@ -230,11 +230,11 @@ class SQLExecute(object):
                 continue
 
             sql = m_raw_sql                                          # 当前要被执行的SQL，这个SQL可能被随后的注释或者替换规则改写
-            m_CommentSQL = ret_SQLSplitResultsWithComments[m_nPos]   # 记录带有注释信息的SQL
+            m_CommentSQL = ret_SQLSplitResultsWithComments[pos]   # 记录带有注释信息的SQL
             m_RewrotedSQL = []                                       # SQL可能会被多次改写
 
             # 分析SQLHint信息
-            m_SQLHint = ret_SQLHints[m_nPos]                         # SQL提示信息，其中Scenario用作日志处理
+            m_SQLHint = ret_SQLHints[pos]                         # SQL提示信息，其中Scenario用作日志处理
             if "SCENARIO" in m_SQLHint.keys():
                 if m_SQLHint['SCENARIO'].strip().upper() == "END":
                     m_HasOutputScenarioSkipInfo = False
@@ -257,7 +257,7 @@ class SQLExecute(object):
                             "title": None,
                             "rows": None,
                             "headers": None,
-                            "columntypes": None,
+                            "columnTypes": None,
                             "status": "Skip scenario [" + self.SQLScenario + "] due to priority set."
                         }
                         m_HasOutputScenarioSkipInfo = True
@@ -291,11 +291,11 @@ class SQLExecute(object):
             # 1. ${LastSQLResult(.*)}       # .* JQ Parse Pattern
             # 2. ${var}
             #    用户定义的变量
-            matchObj = re.search(r"\${LastSQLResult\((.*?)\)}",
+            match_obj = re.search(r"\${LastSQLResult\((.*?)\)}",
                                  sql, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_Searched = matchObj.group(0)
-                m_JQPattern = matchObj.group(1)
+            if match_obj:
+                m_Searched = match_obj.group(0)
+                m_JQPattern = match_obj.group(1)
                 sql = sql.replace(m_Searched, self.jqparse(obj=self.LastJsonSQLResult, path=m_JQPattern))
                 if self.SQLOptions.get("SILENT").upper() == 'ON':
                     # SILENT模式下不打印任何日志
@@ -306,23 +306,23 @@ class SQLExecute(object):
 
             # ${random(1,100)}
             # 处理脚本中的随机数问题
-            matchObj = re.search(r"\${random_int\((\s+)?(\d+)(\s+)?,(\s+)?(\d+)(\s+)?\)}",
+            match_obj = re.search(r"\${random_int\((\s+)?(\d+)(\s+)?,(\s+)?(\d+)(\s+)?\)}",
                                  sql, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_Searched = matchObj.group(0)
-                m_random_start = int(matchObj.group(2))
-                m_random_end = int(matchObj.group(5))
+            if match_obj:
+                m_Searched = match_obj.group(0)
+                m_random_start = int(match_obj.group(2))
+                m_random_end = int(match_obj.group(5))
                 sql = sql.replace(m_Searched, str(random.randint(m_random_start, m_random_end)))
 
             # ${var}
             bMatched = False
             while True:
-                matchObj = re.search(r"\${(.*?)}",
+                match_obj = re.search(r"\${(.*?)}",
                                      sql, re.IGNORECASE | re.DOTALL)
-                if matchObj:
+                if match_obj:
                     bMatched = True
-                    m_Searched = matchObj.group(0)
-                    m_VarName = str(matchObj.group(1)).strip()
+                    m_Searched = match_obj.group(0)
+                    m_VarName = str(match_obj.group(1)).strip()
                     # 首先判断是否为一个Env函数
                     m_VarValue = '#UNDEFINE_VAR#'
                     if m_VarName.upper().startswith("ENV(") and m_VarName.upper().endswith(")"):
@@ -455,7 +455,7 @@ class SQLExecute(object):
                                             m_Result["title"] = m_SQLResult["title"]
                                             m_Result["rows"] = m_SQLResult["rows"]
                                             m_Result["headers"] = m_SQLResult["headers"]
-                                            m_Result["columntypes"] = m_SQLResult["columntypes"]
+                                            m_Result["columnTypes"] = m_SQLResult["columnTypes"]
                                             m_Result["status"] = m_SQLResult["status"]
                                         if m_SQLResult["type"] == "error":
                                             m_SQL_Status = 1
@@ -597,7 +597,7 @@ class SQLExecute(object):
                         rowcount = 0
                         m_SQL_Status = 0
                         while True:
-                            (title, result, headers, columntypes, status,
+                            (title, result, headers, columnTypes, status,
                              m_FetchStatus, m_FetchedRows, m_SQLWarnings) = \
                                 self.get_result(self.cur, rowcount)
                             rowcount = m_FetchedRows
@@ -737,7 +737,7 @@ class SQLExecute(object):
                                                         print("[DEBUG] Apply Sort for this result 3.")
                                                     self.sortresult(result)
                                                 headers = m_Result["headers"]
-                                                columntypes = m_Result["columntypes"]
+                                                columnTypes = m_Result["columnTypes"]
                                                 status = m_Result["status"]
                                             if m_Result["type"] == "error":
                                                 m_SQL_Status = 1
@@ -756,7 +756,7 @@ class SQLExecute(object):
                                         "title": title,
                                         "rows": result,
                                         "headers": headers,
-                                        "columntypes": columntypes,
+                                        "columnTypes": columnTypes,
                                         "status": status
                                     }
                                 else:
@@ -765,7 +765,7 @@ class SQLExecute(object):
                                         "title": title,
                                         "rows": [],
                                         "headers": headers,
-                                        "columntypes": columntypes,
+                                        "columnTypes": columnTypes,
                                         "status": status
                                     }
                             if not m_FetchStatus:
@@ -837,13 +837,13 @@ class SQLExecute(object):
                                 if len(m_SQLMask) == 2:
                                     m_SQLMaskPattern = m_SQLMask[0]
                                     m_SQLMaskTarget = m_SQLMask[1]
-                                    for m_nPos2 in range(0, len(m_SQL_MultiLineErrorMessage)):
+                                    for pos2 in range(0, len(m_SQL_MultiLineErrorMessage)):
                                         m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget,
-                                                             m_SQL_MultiLineErrorMessage[m_nPos2],
+                                                             m_SQL_MultiLineErrorMessage[pos2],
                                                              re.IGNORECASE)
-                                        if m_NewOutput != m_SQL_MultiLineErrorMessage[m_nPos2]:
+                                        if m_NewOutput != m_SQL_MultiLineErrorMessage[pos2]:
                                             m_ErrorMessageHasChanged = True
-                                            m_SQL_MultiLineErrorMessage[m_nPos2] = m_NewOutput
+                                            m_SQL_MultiLineErrorMessage[pos2] = m_NewOutput
                                 else:
                                     if "SQLCLI_DEBUG" in os.environ:
                                         raise SQLCliException("LogMask Hint Error: " + m_SQLHint["LogMask"])
@@ -908,7 +908,7 @@ class SQLExecute(object):
                 title           输出的前提示信息
                 result          结果数据集
                 headers         表头信息
-                columntypes     结果字段类型
+                columnTypes     结果字段类型
                 status          输出的后提示信息
                 FetchStatus     是否输出完成
                 rowcount        共返回记录行数
@@ -1007,10 +1007,10 @@ class SQLExecute(object):
         # cursor.description is not None for queries that return result sets,
         # e.g. SELECT.
         result = []
-        columntypes = []
+        columnTypes = []
         if cursor.description is not None:
             headers = [x[0] for x in cursor.description]
-            columntypes = [x[1] for x in cursor.description]
+            columnTypes = [x[1] for x in cursor.description]
             if cursor.warnings is not None:
                 status = "{0} row{1} selected with warnings."
             else:
@@ -1021,83 +1021,83 @@ class SQLExecute(object):
                 m_row = []
                 for m_nColumnPos in range(0, len(row)):
                     column = row[m_nColumnPos]
-                    columntype = columntypes[m_nColumnPos]
+                    columntype = columnTypes[m_nColumnPos]
                     # 对于空值直接返回
                     if column is None:
                         m_row.append(None)
                         continue
 
                     # 处理各种数据类型
-                    if columntypes[m_nColumnPos] == "STRUCT":
+                    if columnTypes[m_nColumnPos] == "STRUCT":
                         m_ColumnValue = "STRUCTURE("
-                        for m_nPos in range(0, len(column)):
-                            m_ColumnType = str(type(column[m_nPos]))
-                            if m_nPos == 0:
-                                if type(column[m_nPos]) == str:
-                                    m_ColumnValue = m_ColumnValue + "'" + str(column[m_nPos]) + "'"
-                                elif type(column[m_nPos]) == datetime.date:
+                        for pos in range(0, len(column)):
+                            m_ColumnType = str(type(column[pos]))
+                            if pos == 0:
+                                if type(column[pos]) == str:
+                                    m_ColumnValue = m_ColumnValue + "'" + str(column[pos]) + "'"
+                                elif type(column[pos]) == datetime.date:
                                     m_ColumnValue = m_ColumnValue + "DATE '" + \
-                                                    format_column(column[m_nPos], m_ColumnType) + "'"
-                                elif type(column[m_nPos]) == datetime.datetime:
+                                                    format_column(column[pos], m_ColumnType) + "'"
+                                elif type(column[pos]) == datetime.datetime:
                                     m_ColumnValue = m_ColumnValue + "TIMESTAMP '" + \
-                                                    format_column(column[m_nPos], m_ColumnType) + "'"
-                                elif isinstance(column[m_nPos], type(None)):
+                                                    format_column(column[pos], m_ColumnType) + "'"
+                                elif isinstance(column[pos], type(None)):
                                     m_ColumnValue = m_ColumnValue + "<null>"
                                 else:
                                     m_ColumnValue = m_ColumnValue + \
-                                                    str(format_column(column[m_nPos], m_ColumnType))
+                                                    str(format_column(column[pos], m_ColumnType))
                             else:
-                                if type(column[m_nPos]) == str:
-                                    m_ColumnValue = m_ColumnValue + ",'" + str(column[m_nPos]) + "'"
-                                elif type(column[m_nPos]) == datetime.date:
+                                if type(column[pos]) == str:
+                                    m_ColumnValue = m_ColumnValue + ",'" + str(column[pos]) + "'"
+                                elif type(column[pos]) == datetime.date:
                                     m_ColumnValue = m_ColumnValue + ",DATE '" + \
-                                                    format_column(column[m_nPos], m_ColumnType) + "'"
-                                elif type(column[m_nPos]) == datetime.datetime:
+                                                    format_column(column[pos], m_ColumnType) + "'"
+                                elif type(column[pos]) == datetime.datetime:
                                     m_ColumnValue = m_ColumnValue + ",TIMESTAMP '" + \
-                                                    format_column(column[m_nPos], m_ColumnType) + "'"
-                                elif isinstance(column[m_nPos], type(None)):
+                                                    format_column(column[pos], m_ColumnType) + "'"
+                                elif isinstance(column[pos], type(None)):
                                     m_ColumnValue = m_ColumnValue + ",<null>"
                                 else:
                                     m_ColumnValue = m_ColumnValue + "," + \
-                                                    str(format_column(column[m_nPos], m_ColumnType))
+                                                    str(format_column(column[pos], m_ColumnType))
                         m_ColumnValue = m_ColumnValue + ")"
                         m_row.append(m_ColumnValue)
-                    elif columntypes[m_nColumnPos] == "ARRAY":
+                    elif columnTypes[m_nColumnPos] == "ARRAY":
                         m_ColumnValue = "ARRAY["
                         if self.SQLOptions.get('OUTPUT_SORT_ARRAY') == "ON":
                             # 保证Array的输出每次都一样顺序
                             # 需要注意可能有NULL值导致字符数组无法排序的情况, column是一个一维数组
                             column.sort(key=lambda x: (x is None, x))
-                        for m_nPos in range(0, len(column)):
-                            m_ColumnType = str(type(column[m_nPos]))
-                            if m_nPos == 0:
-                                if type(column[m_nPos]) == str:
-                                    m_ColumnValue = m_ColumnValue + "'" + str(column[m_nPos]) + "'"
-                                elif type(column[m_nPos]) == datetime.date:
+                        for pos in range(0, len(column)):
+                            m_ColumnType = str(type(column[pos]))
+                            if pos == 0:
+                                if type(column[pos]) == str:
+                                    m_ColumnValue = m_ColumnValue + "'" + str(column[pos]) + "'"
+                                elif type(column[pos]) == datetime.date:
                                     m_ColumnValue = m_ColumnValue + "DATE '" + \
-                                                    format_column(column[m_nPos], m_ColumnType) + "'"
-                                elif type(column[m_nPos]) == datetime.datetime:
+                                                    format_column(column[pos], m_ColumnType) + "'"
+                                elif type(column[pos]) == datetime.datetime:
                                     m_ColumnValue = m_ColumnValue + "TIMESTAMP '" + \
-                                                    format_column(column[m_nPos], m_ColumnType) + "'"
-                                elif isinstance(column[m_nPos], type(None)):
+                                                    format_column(column[pos], m_ColumnType) + "'"
+                                elif isinstance(column[pos], type(None)):
                                     m_ColumnValue = m_ColumnValue + "<null>"
                                 else:
                                     m_ColumnValue = m_ColumnValue + \
-                                                    str(format_column(column[m_nPos], m_ColumnType))
+                                                    str(format_column(column[pos], m_ColumnType))
                             else:
-                                if type(column[m_nPos]) == str:
-                                    m_ColumnValue = m_ColumnValue + ",'" + str(column[m_nPos]) + "'"
-                                elif type(column[m_nPos]) == datetime.date:
+                                if type(column[pos]) == str:
+                                    m_ColumnValue = m_ColumnValue + ",'" + str(column[pos]) + "'"
+                                elif type(column[pos]) == datetime.date:
                                     m_ColumnValue = m_ColumnValue + ",DATE '" + \
-                                                    format_column(column[m_nPos], m_ColumnType) + "'"
-                                elif type(column[m_nPos]) == datetime.datetime:
+                                                    format_column(column[pos], m_ColumnType) + "'"
+                                elif type(column[pos]) == datetime.datetime:
                                     m_ColumnValue = m_ColumnValue + ",TIMESTAMP '" + \
-                                                    format_column(column[m_nPos], m_ColumnType) + "'"
-                                elif isinstance(column[m_nPos], type(None)):
+                                                    format_column(column[pos], m_ColumnType) + "'"
+                                elif isinstance(column[pos], type(None)):
                                     m_ColumnValue = m_ColumnValue + ",<null>"
                                 else:
                                     m_ColumnValue = m_ColumnValue + "," + \
-                                                    str(format_column(column[m_nPos], m_ColumnType))
+                                                    str(format_column(column[pos], m_ColumnType))
                         m_ColumnValue = m_ColumnValue + "]"
                         m_row.append(m_ColumnValue)
                     else:
@@ -1125,4 +1125,4 @@ class SQLExecute(object):
             status = status.format(rowcount, "" if rowcount in [0, 1] else "s")
         else:
             status = None
-        return title, result, headers, columntypes, status, m_FetchStatus, rowcount, cursor.warnings
+        return title, result, headers, columnTypes, status, m_FetchStatus, rowcount, cursor.warnings

@@ -237,7 +237,7 @@ class TransactionManager(object):
 
     def TransactionShow(self, p_TransactionName):
         m_Header = ["Name", "Max_Time", "Min_Time", "Avg_Time", "Finished", "Failed", "VAR"]
-        m_ColumnTypes = ['VARCHAR', 'INTEGER', 'INTEGER', 'DECIMAL', 'INTEGER', 'INTEGER', 'DECIMAL']
+        m_columnTypes = ['VARCHAR', 'INTEGER', 'INTEGER', 'DECIMAL', 'INTEGER', 'INTEGER', 'DECIMAL']
         m_Result = []
 
         if p_TransactionName.strip().upper() == "ALL":
@@ -266,7 +266,7 @@ class TransactionManager(object):
                              m_TransactionSatstics.Transaction_Failed_Count,
                              round(m_TransactionSatstics.Transaction_VAR, 2)
                              ])
-        return None, m_Result, m_Header, m_ColumnTypes, "Total [" + str(len(m_Result)) + "] Transactions."
+        return None, m_Result, m_Header, m_columnTypes, "Total [" + str(len(m_Result)) + "] Transactions."
 
     # 处理Transaction的相关命令
     def Process_Command(self, p_szCommand: str):
@@ -276,34 +276,34 @@ class TransactionManager(object):
         m_szSQL = p_szCommand.strip()
 
         # 创建新的Transaction
-        matchObj = re.match(r"transaction\s+begin\s+(.*)$",
+        match_obj = re.match(r"transaction\s+begin\s+(.*)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_TransactionName = str(matchObj.group(1)).strip()
+        if match_obj:
+            m_TransactionName = str(match_obj.group(1)).strip()
             self.TransactionBegin(m_TransactionName)
             return None, None, None, None, "Transaction [" + m_TransactionName + "] begin successful."
 
         # 停止Transaction
-        matchObj = re.match(r"transaction\s+end\s+(.*)$",
+        match_obj = re.match(r"transaction\s+end\s+(.*)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_TransactionName = str(matchObj.group(1)).strip()
+        if match_obj:
+            m_TransactionName = str(match_obj.group(1)).strip()
             self.TransactionEnd(m_TransactionName)
             return None, None, None, None, "Transaction [" + m_TransactionName + "] end successful."
 
         # 停止Transaction，并标记为失败
-        matchObj = re.match(r"transaction\s+fail\s+(.*)$",
+        match_obj = re.match(r"transaction\s+fail\s+(.*)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_TransactionName = str(matchObj.group(1)).strip()
+        if match_obj:
+            m_TransactionName = str(match_obj.group(1)).strip()
             self.TransactionFail(m_TransactionName)
             return None, None, None, None, "Transaction [" + m_TransactionName + "] is marked as FAIL."
 
         # 显示Transaction的统计信息
-        matchObj = re.match(r"transaction\s+show\s+(.*)$",
+        match_obj = re.match(r"transaction\s+show\s+(.*)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_TransactionName = str(matchObj.group(1)).strip()
+        if match_obj:
+            m_TransactionName = str(match_obj.group(1)).strip()
             return self.TransactionShow(m_TransactionName)
 
         # 其他未能解析的Transaction命令

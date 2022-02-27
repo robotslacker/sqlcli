@@ -212,25 +212,25 @@ class KafkaWrapper(object):
     def Process_SQLCommand(self, p_szSQL):
         m_szSQL = p_szSQL.strip()
 
-        matchObj = re.match(r"kafka\s+connect\s+server\s+(.*)$",
+        match_obj = re.match(r"kafka\s+connect\s+server\s+(.*)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_KafkaServer = str(matchObj.group(1)).strip()
+        if match_obj:
+            m_KafkaServer = str(match_obj.group(1)).strip()
             self.__kafka_servers__ = m_KafkaServer
             return None, None, None, None, "Kafka Server set successful."
 
-        matchObj = re.match(r"kafka\s+create\s+topic\s+(.*?)\s+(.*)$",
+        match_obj = re.match(r"kafka\s+create\s+topic\s+(.*?)\s+(.*)$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_TopicName = str(matchObj.group(1)).strip()
-            m_ParameterList = str(matchObj.group(2)).strip().split()
+        if match_obj:
+            m_TopicName = str(match_obj.group(1)).strip()
+            m_ParameterList = str(match_obj.group(2)).strip().split()
             m_TimeOut = 0            # 默认的延时等待时间为: 一直等待下去
             m_PartitionCount = 16    # 默认的Kafka分区数量
             m_ReplicationFactor = 1  # 默认的副本数量
             m_ConfigProps = {}
-            for m_nPos in range(0, len(m_ParameterList) // 2):
-                m_ParameterName = m_ParameterList[2*m_nPos]
-                m_ParameterValue = m_ParameterList[2 * m_nPos + 1]
+            for pos in range(0, len(m_ParameterList) // 2):
+                m_ParameterName = m_ParameterList[2*pos]
+                m_ParameterValue = m_ParameterList[2 * pos + 1]
                 if m_ParameterName.lower() == "partitions":
                     m_PartitionCount = int(m_ParameterValue)
                 elif m_ParameterName.lower() == "replication_factor":
@@ -245,26 +245,26 @@ class KafkaWrapper(object):
                 m_TimeOut)
             return None, None, None, None, m_ReturnMessage
 
-        matchObj = re.match(r"kafka\s+drop\s+topic\s+(.*)(\s+)?$",
+        match_obj = re.match(r"kafka\s+drop\s+topic\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_TopicName = str(matchObj.group(1)).strip()
-            matchObj = re.match(r"kafka\s+drop\s+topic\s+(.*)\s+timeout\s+(\d+)(\s+)?$",
+        if match_obj:
+            m_TopicName = str(match_obj.group(1)).strip()
+            match_obj = re.match(r"kafka\s+drop\s+topic\s+(.*)\s+timeout\s+(\d+)(\s+)?$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_TopicName = str(matchObj.group(1)).strip()
-                m_TimeOut = int(matchObj.group(2))
+            if match_obj:
+                m_TopicName = str(match_obj.group(1)).strip()
+                m_TimeOut = int(match_obj.group(2))
             else:
                 m_TimeOut = 1800
             m_ReturnMessage = self.Kafka_DeleteTopic(p_szTopicName=m_TopicName, p_TimeOut=m_TimeOut)
             return None, None, None, None, m_ReturnMessage
 
         # 显示所有Partition的偏移数据
-        matchObj = re.match(r"get\s+kafka\s+info\s+topic(.*)\s+group\s+(.*)(\s+)?$",
+        match_obj = re.match(r"get\s+kafka\s+info\s+topic(.*)\s+group\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_TopicName = str(matchObj.group(1)).strip()
-            m_GroupID = str(matchObj.group(2)).strip()
+        if match_obj:
+            m_TopicName = str(match_obj.group(1)).strip()
+            m_GroupID = str(match_obj.group(2)).strip()
             try:
                 m_Results = self.kafka_GetOffset(m_TopicName, m_GroupID)
                 m_Header = ["Partition", "minOffset", "maxOffset"]
@@ -277,10 +277,10 @@ class KafkaWrapper(object):
                 return None, None, None, None, "Failed to get office for topic {}: {}".format(m_TopicName, repr(ke))
 
         # 显示所有Partition的偏移数据
-        matchObj = re.match(r"kafka\s+get\s+info\s+topic(.*)(\s+)?$",
+        match_obj = re.match(r"kafka\s+get\s+info\s+topic(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_TopicName = str(matchObj.group(1)).strip()
+        if match_obj:
+            m_TopicName = str(match_obj.group(1)).strip()
             m_GroupID = 'asdfzxcv1234'    # 一个随机的字符串
             try:
                 m_MetadataInfo = self.kafka_GetInfo(m_TopicName)
@@ -295,11 +295,11 @@ class KafkaWrapper(object):
                 return None, None, None, None, "Failed to get office for topic {}: {}".format(m_TopicName, repr(ke))
 
         # 从文件中加载消息到Kafka队列中
-        matchObj = re.match(r"kafka\s+produce\s+message\s+from\s+file\s+(.*)\s+to\s+topic\s+(.*)(\s+)?$",
+        match_obj = re.match(r"kafka\s+produce\s+message\s+from\s+file\s+(.*)\s+to\s+topic\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_FileName = str(matchObj.group(1)).strip()
-            m_TopicName = str(matchObj.group(2)).strip()
+        if match_obj:
+            m_FileName = str(match_obj.group(1)).strip()
+            m_TopicName = str(match_obj.group(2)).strip()
             if not os.path.isfile(m_FileName):
                 return None, None, None, None, "Failed to load file {}".format(m_FileName)
             with open(m_FileName, 'r', encoding="utf-8") as f:
@@ -342,16 +342,16 @@ class KafkaWrapper(object):
                         format(m_nMessagesSent, m_nRows, m_TopicName)
 
         # 整体一次性发送消息
-        matchObj = re.match(r"kafka\s+produce\s+message\s+topic\s+(.*?)\((.*)\)(\s+)?$",
+        match_obj = re.match(r"kafka\s+produce\s+message\s+topic\s+(.*?)\((.*)\)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_TopicName = str(matchObj.group(1)).strip()
-            m_RawMessages = str(matchObj.group(2)).split('\n')
+        if match_obj:
+            m_TopicName = str(match_obj.group(1)).strip()
+            m_RawMessages = str(match_obj.group(2)).split('\n')
             m_Messages = []
-            for m_nPos in range(0, len(m_RawMessages)):
-                if len(m_RawMessages[m_nPos]) != 0:
+            for pos in range(0, len(m_RawMessages)):
+                if len(m_RawMessages[pos]) != 0:
                     m_Messages.append(self.m_DataWrapper.get_final_string(
-                        self.m_DataWrapper.parse_formula_str(m_RawMessages[m_nPos])))
+                        self.m_DataWrapper.parse_formula_str(m_RawMessages[pos])))
             m_ProduceError = []
             try:
                 nTotalCount = self.kafka_Produce(m_TopicName, m_Messages, m_ProduceError)
@@ -365,27 +365,27 @@ class KafkaWrapper(object):
                 return None, None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
 
         # 逐条发送消息
-        matchObj = re.match(r"kafka\s+produce\s+message\s+topic\s+(.*?)"
+        match_obj = re.match(r"kafka\s+produce\s+message\s+topic\s+(.*?)"
                             r"\((.*)\)(\s+)?rows\s+(\d+)"
                             r"(.*?)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_TopicName = str(matchObj.group(1)).strip()
-            m_formula_str = str(matchObj.group(2)).replace('\r', '').replace('\n', '').strip()
+        if match_obj:
+            m_TopicName = str(match_obj.group(1)).strip()
+            m_formula_str = str(match_obj.group(2)).replace('\r', '').replace('\n', '').strip()
             m_row_struct = self.m_DataWrapper.parse_formula_str(m_formula_str)
-            m_row_count = int(str(matchObj.group(4)).strip())
+            m_row_count = int(str(match_obj.group(4)).strip())
             m_ErrorCount = 0
             nTotalCount = 0
             m_frequency = -1             # -1表示不显示发送频率
             m_BatchSize = 5000          # 每一个批次发送的数据量
-            matchObj = re.match(r"kafka\s+produce\s+message\s+topic\s+(.*?)"
+            match_obj = re.match(r"kafka\s+produce\s+message\s+topic\s+(.*?)"
                                 r"\((.*)\)(\s+)?rows\s+(\d+)"
                                 r"\s+frequency\s+(\d+)"
                                 r"(\s+)?$",
                                 m_szSQL, re.IGNORECASE | re.DOTALL)
-            if matchObj:
-                m_row_count = int(str(matchObj.group(4)).strip())
-                m_frequency = int(str(matchObj.group(5)).strip())
+            if match_obj:
+                m_row_count = int(str(match_obj.group(4)).strip())
+                m_frequency = int(str(match_obj.group(5)).strip())
                 if m_frequency < 5000:
                     m_BatchSize = m_frequency  # 如果限制了速率，则最多每一个批次发送freqency数量的记录
             try:
@@ -420,12 +420,12 @@ class KafkaWrapper(object):
                 return None, None, None, None, "Failed to send message for topic {}: {}".format(m_TopicName, repr(ke))
 
         # 逐条读出所有的消息
-        matchObj = re.match(r"kafka\s+consume\s+message\s+from\s+topic\s+(.*)\s+to\s+file\s+(.*)\s+group\s+(.*)(\s+)?$",
+        match_obj = re.match(r"kafka\s+consume\s+message\s+from\s+topic\s+(.*)\s+to\s+file\s+(.*)\s+group\s+(.*)(\s+)?$",
                             m_szSQL, re.IGNORECASE | re.DOTALL)
-        if matchObj:
-            m_TopicName = str(matchObj.group(1)).strip()
-            m_FileName = str(matchObj.group(2)).strip()
-            m_GroupID = str(matchObj.group(3)).strip()
+        if match_obj:
+            m_TopicName = str(match_obj.group(1)).strip()
+            m_FileName = str(match_obj.group(2)).strip()
+            m_GroupID = str(match_obj.group(3)).strip()
             f = open(m_FileName, 'w', encoding="utf-8")
             m_bFetchOver = False
             while True:

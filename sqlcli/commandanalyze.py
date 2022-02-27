@@ -73,7 +73,7 @@ def register_special_command(
 
 
 @export
-def execute(cls, sql, p_nTimeout: int):
+def execute(cls, sql, timeout: int):
     """Execute a special command and return the results. If the special command
     is not supported a KeyError will be raised.
     """
@@ -90,12 +90,12 @@ def execute(cls, sql, p_nTimeout: int):
         if special_cmd.case_sensitive:
             raise CommandNotFound("Command not found: %s" % command)
 
-    return special_cmd.handler(cls, arg=arg, Timeout=p_nTimeout)
+    return special_cmd.handler(cls, arg=arg, Timeout=timeout)
 
 
 @special_command("help", "Show this help.")
-def show_help(cls, arg, Timeout: int):
-    if cls and arg and Timeout:
+def show_help(cls, arg, timeout: int):
+    if cls and arg and timeout:
         pass
     headers = ["Command", "Description"]
     result = []
@@ -108,13 +108,13 @@ def show_help(cls, arg, Timeout: int):
             "title": None,
             "rows": result,
             "headers": headers,
-            "columntypes": None,
+            "columnTypes": None,
             "status": None
         }, ]
 
 
 @special_command("quit", "Quit.")
-def quit_sqlcli(cls, arg, Timeout: int):
-    if cls and arg and Timeout:
+def quit_sqlcli(cls, arg, timeout: int):
+    if cls and arg and timeout:
         pass
     raise EOFError
