@@ -45,29 +45,33 @@ class SshWrapper(object):
     def processCommand(self, pSql):
         sql = pSql.strip()
 
-        match_obj = re.match(r"ssh\s+connect\s+(.*?)\s+with\s+user\s+(.*?)\s+key\s+(.*?)$",
-                            sql, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(
+            r"ssh\s+connect\s+(.*?)\s+with\s+user\s+(.*?)\s+key\s+(.*?)$",
+            sql, re.IGNORECASE | re.DOTALL)
         if match_obj:
             hostname = match_obj.group(1).strip()
             username = match_obj.group(2).strip()
             keyfile = match_obj.group(3).strip()
             self.sshConnectWithPassword(hostname, username, keyfile)
             yield None, None, None, None, "ssh connected."
+            return
 
-        match_obj = re.match(r"ssh\s+connect\s+(.*?)\s+with\s+user\s+(.*?)\s+password\s+(.*?)$",
-                            sql, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(
+            r"ssh\s+connect\s+(.*?)\s+with\s+user\s+(.*?)\s+password\s+(.*?)$",
+            sql, re.IGNORECASE | re.DOTALL)
         if match_obj:
             hostname = match_obj.group(1).strip()
             username = match_obj.group(2).strip()
             password = match_obj.group(3).strip()
             self.sshConnectWithPassword(hostname, username, password)
             yield None, None, None, None, "ssh connected."
+            return
 
-        match_obj = re.match(r"ssh\s+execute\s+(.*?)$",
-                            sql, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"ssh\s+execute\s+(.*?)$", sql, re.IGNORECASE | re.DOTALL)
         if match_obj:
             command = match_obj.group(1).strip()
             for consoleOutput in self.sshExecuteCommand(command):
                 yield None, None, None, None, consoleOutput
+            return
 
-        return None, None, None, None, "Unknown ssh Command."
+        yield None, None, None, None, "Unknown ssh Command."

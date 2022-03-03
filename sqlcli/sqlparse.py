@@ -290,13 +290,17 @@ def SQLAnalyze(p_SQLCommandPlainText):
 
             # 如果存在行内的块注释, 且当前不是在注释中
             if not m_bInCommentBlock:
-                # 如果存在行注释
-                m_nLineCommentStart = SQLCommands[pos].find('--')
-                if m_nLineCommentStart != -1:
-                    # 将行注释中的内容替换成空格
-                    SQLCommands[pos] = SQLCommands[pos][0:m_nLineCommentStart] + \
-                                          re.sub(r'.', ' ', SQLCommands[pos][m_nLineCommentStart:])
-                    continue
+                if str(SQLCommands[pos]).startswith("__internal__"):
+                    # 对于内部命令不判断行内注释，直接跳过
+                    pass
+                else:
+                    # 如果存在行注释
+                    m_nLineCommentStart = SQLCommands[pos].find('--')
+                    if m_nLineCommentStart != -1:
+                        # 将行注释中的内容替换成空格
+                        SQLCommands[pos] = SQLCommands[pos][0:m_nLineCommentStart] + \
+                                              re.sub(r'.', ' ', SQLCommands[pos][m_nLineCommentStart:])
+                        continue
 
                 # 检查段落注释
                 m_nBlockCommentsStart = SQLCommands[pos].find('/*')
@@ -717,10 +721,12 @@ def SQLAnalyze(p_SQLCommandPlainText):
         m_CommandSplitList = SQLSplitResultsWithComments[pos].split('\n')
         if len(m_CommandSplitList) > 1:
             for pos3 in range(0, len(m_CommandSplitList)):
-                match_obj1 = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?Scenario:End", m_CommandSplitList[pos3],
-                                      re.IGNORECASE | re.DOTALL)
-                match_obj2 = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:End]", m_CommandSplitList[pos3],
-                                      re.IGNORECASE | re.DOTALL)
+                match_obj1 = re.search(
+                    r"^(\s+)?--(\s+)?\[Hint](\s+)?Scenario:End", m_CommandSplitList[pos3],
+                    re.IGNORECASE | re.DOTALL)
+                match_obj2 = re.search(
+                    r"^(\s+)?--(\s+)?\[(\s+)?Scenario:End]", m_CommandSplitList[pos3],
+                    re.IGNORECASE | re.DOTALL)
                 if match_obj1 or match_obj2:
                     if pos3 != 0:
                         # 把Scenario_End之前的内容送入解析
@@ -752,8 +758,8 @@ def SQLAnalyze(p_SQLCommandPlainText):
             # 这里为一个注释信息，解析注释信息中是否包含必要的tag
             for line in SQLSplitResultsWithComments[pos].splitlines():
                 # [Hint]  Scenario:XXXX   -- 相关SQL的Scenariox信息，仅仅作为日志信息供查看
-                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?Scenario:(.*)", line,
-                                     re.IGNORECASE | re.DOTALL)
+                match_obj = re.search(
+                    r"^(\s+)?--(\s+)?\[Hint](\s+)?Scenario:(.*)", line, re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     m_SenarioAndPriority = match_obj.group(4)
                     if len(m_SenarioAndPriority.split(':')) == 2:
@@ -763,8 +769,7 @@ def SQLAnalyze(p_SQLCommandPlainText):
                     else:
                         # 如果只有一个内容， 规则是:Scenario:ScenarioName
                         m_SQLHint["SCENARIO"] = m_SenarioAndPriority
-                match_obj = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:(.*)]", line,
-                                     re.IGNORECASE | re.DOTALL)
+                match_obj = re.search(r"^(\s+)?--(\s+)?\[(\s+)?Scenario:(.*)]", line, re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     m_SenarioAndPriority = match_obj.group(4)
                     if len(m_SenarioAndPriority.split(':')) == 2:
@@ -776,14 +781,13 @@ def SQLAnalyze(p_SQLCommandPlainText):
                         m_SQLHint["SCENARIO"] = m_SenarioAndPriority
 
                 # [Hint]  order           -- SQLCli将会把随后的SQL语句进行排序输出，原程序的输出顺序被忽略
-                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?order", line,
-                                     re.IGNORECASE | re.DOTALL)
+                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?order", line, re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     m_SQLHint["Order"] = True
 
                 # [Hint]  LogFilter      -- SQLCli会过滤随后显示的输出信息，对于符合过滤条件的，将会被过滤
-                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LogFilter(\s+)(.*)", line,
-                                     re.IGNORECASE | re.DOTALL)
+                match_obj = re.search(
+                    r"^(\s+)?--(\s+)?\[Hint](\s+)?LogFilter(\s+)(.*)", line, re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     # 可能有多个Filter信息
                     m_SQLFilter = match_obj.group(5).strip()
@@ -793,8 +797,8 @@ def SQLAnalyze(p_SQLCommandPlainText):
                         m_SQLHint["LogFilter"] = [m_SQLFilter, ]
 
                 # [Hint]  LogMask      -- SQLCli会掩码随后显示的输出信息，对于符合掩码条件的，将会被掩码
-                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LogMask(\s+)(.*)", line,
-                                     re.IGNORECASE | re.DOTALL)
+                match_obj = re.search(
+                    r"^(\s+)?--(\s+)?\[Hint](\s+)?LogMask(\s+)(.*)", line, re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     m_SQLMask = match_obj.group(5).strip()
                     if "LogMask" in m_SQLHint:
@@ -803,23 +807,20 @@ def SQLAnalyze(p_SQLCommandPlainText):
                         m_SQLHint["LogMask"] = [m_SQLMask]
 
                 # [Hint]  SQL_DIRECT   -- SQLCli执行的时候将不再尝试解析语句，而是直接解析执行
-                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?SQL_DIRECT", line,
-                                     re.IGNORECASE | re.DOTALL)
+                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?SQL_DIRECT", line, re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     m_SQLHint["SQL_DIRECT"] = True
 
                 # [Hint]  SQL_PREPARE   -- SQLCli执行的时候将首先尝试解析语句，随后执行
-                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?SQL_PREPARE", line,
-                                     re.IGNORECASE | re.DOTALL)
+                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?SQL_PREPARE", line, re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     m_SQLHint["SQL_PREPARE"] = True
 
                 # [Hint]  Loop   -- 循环执行特定的SQL
                 # --[Hint] LOOP [LoopTimes] UNTIL [EXPRESSION] INTERVAL [INTERVAL]
-                match_obj = re.search(r"^(\s+)?--(\s+)?\[Hint](\s+)?LOOP\s+(\d+)"
-                                     r"\s+UNTIL\s+(.*)"
-                                     r"\s+INTERVAL\s+(\d+)(\s+)?", line,
-                                     re.IGNORECASE | re.DOTALL)
+                match_obj = re.search(
+                    r"^(\s+)?--(\s+)?\[Hint](\s+)?LOOP\s+(\d+)\s+UNTIL\s+(.*)\s+INTERVAL\s+(\d+)(\s+)?",
+                    line, re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     m_SQLHint["SQL_LOOP"] = {
                         "LoopTimes": match_obj.group(4),

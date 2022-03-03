@@ -291,8 +291,7 @@ class SQLExecute(object):
             # 1. ${LastSQLResult(.*)}       # .* JQ Parse Pattern
             # 2. ${var}
             #    用户定义的变量
-            match_obj = re.search(r"\${LastSQLResult\((.*?)\)}",
-                                 sql, re.IGNORECASE | re.DOTALL)
+            match_obj = re.search(r"\${LastSQLResult\((.*?)\)}", sql, re.IGNORECASE | re.DOTALL)
             if match_obj:
                 m_Searched = match_obj.group(0)
                 m_JQPattern = match_obj.group(1)
@@ -306,8 +305,10 @@ class SQLExecute(object):
 
             # ${random(1,100)}
             # 处理脚本中的随机数问题
-            match_obj = re.search(r"\${random_int\((\s+)?(\d+)(\s+)?,(\s+)?(\d+)(\s+)?\)}",
-                                 sql, re.IGNORECASE | re.DOTALL)
+            match_obj = re.search(
+                r"\${random_int\((\s+)?(\d+)(\s+)?,(\s+)?(\d+)(\s+)?\)}",
+                sql,
+                re.IGNORECASE | re.DOTALL)
             if match_obj:
                 m_Searched = match_obj.group(0)
                 m_random_start = int(match_obj.group(2))
@@ -317,8 +318,7 @@ class SQLExecute(object):
             # ${var}
             bMatched = False
             while True:
-                match_obj = re.search(r"\${(.*?)}",
-                                     sql, re.IGNORECASE | re.DOTALL)
+                match_obj = re.search(r"\${(.*?)}", sql, re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     bMatched = True
                     m_Searched = match_obj.group(0)
@@ -406,7 +406,9 @@ class SQLExecute(object):
                     if "type" not in m_Result.keys():
                         m_Result.update({"type": "result"})
                     if m_Result["type"] == "result" and \
-                            (sql.lower().startswith("__internal__") or sql.lower().startswith("loaddriver")):
+                            ((sql.lower().startswith("__internal__") or
+                              sql.lower().startswith("loaddriver")) or
+                             sql.lower().startswith("host")):
                         # 如果存在SQL_LOOP信息，则需要反复执行上一个SQL
                         if "SQL_LOOP" in m_SQLHint.keys():
                             if "SQLCLI_DEBUG" in os.environ:
@@ -528,8 +530,41 @@ class SQLExecute(object):
                                 if m_DataChanged:
                                     result[i] = tuple(m_RowResult)
 
+                        # 处理Status
+                        status = m_Result["status"]
+                        if "LogMask" in m_SQLHint.keys() and status is not None:
+                            for m_SQLMaskString in m_SQLHint["LogMask"]:
+                                m_SQLMask = m_SQLMaskString.split("=>")
+                                if len(m_SQLMask) == 2:
+                                    m_SQLMaskPattern = m_SQLMask[0]
+                                    m_SQLMaskTarget = m_SQLMask[1]
+                                    if "SQLCLI_DEBUG" in os.environ:
+                                        print("[DEBUG] Apply Mask: " + status +
+                                              " with " + m_SQLMaskPattern + "=>" + m_SQLMaskTarget)
+                                    try:
+                                        m_BeforeSub = status
+                                        nIterCount = 0
+                                        while True:
+                                            # 循环多次替代，最多99次，一直到没有可替代为止
+                                            m_AfterSub = re.sub(m_SQLMaskPattern, m_SQLMaskTarget,
+                                                                m_BeforeSub, re.IGNORECASE)
+                                            if m_AfterSub == m_BeforeSub or nIterCount > 99:
+                                                status = m_AfterSub
+                                                break
+                                            m_BeforeSub = m_AfterSub
+                                            nIterCount = nIterCount + 1
+                                    except re.error:
+                                        if "SQLCLI_DEBUG" in os.environ:
+                                            print('[DEBUG] traceback.print_exc():\n%s'
+                                                  % traceback.print_exc())
+                                            print('[DEBUG] traceback.format_exc():\n%s'
+                                                  % traceback.format_exc())
+                                    else:
+                                        if "SQLCLI_DEBUG" in os.environ:
+                                            print("[DEBUG] LogMask Hint Error: " + m_SQLHint["LogMask"])
                         # 返回运行结果
                         m_Result["rows"] = result
+                        m_Result["status"] = status
                         if m_Result["rows"] is None:
                             m_Rows = 0
                         else:
