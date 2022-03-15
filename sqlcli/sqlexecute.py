@@ -526,7 +526,7 @@ class SQLExecute(object):
                                                           % traceback.format_exc())
                                         else:
                                             if "SQLCLI_DEBUG" in os.environ:
-                                                print("[DEBUG] LogMask Hint Error: " + m_SQLHint["LogMask"])
+                                                print("[DEBUG] LogMask Hint Error: " + str(m_SQLHint["LogMask"]))
                                 if m_DataChanged:
                                     result[i] = tuple(m_RowResult)
 

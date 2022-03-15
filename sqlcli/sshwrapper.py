@@ -35,12 +35,15 @@ class SshWrapper(object):
 
     def sshExecuteCommand(self, pCommand):
         # 执行命令
-        stdin, stdout, stderr = self.ssh.exec_command(pCommand)
-        stdout.channel.set_combine_stderr(True)
-        stdin.close()
-        consoleOutput = stdout.read().decode('UTF-8')
-        for line in consoleOutput.splitlines():
-            yield line
+        if self.ssh is not None:
+            stdin, stdout, stderr = self.ssh.exec_command(pCommand)
+            stdout.channel.set_combine_stderr(True)
+            stdin.close()
+            consoleOutput = stdout.read().decode('UTF-8')
+            for line in consoleOutput.splitlines():
+                yield line
+        else:
+            yield "SSH not connected."
 
     def processCommand(self, pSql):
         sql = pSql.strip()
