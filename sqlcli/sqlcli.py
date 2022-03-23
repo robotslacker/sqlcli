@@ -966,19 +966,16 @@ class SQLCli(object):
                                  stderr=subprocess.PIPE)
         try:
             (stdoutdata, stderrdata) = p.communicate()
+            summaryStatus = str(stdoutdata.decode(encoding=cls.SQLOptions.get("RESULT_ENCODING")))
+            if len(str(stderrdata.decode(encoding=cls.SQLOptions.get("RESULT_ENCODING")))) != 0:
+                summaryStatus = summaryStatus + "\n" + \
+                                str(stderrdata.decode(encoding=cls.SQLOptions.get("RESULT_ENCODING")))
             yield {
                 "title": None,
                 "rows": None,
                 "headers": None,
                 "columnTypes": None,
-                "status": str(stdoutdata.decode(encoding=cls.SQLOptions.get("RESULT_ENCODING")))
-            }
-            yield {
-                "title": None,
-                "rows": None,
-                "headers": None,
-                "columnTypes": None,
-                "status": str(stderrdata.decode(encoding=cls.SQLOptions.get("RESULT_ENCODING")))
+                "status": summaryStatus
             }
         except UnicodeDecodeError:
             raise SQLCliException("The character set [" + cls.SQLOptions.get("RESULT_ENCODING") + "]" +
@@ -1431,6 +1428,7 @@ class SQLCli(object):
                         options_values[0] = options_values[0][1:]
                     if options_values[0][-1] == '^':
                         options_values[0] = options_values[0][:-1]
+                    print("try eval .... " + str(options_values[0]))
                     try:
                         option_value = str(eval(str(options_values[0])))
                     except (NameError, ValueError, SyntaxError):

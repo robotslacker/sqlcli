@@ -561,7 +561,17 @@ class SQLExecute(object):
                                                   % traceback.format_exc())
                                     else:
                                         if "SQLCLI_DEBUG" in os.environ:
-                                            print("[DEBUG] LogMask Hint Error: " + m_SQLHint["LogMask"])
+                                            print("[DEBUG] LogMask Hint Error: " + str(m_SQLHint["LogMask"]))
+
+                        if "LogFilter" in m_SQLHint.keys() and status is not None:
+                            for m_SQLFilter in m_SQLHint["LogFilter"]:
+                                if "SQLCLI_DEBUG" in os.environ:
+                                    print("[DEBUG] Apply Filter: " + str(''.join(str(status))) +
+                                          " with " + m_SQLFilter)
+                                if re.match(m_SQLFilter, status, re.IGNORECASE):
+                                    status = None
+                                    continue
+
                         # 返回运行结果
                         m_Result["rows"] = result
                         m_Result["status"] = status
@@ -570,10 +580,11 @@ class SQLExecute(object):
                         else:
                             m_Rows = len(m_Result["rows"])
                         self.LastJsonSQLResult = {"desc": m_Result["headers"],
+                                                  "type": m_Result["type"],
                                                   "rows": m_Rows,
                                                   "elapsed": time.time() - start,
                                                   "result": m_Result["rows"],
-                                                  "status": 0,
+                                                  "status": status,
                                                   "warnings": ""}
                         # 如果TERMOUT为关闭，不在返回结果信息
                         if self.SQLOptions.get('TERMOUT').upper() == 'OFF':
