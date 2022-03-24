@@ -47,6 +47,7 @@ from .sshwrapper import SshWrapper
 from .hbasewrapper import HBaseWrapper
 from .rediswrapper import RedisWrapper
 from .rabbitmqwrapper import RabbitmqWrapper
+from .newkafkawrapper import NewKafkaWrapper
 from .sqlcliexception import SQLCliException
 from .sqlclimeta import SQLCliMeta
 from .sqlclijobmanager import JOBManager
@@ -136,6 +137,10 @@ class SQLCli(object):
             pass
         try:
             self.RabbitmqHandler = RabbitmqWrapper()    # Rabbitmq消息管理器
+        except NameError:
+            pass
+        try:
+            self.nkafkaHandler = NewKafkaWrapper()          # Rabbitmq消息管理器
         except NameError:
             pass
         self.JobHandler = JOBManager()                  # 并发任务管理器
@@ -1553,6 +1558,21 @@ class SQLCli(object):
                 "rows": result,
                 "headers": headers,
                 "columnTypes": columnTypes,
+                "status": status
+            }
+            return
+
+        # 处理nkafka数据
+        matchObj = re.match(r"(\s+)?nkafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            if cls.SQLExecuteHandler.SQLScript is not None:
+                cls.nkafkaHandler.SQLScript_LCD(os.path.dirname(cls.SQLExecuteHandler.SQLScript))
+            (title, result, headers, columntypes, status) = cls.nkafkaHandler.Process_SQLCommand(arg)
+            yield {
+                "title": title,
+                "rows": result,
+                "headers": headers,
+                "columntypes": columntypes,
                 "status": status
             }
             return
