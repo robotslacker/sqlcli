@@ -9,6 +9,6 @@ dist/
 *egg-info/
 
 *.pyc
+*.pyd
 *.deb
 *.swp
-
