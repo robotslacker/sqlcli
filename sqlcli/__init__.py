@@ -1,1 +1,1 @@
-__version__ = "0.2.64_NOJDBC"
+__version__ = "0.0.1"

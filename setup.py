@@ -2,11 +2,8 @@
 
 import ast
 import re
-import os
-import sys
 from io import open
-from setuptools import setup, Extension
-from setuptools.command.build_py import build_py as _build_py
+from setuptools import setup
 
 '''
 How to build and upload this package to PyPi
@@ -17,12 +14,6 @@ How to build and upload this package to PyPi
 How to build and upload this package to Local site:
     python setup.py install
 '''
-
-
-class build_py(_build_py):
-    def run(self):
-        self.run_command("build_ext")
-        return super().run()
 
 
 _version_re = re.compile(r"__version__\s+=\s+(.*)")
@@ -42,7 +33,7 @@ def open_file(filename):
 readme = open_file("README.md")
 
 setup(
-    name='robotslacker-sqlcli',
+    name='robotslacker-sqlcli-noodbc',
     version=version,
     description='SQL Command test tool, use JDBC',
     long_description=readme,
@@ -51,8 +42,7 @@ setup(
     platforms='any',
     install_requires=['JPype1', 'setproctitle', 'pathlib', 'urllib3',
                       'pyparsing', 'click', 'prompt_toolkit',
-                      'fs', 'hdfs', 'wget', 'httptools', 'pika', 'paramiko',
-                      'requests', 'websockets', 'pydantic', 'uvicorn[standard]', 'fastapi',
+                      'fs', 'hdfs', 'wget', 'httptools', 'pika', 'paramiko'
                       ],
 
     author='RobotSlacker',
@@ -61,11 +51,10 @@ setup(
 
     zip_safe=False,
     packages=['sqlcli'],
-    package_data={'sqlcli': ['jlib/README', '*.pyd', '*.so', 'odbc/*', 'conf/*ini', 'profile/*']},
+    package_data={'sqlcli': ['jlib/README', 'conf/*ini', 'profile/*']},
     python_requires='>=3.6',
     entry_points={
         "console_scripts": ["sqlcli = sqlcli.main:cli"],
         "distutils.commands": ["lint = tasks:lint", "test = tasks:test"],
     },
-    cmdclass={"build_py": build_py},
 )
