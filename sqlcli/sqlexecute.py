@@ -20,7 +20,6 @@ from .sqlcliexception import SQLCliException
 from .sqlclijdbcapi import SQLCliJDBCException
 from .sqlclijdbcapi import SQLCliJDBCTimeOutException
 from .sqlclijdbcapi import SQLCliJDBCLargeObject
-from .sqlcliodbc import SQLCliODBCException
 
 
 class SQLExecute(object):

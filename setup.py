@@ -27,24 +27,6 @@ class build_py(_build_py):
 
 _version_re = re.compile(r"__version__\s+=\s+(.*)")
 
-if sys.platform == "win32":
-    libs = ["odbc32"]
-else:
-    libs = ["odbc"]
-
-# define ODBC sources
-sourceDir = "sqlcli/odbc"
-sources = [os.path.join(sourceDir, n) for n in sorted(os.listdir(sourceDir)) if n.endswith(".c")]
-depends = [os.path.join(sourceDir, "ceoModule.h")]
-
-# setup the extension
-extension = Extension(
-        name="sqlcliodbc",
-        libraries=libs,
-        define_macros=[("BUILD_VERSION", "3.0")],
-        sources=sources,
-        depends=depends)
-
 with open("sqlcli/__init__.py", "rb") as f:
     version = str(
         ast.literal_eval(_version_re.search(f.read().decode("utf-8")).group(1))
@@ -62,7 +44,7 @@ readme = open_file("README.md")
 setup(
     name='robotslacker-sqlcli',
     version=version,
-    description='SQL Command test tool, use JDBC/ODBC',
+    description='SQL Command test tool, use JDBC',
     long_description=readme,
     keywords='sql command test tool',
     long_description_content_type='text/markdown',
@@ -71,7 +53,7 @@ setup(
                       'pyparsing', 'click', 'prompt_toolkit',
                       'fs', 'hdfs', 'wget', 'httptools', 'pika', 'paramiko',
                       'requests', 'websockets', 'pydantic', 'uvicorn[standard]', 'fastapi',
-                      'hbase-thrift', 'thrift', 'redis', 'redis-py-cluster'],
+                      ],
 
     author='RobotSlacker',
     author_email='184902652@qq.com',
@@ -85,6 +67,5 @@ setup(
         "console_scripts": ["sqlcli = sqlcli.main:cli"],
         "distutils.commands": ["lint = tasks:lint", "test = tasks:test"],
     },
-    ext_modules=[extension],
     cmdclass={"build_py": build_py},
 )

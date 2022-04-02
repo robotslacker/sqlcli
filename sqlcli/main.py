@@ -4,7 +4,6 @@ import sys
 import traceback
 import click
 from .__init__ import __version__
-from .sqlcliremoteserver import SQLCliRemoteServer
 from .sqlcli import SQLCli
 from .sqlcliexception import SQLCliException
 
@@ -23,7 +22,6 @@ from .sqlcliexception import SQLCliException
 @click.option("--resultcharset", type=str, help="Set result charset. Default is same to clientcharset.")
 @click.option("--profile", type=str, help="Init profile.")
 @click.option("--scripttimeout", type=int, help="Script Timeout(Seconds)")
-@click.option("--server", type=int, help="Set server port, will run it with server mode.")
 def cli(
         version,
         logon,
@@ -37,16 +35,10 @@ def cli(
         resultcharset,
         profile,
         scripttimeout,
-        server,
         priority
 ):
     if version:
         print("Version:", __version__)
-        return
-
-    if server:
-        # 在Server模式下启动应用程序
-        SQLCliRemoteServer().Start_SQLCliServer(server)
         return
 
     # 从服务器下下载程序需要的各种jar包

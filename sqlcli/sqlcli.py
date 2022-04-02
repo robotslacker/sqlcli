@@ -34,19 +34,13 @@ from prompt_toolkit.formatted_text import HTML
 from .sqlclijdbcapi import connect as jdbcconnect
 from .sqlclijdbcapi import SQLCliJDBCTimeOutException
 from .sqlclijdbcapi import SQLCliJDBCException
-from .sqlcliodbc import connect as odbcconnect
-from .sqlcliodbc import SQLCliODBCException
 import jpype
 
 from .sqlexecute import SQLExecute
 from .sqlparse import SQLMapping
-from .kafkawrapper import KafkaWrapper
 from .testwrapper import TestWrapper
 from .hdfswrapper import HDFSWrapper
 from .sshwrapper import SshWrapper
-from .hbasewrapper import HBaseWrapper
-from .rediswrapper import RedisWrapper
-from .rabbitmqwrapper import RabbitmqWrapper
 from .sqlcliexception import SQLCliException
 from .sqlclimeta import SQLCliMeta
 from .sqlclijobmanager import JOBManager
@@ -123,21 +117,8 @@ class SQLCli(object):
         self.SQLMappingHandler = SQLMapping()           # 函数句柄，处理SQLMapping信息
         self.SQLExecuteHandler = SQLExecute()           # 函数句柄，具体来执行SQL
         self.SQLOptions = SQLOptions()                  # 程序运行中各种参数
-        self.KafkaHandler = KafkaWrapper()              # Kafka消息管理器
         self.TestHandler = TestWrapper()                # 测试管理
         self.HdfsHandler = HDFSWrapper()                # HDFS文件操作
-        try:
-            self.HbaseHandler = HBaseWrapper()          # Hbase消息管理器
-        except NameError:
-            pass
-        try:
-            self.RedisHandler = RedisWrapper()          # Redis消息管理器
-        except NameError:
-            pass
-        try:
-            self.RabbitmqHandler = RabbitmqWrapper()    # Rabbitmq消息管理器
-        except NameError:
-            pass
         self.JobHandler = JOBManager()                  # 并发任务管理器
         self.TransactionHandler = TransactionManager()  # 事务管理器
         self.DataHandler = DataWrapper()                # 随机临时数处理
@@ -875,30 +856,8 @@ class SQLCli(object):
                             continue
                 cls.db_url = m_JDBCURL
                 cls.SQLExecuteHandler.conn = cls.db_conn
-            if cls.db_conntype == 'ODBC':  # ODBC 连接数据库
-                m_ODBCURL = ""
-                for m_Connection_Config in cls.connection_configs:
-                    if m_Connection_Config["Database"].upper() == cls.db_type.upper():
-                        m_ODBCURL = m_Connection_Config["ODBCURL"]
-                        break
-                if m_ODBCURL is None:
-                    raise SQLCliException("Unknown database [" + cls.db_type.upper() + "]. Connect Failed. \n" +
-                                          "Maybe you have a bad config file. ")
-                m_ODBCURL = m_ODBCURL.replace("${host}", cls.db_host)
-                m_ODBCURL = m_ODBCURL.replace("${port}", cls.db_port)
-                m_ODBCURL = m_ODBCURL.replace("${service}", cls.db_service_name)
-                m_ODBCURL = m_ODBCURL.replace("${username}", cls.db_username)
-                m_ODBCURL = m_ODBCURL.replace("${password}", cls.db_password)
-
-                cls.db_conn = odbcconnect(m_ODBCURL)
-                cls.db_url = m_ODBCURL
-                cls.SQLExecuteHandler.conn = cls.db_conn
-                # 将当前DB的连接字符串备份到变量中
-                cls.SQLOptions.set("CONNURL", str(cls.db_url))
         except SQLCliException as se:  # Connecting to a database fail.
             raise se
-        except SQLCliODBCException as soe:
-            raise soe
         except Exception as e:  # Connecting to a database fail.
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())
@@ -1494,58 +1453,6 @@ class SQLCli(object):
         match_obj = re.match(r"(\s+)?transaction(.*)$", arg, re.IGNORECASE | re.DOTALL)
         if match_obj:
             (title, result, headers, columnTypes, status) = cls.TransactionHandler.Process_Command(arg)
-            yield {
-                "title": title,
-                "rows": result,
-                "headers": headers,
-                "columnTypes": columnTypes,
-                "status": status
-            }
-            return
-
-        # 处理kafka数据
-        match_obj = re.match(r"(\s+)?kafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if match_obj:
-            (title, result, headers, columnTypes, status) = cls.KafkaHandler.Process_SQLCommand(arg)
-            yield {
-                "title": title,
-                "rows": result,
-                "headers": headers,
-                "columnTypes": columnTypes,
-                "status": status
-            }
-            return
-
-        # 处理Hbase数据
-        match_obj = re.match(r"(\s+)?hbase(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if match_obj:
-            (title, result, headers, columnTypes, status) = cls.HbaseHandler.Process_SQLCommand(arg)
-            yield {
-                "title": title,
-                "rows": result,
-                "headers": headers,
-                "columnTypes": columnTypes,
-                "status": status
-            }
-            return
-
-        # 处理Redis数据
-        match_obj = re.match(r"(\s+)?redis(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if match_obj:
-            (title, result, headers, columnTypes, status) = cls.RedisHandler.Process_SQLCommand(arg)
-            yield {
-                "title": title,
-                "rows": result,
-                "headers": headers,
-                "columnTypes": columnTypes,
-                "status": status
-            }
-            return
-
-        # 处理Rabbitmq数据
-        match_obj = re.match(r"(\s+)?rabbitmq(.*)$", arg, re.IGNORECASE | re.DOTALL)
-        if match_obj:
-            (title, result, headers, columnTypes, status) = cls.RabbitmqHandler.Process_SQLCommand(arg)
             yield {
                 "title": title,
                 "rows": result,
