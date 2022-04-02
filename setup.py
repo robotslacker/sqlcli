@@ -42,7 +42,8 @@ setup(
     platforms='any',
     install_requires=['JPype1', 'setproctitle', 'pathlib', 'urllib3',
                       'pyparsing', 'click', 'prompt_toolkit',
-                      'fs', 'hdfs', 'wget', 'httptools', 'pika', 'paramiko'
+                      'fs', 'hdfs', 'wget', 'httptools', 'pika', 'paramiko',
+                      'numpy'
                       ],
 
     author='RobotSlacker',

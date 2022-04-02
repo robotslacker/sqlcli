@@ -16,10 +16,6 @@ import subprocess
 import pyparsing
 import unicodedata
 import itertools
-import requests
-import json
-import asyncio
-import websockets
 import urllib3
 import shutil
 from multiprocessing import Lock
@@ -324,18 +320,6 @@ class SQLCli(object):
         if not os.environ.get("LESS"):
             os.environ["LESS"] = "-RXF"
 
-        # 如果需要连接到远程，则创建连接
-        if "SQLCLI_REMOTESERVER" in os.environ:
-            try:
-                request_data = json.dumps({})
-                headers = {'Content-Type': 'application/json', 'accept': 'application/json'}
-                ret = requests.post("http://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoLogin",
-                                    data=request_data,
-                                    headers=headers)
-                self.ClientID = json.loads(ret.text)["clientid"]
-            except Exception as e:
-                raise SQLCliException("Connect to RemoteServer failed. " + repr(e))
-
         # 如果参数要求不显示版本，则不再显示版本
         if not self.nologo:
             self.echo("SQLCli Release " + __version__)
@@ -353,26 +337,6 @@ class SQLCli(object):
             self.SQLOptions.set('OUTPUT_PREFIX', '')
 
     def __del__(self):
-        # 如果已经连接到远程，则断开连接
-        if "SQLCLI_REMOTESERVER" in os.environ:
-            if self.ClientID is not None:
-                try:
-                    request_data = json.dumps(
-                        {
-                            "clientid": self.ClientID
-                        })
-                    headers = {'Content-Type': 'application/json', 'accept': 'application/json'}
-                    try:
-                        requests.post("http://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoLogout", data=request_data,
-                                      headers=headers, timeout=3)
-                    except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
-                        # 已经无法联系，直接退出，不再报告错误
-                        pass
-                    self.ClientID = None
-                except Exception as e:
-                    print("e:" + str(type(e)))
-                    raise SQLCliException("Logout from RemoteServer failed. " + repr(e))
-
         # 关闭LogFile
         if self.logfile is not None:
             self.logfile.flush()
@@ -1663,43 +1627,15 @@ class SQLCli(object):
                     raise SQLCliException("internal error. incomplete return. missed type" + str(p_result))
             # End Of show_result
 
-            if "SQLCLI_REMOTESERVER" in os.environ and \
-                    text.strip().upper() not in ("EXIT", "QUIT"):
-                def run_remote():
-                    async def test_ws_quote():
-                        async with websockets.connect("ws://" + os.environ["SQLCLI_REMOTESERVER"] + "/DoCommand") \
-                                as websocket:
-                            request_data = json.dumps(
-                                {
-                                    'clientid': str(self.ClientID),
-                                    'op': 'execute',
-                                    'command': str(text)
-                                })
-                            await websocket.send(request_data)
-                            while True:
-                                try:
-                                    ret = await websocket.recv()
-                                    json_ret = json.loads(ret)
-                                    show_result(json_ret)
-                                except websockets.ConnectionClosedOK:
-                                    return True
-
-                    asyncio.get_event_loop().run_until_complete(test_ws_quote())
-                    return True
-                # End of run_remote
-
-                # 命令在远程执行，而不是本地
-                run_remote()
-            else:   # 本地执行脚本
-                # 执行指定的SQL
-                for result in self.SQLExecuteHandler.run(text):
-                    # 打印结果
-                    show_result(result)
-                    if result["type"] == "statistics":
-                        if self.SQLOptions.get('TIMING').upper() == 'ON':
-                            self.echo('Running time elapsed: %9.2f Seconds' % result["elapsed"])
-                        if self.SQLOptions.get('TIME').upper() == 'ON':
-                            self.echo('Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime()))
+            # 执行指定的SQL
+            for result in self.SQLExecuteHandler.run(text):
+                # 打印结果
+                show_result(result)
+                if result["type"] == "statistics":
+                    if self.SQLOptions.get('TIMING').upper() == 'ON':
+                        self.echo('Running time elapsed: %9.2f Seconds' % result["elapsed"])
+                    if self.SQLOptions.get('TIME').upper() == 'ON':
+                        self.echo('Current clock time  :' + strftime("%Y-%m-%d %H:%M:%S", localtime()))
 
             # 返回正确执行的消息
             return True

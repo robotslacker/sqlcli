@@ -924,8 +924,7 @@ class DataWrapper(object):
 
     def Process_SQLCommand(self, p_szSQL):
         # 设置数据种子文件读取的位置，如果不设置，默认是SQLCLI_HOME\data
-        match_obj = re.match(r"data\s+set\s+seedfile\s+dir\s+(.*)$",
-                            p_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"data\s+set\s+seedfile\s+dir\s+(.*)$", p_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             self.c_SeedFileDir = str(match_obj.group(1)).strip()
             yield (
@@ -937,8 +936,7 @@ class DataWrapper(object):
             return
 
         # 设置HDFS连接用户，如果不设置，将会默认为dr.who，即匿名用户
-        match_obj = re.match(r"data\s+set\s+hdfsuser\s+(.*)$",
-                            p_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"data\s+set\s+hdfsuser\s+(.*)$", p_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             self.c_HDFS_ConnectedUser = str(match_obj.group(1)).strip()
             yield (
@@ -952,7 +950,7 @@ class DataWrapper(object):
         # 创建数据文件, 根据末尾的rows来决定创建的行数
         # 此时，SQL语句中的回车换行符没有意义
         match_obj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?rows\s+(\d+)(\s+)?$",
-                            p_szSQL, re.IGNORECASE | re.DOTALL)
+                             p_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_filetype = str(match_obj.group(1)).strip()
             m_filename = str(match_obj.group(2)).strip().replace('\r', '').replace('\n', '')
@@ -972,7 +970,7 @@ class DataWrapper(object):
             return
 
         match_obj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\((.*)\)(\s+)?$",
-                            p_szSQL, re.IGNORECASE | re.DOTALL)
+                             p_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_filetype = str(match_obj.group(1)).strip()
             m_filename = str(match_obj.group(2)).strip().replace('\r', '').replace('\n', '')
@@ -993,7 +991,7 @@ class DataWrapper(object):
 
         #  在不同的文件中进行相互转换
         match_obj = re.match(r"data\s+create\s+(.*?)\s+file\s+(.*?)\s+from\s+(.*?)file(.*?)(\s+)?$",
-                            p_szSQL, re.IGNORECASE | re.DOTALL)
+                             p_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             # 在不同的文件中相互转换
             self.Convert_file(p_srcfileType=str(match_obj.group(3)).strip(),
@@ -1010,8 +1008,8 @@ class DataWrapper(object):
 
         # 创建随机数Seed的缓存文件
         match_obj = re.match(r"data\s+create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
-                            r"length\s+(\d+)\s+rows\s+(\d+)\s+with\s+null\s+rows\s+(\d+)$",
-                            p_szSQL, re.IGNORECASE | re.DOTALL)
+                             r"length\s+(\d+)\s+rows\s+(\d+)\s+with\s+null\s+rows\s+(\d+)$",
+                             p_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_DataType = str(match_obj.group(1)).lstrip().rstrip()
             m_SeedFileName = str(match_obj.group(2)).lstrip().rstrip()
@@ -1019,7 +1017,7 @@ class DataWrapper(object):
             m_nRows = int(match_obj.group(4))
             m_nNullValueCount = int(match_obj.group(5))
             self.create_seed_cache(data_type=m_DataType, data_length=m_DataLength, row_count=m_nRows,
-                                      seed_name=m_SeedFileName, null_count=m_nNullValueCount)
+                                   seed_name=m_SeedFileName, null_count=m_nNullValueCount)
             yield (
                 None,
                 None,
@@ -1030,15 +1028,15 @@ class DataWrapper(object):
 
         # 创建随机数Seed的缓存文件
         match_obj = re.match(r"data\s+create\s+(integer|string)\s+seeddatafile\s+(.*?)\s+"
-                            r"length\s+(\d+)\s+rows\s+(\d+)(\s+)?$",
-                            p_szSQL, re.IGNORECASE | re.DOTALL)
+                             r"length\s+(\d+)\s+rows\s+(\d+)(\s+)?$",
+                             p_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_DataType = str(match_obj.group(1)).lstrip().rstrip()
             m_SeedFileName = str(match_obj.group(2)).lstrip().rstrip()
             m_DataLength = int(match_obj.group(3))
             m_nRows = int(match_obj.group(4))
             self.create_seed_cache(data_type=m_DataType, data_length=m_DataLength,
-                                      row_count=m_nRows, seed_name=m_SeedFileName)
+                                   row_count=m_nRows, seed_name=m_SeedFileName)
             yield (
                 None,
                 None,

@@ -827,22 +827,6 @@ class SQLExecute(object):
                                                      "(" + str(self.sqlTimeOut) + \
                                                      ") expired. Abort this command."
                             yield {"type": "error", "message": m_SQL_ErrorMessage}
-                    except SQLCliODBCException as oe:
-                        m_SQL_Status = 1
-                        m_SQL_ErrorMessage = str(oe).strip()
-                        for m_ErrorPrefix in ('ERROR:',):
-                            if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
-                                m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
-                        self.LastJsonSQLResult = {"elapsed": time.time() - start,
-                                                  "message": m_SQL_ErrorMessage,
-                                                  "status": -1,
-                                                  "rows": 0}
-
-                        # 发生了ODBC的SQL语法错误
-                        if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
-                            raise SQLCliException(m_SQL_ErrorMessage)
-                        else:
-                            yield {"type": "error", "message": m_SQL_ErrorMessage}
                     except (SQLCliJDBCException, Exception) as je:
                         m_SQL_Status = 1
                         m_SQL_ErrorMessage = str(je).strip()

@@ -445,7 +445,7 @@ class TestWrapper(object):
                 # -- [scenario:end]
 
                 match_obj = re.search(r"--(\s+)?\[Hint](\s+)?setup:end", m_CompareResultList[pos],
-                                     re.IGNORECASE | re.DOTALL)
+                                      re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     if m_ScenarioName is None:
                         m_ScenarioName = "setup"
@@ -461,7 +461,7 @@ class TestWrapper(object):
                     continue
 
                 match_obj = re.search(r"--(\s+)?\[(\s+)?setup:end]", m_CompareResultList[pos],
-                                     re.IGNORECASE | re.DOTALL)
+                                      re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     if m_ScenarioName is None:
                         m_ScenarioName = "setup"
@@ -477,7 +477,7 @@ class TestWrapper(object):
                     continue
 
                 match_obj = re.search(r"--(\s+)?\[Hint](\s+)?cleanup:end", m_CompareResultList[pos],
-                                     re.IGNORECASE | re.DOTALL)
+                                      re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     if m_ScenarioName is None:
                         m_ScenarioName = "cleanup"
@@ -493,7 +493,7 @@ class TestWrapper(object):
                     continue
 
                 match_obj = re.search(r"--(\s+)?\[(\s+)?cleanup:end]", m_CompareResultList[pos],
-                                     re.IGNORECASE | re.DOTALL)
+                                      re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     if m_ScenarioName is None:
                         m_ScenarioName = "cleanup"
@@ -509,7 +509,7 @@ class TestWrapper(object):
                     continue
 
                 match_obj = re.search(r"--(\s+)?\[Hint](\s+)?scenario:end", m_CompareResultList[pos],
-                                     re.IGNORECASE | re.DOTALL)
+                                      re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     if m_ScenarioName is None:
                         m_ScenarioName = "none-" + str(m_ScenarioStartPos)
@@ -525,7 +525,7 @@ class TestWrapper(object):
                     continue
 
                 match_obj = re.search(r"--(\s+)?\[(\s+)?scenario:end]", m_CompareResultList[pos],
-                                     re.IGNORECASE | re.DOTALL)
+                                      re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     if m_ScenarioName is None:
                         m_ScenarioName = "none-" + str(m_ScenarioStartPos)
@@ -541,7 +541,7 @@ class TestWrapper(object):
                     continue
 
                 match_obj = re.search(r"--(\s+)?\[Hint](\s+)?setup:", m_CompareResultList[pos],
-                                     re.IGNORECASE | re.DOTALL)
+                                      re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     m_ScenarioName = "setup"
                     m_ScenarioPriority = None
@@ -550,7 +550,7 @@ class TestWrapper(object):
                     continue
 
                 match_obj = re.search(r"--(\s+)?\[(\s+)?setup:]", m_CompareResultList[pos],
-                                     re.IGNORECASE | re.DOTALL)
+                                      re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     m_ScenarioName = "setup"
                     m_ScenarioPriority = None
@@ -559,7 +559,7 @@ class TestWrapper(object):
                     continue
 
                 match_obj = re.search(r"--(\s+)?\[Hint](\s+)?cleanup:", m_CompareResultList[pos],
-                                     re.IGNORECASE | re.DOTALL)
+                                      re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     m_ScenarioName = "cleanup"
                     m_ScenarioPriority = None
@@ -568,7 +568,7 @@ class TestWrapper(object):
                     continue
 
                 match_obj = re.search(r"--(\s+)?\[(\s+)?cleanup:]", m_CompareResultList[pos],
-                                     re.IGNORECASE | re.DOTALL)
+                                      re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     m_ScenarioName = "cleanup"
                     m_ScenarioPriority = None
@@ -577,7 +577,7 @@ class TestWrapper(object):
                     continue
 
                 match_obj = re.search(r"--(\s+)?\[Hint](\s+)?Scenario:(.*)", m_CompareResultList[pos],
-                                     re.IGNORECASE | re.DOTALL)
+                                      re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     m_SenarioAndPriority = match_obj.group(3).strip()
                     if len(m_SenarioAndPriority.split(':')) == 2:
@@ -614,7 +614,7 @@ class TestWrapper(object):
                     continue
 
                 match_obj = re.search(r"--(\s+)?\[(\s+)?Scenario:(.*)]", m_CompareResultList[pos],
-                                     re.IGNORECASE | re.DOTALL)
+                                      re.IGNORECASE | re.DOTALL)
                 if match_obj:
                     m_SenarioAndPriority = match_obj.group(3).strip()
                     if len(m_SenarioAndPriority.split(':')) == 2:
@@ -866,16 +866,14 @@ class TestWrapper(object):
     def Process_SQLCommand(self, p_szSQL):
         m_szSQL = p_szSQL.strip()
 
-        match_obj = re.match(r"test\s+set\s+(.*?)\s+(.*?)$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"test\s+set\s+(.*?)\s+(.*?)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_Parameter = match_obj.group(1).strip()
             m_Value = match_obj.group(2).strip()
             self.setTestOptions(m_Parameter, m_Value)
             return None, None, None, None, "set successful."
 
-        match_obj = re.match(r"test\s+compare\s+(.*)\s+with\s+(.*)$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"test\s+compare\s+(.*)\s+with\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_WorkFile = match_obj.group(1).strip()
             m_RefFile = match_obj.group(2).strip()
@@ -886,15 +884,13 @@ class TestWrapper(object):
             (title, result, headers, columnTypes, status) = self.Compare_Files(m_WorkFile, m_RefFile)
             return title, result, headers, columnTypes, status
 
-        match_obj = re.match(r"test\s+assert\s+(.*)$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"test\s+assert\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_formular = match_obj.group(1).strip()
             (title, result, headers, columnTypes, status) = self.AssertFormular(m_formular)
             return title, result, headers, columnTypes, status
 
-        match_obj = re.match(r"test\s+loadenv\s+(.*)\s+(.*)$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"test\s+loadenv\s+(.*)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_EnvFileName = match_obj.group(1).strip()
             m_EnvSectionName = match_obj.group(2).strip()
