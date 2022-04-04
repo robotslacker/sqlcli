@@ -853,7 +853,7 @@ class SQLCli(object):
                 retryCount = 0
                 while True:
                     try:
-                        m_TimeOutLimit = int(kwargs.get('Timeout'))
+                        m_TimeOutLimit = int(kwargs.get('timeout'))
                         cls.db_conn = jdbcconnect(
                             jclassname=m_driverclass,
                             url=m_JDBCURL,
