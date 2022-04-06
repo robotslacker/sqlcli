@@ -858,7 +858,7 @@ class SQLCli(object):
                 retryCount = 0
                 while True:
                     try:
-                        m_TimeOutLimit = int(kwargs.get('Timeout'))
+                        m_TimeOutLimit = int(kwargs.get('timeout'))
                         cls.db_conn = jdbcconnect(
                             jclassname=m_driverclass,
                             url=m_JDBCURL,
@@ -1433,7 +1433,6 @@ class SQLCli(object):
                         options_values[0] = options_values[0][1:]
                     if options_values[0][-1] == '^':
                         options_values[0] = options_values[0][:-1]
-                    print("try eval .... " + str(options_values[0]))
                     try:
                         option_value = str(eval(str(options_values[0])))
                     except (NameError, ValueError, SyntaxError):

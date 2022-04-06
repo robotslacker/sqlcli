@@ -90,7 +90,7 @@ def execute(cls, sql, timeout: int):
         if special_cmd.case_sensitive:
             raise CommandNotFound("Command not found: %s" % command)
 
-    return special_cmd.handler(cls, arg=arg, Timeout=timeout)
+    return special_cmd.handler(cls, arg=arg, timeout=timeout)
 
 
 @special_command("help", "Show this help.")
