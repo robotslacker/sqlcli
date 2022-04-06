@@ -1569,7 +1569,7 @@ class SQLCli(object):
                 "title": title,
                 "rows": result,
                 "headers": headers,
-                "columntypes": columntypes,
+                "columnTypes": columntypes,
                 "status": status
             }
             return

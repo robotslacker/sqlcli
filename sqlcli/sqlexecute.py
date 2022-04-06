@@ -968,6 +968,8 @@ class SQLExecute(object):
                 return self.SQLOptions.get("FLOAT_FORMAT") % p_column
             elif type(p_column) in (bool, str, int):
                 return p_column
+            elif type(p_column) == list:
+                return p_column
             elif type(p_column) == datetime.date:
                 m_ColumnFormat = self.SQLOptions.get("DATE_FORMAT")
                 if platform.system().lower() in ['windows', 'darwin']:
