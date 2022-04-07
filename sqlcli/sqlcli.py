@@ -1049,7 +1049,7 @@ class SQLCli(object):
                     "columnTypes": None,
                     "status": message
                 }]
-            m_TimeOutLimit = int(kwargs.get('Timeout'))
+            m_TimeOutLimit = int(kwargs.get('timeout'))
             if m_TimeOutLimit != -1 and m_TimeOutLimit < m_Sleep_Time:
                 # 有超时限制，最多休息道超时的时间
                 time.sleep(m_TimeOutLimit)
