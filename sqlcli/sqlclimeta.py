@@ -92,7 +92,7 @@ class SQLCliMeta(object):
             self.MetaServer = jpype.JClass("org.h2.tools.Server").\
                 createTcpServer("-tcp", "-tcpAllowOthers", "-tcpPort", str(self.MetaPort))
             self.MetaServer.start()
-            self.MetaURL = self.MetaServer.getURL()
+            self.MetaURL = "tcp://127.0.0.1:" + str(self.MetaPort)
 
             # 初始化Meta数据库表
             m_db_cursor = self.db_conn.cursor()
