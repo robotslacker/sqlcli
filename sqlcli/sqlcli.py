@@ -1362,6 +1362,8 @@ class SQLCli(object):
 
             # 处理AUTOCOMMIT选项
             if options_parameters[0].upper() == "AUTOCOMMIT":
+                if cls.db_conn is None:
+                    raise SQLCliException("Not connected.")
                 if options_parameters[1].upper() == 'FALSE':
                     cls.db_conn.setAutoCommit(False)
                 elif options_parameters[1].upper() == 'TRUE':
