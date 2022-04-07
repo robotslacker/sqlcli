@@ -974,13 +974,13 @@ class JOBManager(object):
         # 如果输入的参数为all，则显示全部的JOB信息
         if p_szjobName.lower() == "all":
             m_Header = ["job_name", "tag", "status", "active_jobs", "failed_jobs", "finished_jobs",
-                        "submit_time", "start_time", "end_time"]
+                        "submit_time", "start_time", "end_time", "message"]
             m_Result = []
             for m_JOB in self.getAllJobs():
                 m_Result.append([m_JOB.getJobName(), m_JOB.getTag(), m_JOB.getStatus(), m_JOB.getActiveJobs(),
                                  m_JOB.getFailedJobs(), m_JOB.getFinishedJobs(),
                                  str(m_JOB.getSubmitTime()), str(m_JOB.getStartTime()),
-                                 str(m_JOB.getEndTime())])
+                                 str(m_JOB.getEndTime()), str(m_JOB.getErrorMessage())])
             return None, m_Result, m_Header, None, "Total [" + str(len(m_Result)) + "] Jobs."
         else:
             strMessages = ""
@@ -1066,7 +1066,7 @@ class JOBManager(object):
                 bAllProcessFinished = True
                 for m_Job in self.getAllJobs():
                     if m_Job.getStatus() not in \
-                            ["Submitted", "FINISHED", "SHUTDOWNED", "ABORTED"]:
+                            ["Submitted", "FINISHED", "SHUTDOWNED", "ABORTED", "FAILED"]:
                         bAllProcessFinished = False
                         time.sleep(3)
                         continue
