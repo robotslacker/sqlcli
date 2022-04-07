@@ -217,14 +217,14 @@ class SQLCliMeta(object):
             else:
                 if "SQLCLI_DEBUG" in os.environ:
                     print("DEBUG:: SQLCliMeta:: sqlcli.ini does not exist! JobManager Connect Failed!")
-                    return
+                return
             m_MetaClass = m_AppOptions.get("meta_driver", "driver")
             m_MetaDriverFile = os.path.join(os.path.dirname(__file__),
                                             "jlib", m_AppOptions.get("meta_driver", "filename"))
             if not os.path.exists(m_MetaDriverFile):
                 if "SQLCLI_DEBUG" in os.environ:
                     print("DEBUG:: SQLCliMeta:: Driver file does not exist! JobManager Connect Failed!")
-                    return
+                return
             m_MetaDriverURL = m_AppOptions.get("meta_driver", "jdbcurl")
             m_MetaDriverURL = m_MetaDriverURL.replace("mem", p_MetaServerURL + "/mem")
             self.db_conn = jdbcconnect(jclassname=m_MetaClass, url=m_MetaDriverURL,
@@ -233,7 +233,7 @@ class SQLCliMeta(object):
             if self.db_conn is None:
                 if "SQLCLI_DEBUG" in os.environ:
                     print("DEBUG:: SQLCliMeta:: Connect to meta failed! JobManager Connect Failed!")
-                    return
+                return
 
             # 设置AutoCommit为False
             self.db_conn.setAutoCommit(False)
