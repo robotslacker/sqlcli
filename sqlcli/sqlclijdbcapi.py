@@ -931,8 +931,6 @@ def _javaobj_to_pyobj(p_javaobj, p_objColumnSQLType=None):
         for java_item in java_val:
             d.append(_javaobj_to_pyobj(java_item, m_BaseTypeName))
         return d
-
-
     elif m_TypeName == "byte[]":
         if p_objColumnSQLType in ["VARBINARY", "LONGVARBINARY"]:
             # 截断所有后面为0的字节数组内容
