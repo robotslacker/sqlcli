@@ -933,7 +933,7 @@ class JOBManager(object):
                 m_db_cursor.execute(m_SQL, parameters=m_Data)
             m_db_cursor.close()
             self.MetaConn.commit()
-        except Exception as ex:
+        except Exception:
             print("Internal error:: Save Job write not complete. ")
             import traceback
             if "SQLCLI_DEBUG" in os.environ:
@@ -974,13 +974,13 @@ class JOBManager(object):
         # 如果输入的参数为all，则显示全部的JOB信息
         if p_szjobName.lower() == "all":
             m_Header = ["job_name", "tag", "status", "active_jobs", "failed_jobs", "finished_jobs",
-                        "submit_time", "start_time", "end_time"]
+                        "submit_time", "start_time", "end_time", "message"]
             m_Result = []
             for m_JOB in self.getAllJobs():
                 m_Result.append([m_JOB.getJobName(), m_JOB.getTag(), m_JOB.getStatus(), m_JOB.getActiveJobs(),
                                  m_JOB.getFailedJobs(), m_JOB.getFinishedJobs(),
                                  str(m_JOB.getSubmitTime()), str(m_JOB.getStartTime()),
-                                 str(m_JOB.getEndTime())])
+                                 str(m_JOB.getEndTime()), str(m_JOB.getErrorMessage())])
             return None, m_Result, m_Header, None, "Total [" + str(len(m_Result)) + "] Jobs."
         else:
             strMessages = ""
@@ -1066,7 +1066,7 @@ class JOBManager(object):
                 bAllProcessFinished = True
                 for m_Job in self.getAllJobs():
                     if m_Job.getStatus() not in \
-                            ["Submitted", "FINISHED", "SHUTDOWNED", "ABORTED"]:
+                            ["Submitted", "FINISHED", "SHUTDOWNED", "ABORTED", "FAILED"]:
                         bAllProcessFinished = False
                         time.sleep(3)
                         continue
@@ -1335,8 +1335,7 @@ class JOBManager(object):
         m_szSQL = p_szCommand.strip()
 
         # 创建新的JOB
-        match_obj = re.match(r"job\s+create\s+(.*)(\s+)?$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"job\s+create\s+(.*)(\s+)?$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_ParameterList = str(match_obj.group(1)).strip().split()
             # 第一个参数是JOBNAME
@@ -1351,15 +1350,13 @@ class JOBManager(object):
             return None, None, None, None, "JOB [" + m_JobName + "] create successful."
 
         # 显示当前的JOB
-        match_obj = re.match(r"job\s+show\s+(.*)$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"job\s+show\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_JobName = str(match_obj.group(1)).strip()
             return self.showjob(m_JobName)
 
         # 设置JOB的各种参数
-        match_obj = re.match(r"job\s+set\s+(.*)\s+(.*)\s+(.*)$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"job\s+set\s+(.*)\s+(.*)\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_JobName = str(match_obj.group(1)).strip()
             m_ParameterName = str(match_obj.group(2)).strip()
@@ -1370,56 +1367,49 @@ class JOBManager(object):
             return None, None, None, None, "JOB [" + m_JobName + "] set successful."
 
         # 启动JOB
-        match_obj = re.match(r"job\s+start\s+(.*)$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"job\s+start\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_JobName = str(match_obj.group(1)).strip()
             nJobStarted = self.startjob(m_JobName)
             return None, None, None, None, "Total [" + str(nJobStarted) + "] jobs started."
 
         # 等待JOB完成
-        match_obj = re.match(r"job\s+wait\s+(.*)$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"job\s+wait\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_JobName = str(match_obj.group(1)).strip()
             self.waitjob(m_JobName)
             return None, None, None, None, "All jobs [" + m_JobName + "] finished."
 
         # 等待JOB的检查点完成
-        match_obj = re.match(r"job\s+timer\s+(.*)$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"job\s+timer\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_TimerPoint = str(match_obj.group(1)).strip()
             self.waitjobtimer(m_TimerPoint)
             return None, None, None, None, "TimerPoint [" + m_TimerPoint + "] has arrived."
 
         # 终止JOB作业
-        match_obj = re.match(r"job\s+shutdown\s+(.*)$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"job\s+shutdown\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_JobName = str(match_obj.group(1)).strip()
             nJobShutdowned = self.shutdownjob(m_JobName)
             return None, None, None, None, "Total [" + str(nJobShutdowned) + "] jobs shutdowned."
 
         # 放弃JOB作业
-        match_obj = re.match(r"job\s+abort\s+(.*)$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"job\s+abort\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_JobName = str(match_obj.group(1)).strip()
             nJobAborted = self.abortjob(m_JobName)
             return None, None, None, None, "Total [" + str(nJobAborted) + "] jobs aborted."
 
         # 注册当前Worker到指定的JOB上
-        match_obj = re.match(r"job\s+register\s+worker\s+to\s+(.*)$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"job\s+register\s+worker\s+to\s+(.*)$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             m_JobName = str(match_obj.group(1)).strip()
             self.registerjob(m_JobName)
             return None, None, None, None, "Register worker to Job [" + str(m_JobName) + "] Successful."
 
         # 取消当前Worker的注册
-        match_obj = re.match(r"job\s+unregister\s+worker(\s+)?$",
-                            m_szSQL, re.IGNORECASE | re.DOTALL)
+        match_obj = re.match(r"job\s+unregister\s+worker(\s+)?$", m_szSQL, re.IGNORECASE | re.DOTALL)
         if match_obj:
             self.unregisterjob()
             return None, None, None, None, "Worker has been unregistered Successful."

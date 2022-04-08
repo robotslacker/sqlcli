@@ -885,6 +885,8 @@ def _javaobj_to_pyobj(p_javaobj, p_objColumnSQLType=None):
     elif m_TypeName == "java.lang.Integer":
         m_IntValue = int(p_javaobj.intValue())
         return m_IntValue
+    elif m_TypeName == "java.lang.Byte":
+        return p_javaobj.byteValue()
     elif m_TypeName == "java.lang.Boolean":
         m_BoolValue = bool(p_javaobj.booleanValue())
         return m_BoolValue
@@ -921,6 +923,13 @@ def _javaobj_to_pyobj(p_javaobj, p_objColumnSQLType=None):
         d = datetime.date(year=p_javaobj.toLocalDate().getYear(),
                           month=p_javaobj.toLocalDate().getMonthValue(),
                           day=p_javaobj.toLocalDate().getDayOfMonth())
+        return d
+    elif m_TypeName.upper().find('ARRAY') != -1:
+        m_BaseTypeName = p_javaobj.getBaseTypeName()
+        java_val = p_javaobj.getArray()
+        d = []
+        for java_item in java_val:
+            d.append(_javaobj_to_pyobj(java_item, m_BaseTypeName))
         return d
     elif m_TypeName == "byte[]":
         if p_objColumnSQLType in ["VARBINARY", "LONGVARBINARY"]:

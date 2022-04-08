@@ -47,6 +47,7 @@ from .sshwrapper import SshWrapper
 from .hbasewrapper import HBaseWrapper
 from .rediswrapper import RedisWrapper
 from .rabbitmqwrapper import RabbitmqWrapper
+from .newkafkawrapper import NewKafkaWrapper
 from .sqlcliexception import SQLCliException
 from .sqlclimeta import SQLCliMeta
 from .sqlclijobmanager import JOBManager
@@ -136,6 +137,10 @@ class SQLCli(object):
             pass
         try:
             self.RabbitmqHandler = RabbitmqWrapper()    # Rabbitmq消息管理器
+        except NameError:
+            pass
+        try:
+            self.nkafkaHandler = NewKafkaWrapper()          # Rabbitmq消息管理器
         except NameError:
             pass
         self.JobHandler = JOBManager()                  # 并发任务管理器
@@ -853,7 +858,7 @@ class SQLCli(object):
                 retryCount = 0
                 while True:
                     try:
-                        m_TimeOutLimit = int(kwargs.get('Timeout'))
+                        m_TimeOutLimit = int(kwargs.get('timeout'))
                         cls.db_conn = jdbcconnect(
                             jclassname=m_driverclass,
                             url=m_JDBCURL,
@@ -1126,7 +1131,7 @@ class SQLCli(object):
                     "columnTypes": None,
                     "status": message
                 }]
-            m_TimeOutLimit = int(kwargs.get('Timeout'))
+            m_TimeOutLimit = int(kwargs.get('timeout'))
             if m_TimeOutLimit != -1 and m_TimeOutLimit < m_Sleep_Time:
                 # 有超时限制，最多休息道超时的时间
                 time.sleep(m_TimeOutLimit)
@@ -1357,6 +1362,8 @@ class SQLCli(object):
 
             # 处理AUTOCOMMIT选项
             if options_parameters[0].upper() == "AUTOCOMMIT":
+                if cls.db_conn is None:
+                    raise SQLCliException("Not connected.")
                 if options_parameters[1].upper() == 'FALSE':
                     cls.db_conn.setAutoCommit(False)
                 elif options_parameters[1].upper() == 'TRUE':
@@ -1550,6 +1557,21 @@ class SQLCli(object):
                 "rows": result,
                 "headers": headers,
                 "columnTypes": columnTypes,
+                "status": status
+            }
+            return
+
+        # 处理nkafka数据
+        matchObj = re.match(r"(\s+)?nkafka(.*)$", arg, re.IGNORECASE | re.DOTALL)
+        if matchObj:
+            if cls.SQLExecuteHandler.SQLScript is not None:
+                cls.nkafkaHandler.SQLScript_LCD(os.path.dirname(cls.SQLExecuteHandler.SQLScript))
+            (title, result, headers, columntypes, status) = cls.nkafkaHandler.Process_SQLCommand(arg)
+            yield {
+                "title": title,
+                "rows": result,
+                "headers": headers,
+                "columnTypes": columntypes,
                 "status": status
             }
             return
