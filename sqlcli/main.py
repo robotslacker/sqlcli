@@ -9,19 +9,19 @@ from .sqlcliexception import SQLCliException
 
 
 @click.command()
-@click.option("--version", is_flag=True, help="Output sqlcli's version.")
+@click.option("--version", is_flag=True, help="Output SQLCLI version.")
 @click.option("--logon", type=str, help="logon user name and password. user/pass",)
-@click.option("--priority", type=str, help="will only run sql which priority in this list. default is run all sql.",)
 @click.option("--logfile", type=str, help="Log every query and its results to a file.",)
 @click.option("--execute", type=str, help="Execute SQL script.")
 @click.option("--sqlmap", type=str, help="SQL Mapping file.")
-@click.option("--nologo", is_flag=True, help="Execute with nologo mode.")
+@click.option("--nologo", is_flag=True, help="Execute with no-logo mode.")
 @click.option("--sqlperf", type=str, help="SQL performance Log.")
 @click.option("--syncdriver", is_flag=True, help="Download jdbc jar from file server.")
 @click.option("--clientcharset", type=str, help="Set client charset. Default is UTF-8.")
-@click.option("--resultcharset", type=str, help="Set result charset. Default is same to clientcharset.")
+@click.option("--resultcharset", type=str, help="Set result charset. Default is same to clientCharset.")
 @click.option("--profile", type=str, help="Init profile.")
-@click.option("--scripttimeout", type=int, help="Script Timeout(Seconds)")
+@click.option("--scripttimeout", type=int, help="Script Timeout(Seconds).")
+@click.option("--namespace", default='SQL', type=str, help="Command name space.")
 def cli(
         version,
         logon,
@@ -35,7 +35,7 @@ def cli(
         resultcharset,
         profile,
         scripttimeout,
-        priority
+        namespace
 ):
     if version:
         print("Version:", __version__)
@@ -70,7 +70,7 @@ def cli(
         resultcharset=resultcharset,
         profile=profile,
         scripttimeout=m_ScriptTimeout,
-        priority=priority
+        namespace=namespace
     )
 
     # 运行主程序

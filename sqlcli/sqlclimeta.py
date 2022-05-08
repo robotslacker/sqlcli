@@ -5,7 +5,7 @@ import traceback
 import jpype
 import socket
 from multiprocessing import Lock
-from .sqlclijdbcapi import connect as jdbcconnect
+from .sqlclijdbc import connect as jdbcconnect
 from .sqlcliexception import SQLCliException
 
 

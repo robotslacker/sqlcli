@@ -79,7 +79,7 @@ string_type = str
 _jdbc_name_to_const = None
 
 
-# Mapping from java.sql.Types attribute constant value to it's attribute name
+# Mapping from java.sql.Types attribute constant value to its attribute name
 _jdbc_const_to_name = []
 
 
@@ -509,7 +509,7 @@ class Cursor(object):
         self._connection = None
 
     def _close_last(self):
-        """Close the resultset and reset collected meta data.
+        """Close the resultset and reset collected metadata.
         """
         if self._rs:
             self._rs.close()

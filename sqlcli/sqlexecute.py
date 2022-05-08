@@ -14,12 +14,16 @@ import binascii
 
 from .sqlparse import SQLAnalyze
 from .sqlparse import SQLFormatWithPrefix
+from .apiparse import APIAnalyze
+from .apiparse import APIFormatWithPrefix
 from .commandanalyze import execute
 from .commandanalyze import CommandNotFound
 from .sqlcliexception import SQLCliException
-from .sqlclijdbcapi import SQLCliJDBCException
-from .sqlclijdbcapi import SQLCliJDBCTimeOutException
-from .sqlclijdbcapi import SQLCliJDBCLargeObject
+from .sqlclijdbc import SQLCliJDBCException
+from .sqlclijdbc import SQLCliJDBCTimeOutException
+from .sqlclijdbc import SQLCliJDBCLargeObject
+from .sqlcliapi import SQLCliAPIException
+from .sqlcliapi import SQLCliAPITimeOutException
 
 
 class SQLExecute(object):
@@ -42,9 +46,6 @@ class SQLExecute(object):
 
         # Scenario名称，如果当前SQL未指定，则重复上一个SQL的Scenario信息
         self.SQLScenario = ''
-
-        # Scenario的优先级，如果当前SQL未指定，则重复上一个SQL的Scenario信息
-        self.SQLPriority = ''
 
         # Transaction信息
         self.SQLTransactionName = ""
@@ -157,6 +158,308 @@ class SQLExecute(object):
                 if bNeedExchange:
                     result[j], result[i] = result[i], result[j]
 
+    def executeSQLStatement(self, sql: str, m_SQLHint, start):
+        """
+        返回内容：
+
+        """
+
+        # 进入到SQL执行阶段, 开始执行SQL语句
+        if self.conn:
+            # 打开游标
+            self.cur = self.conn.cursor()
+        else:
+            # 进入到SQL执行阶段，不是特殊命令, 数据库连接也不存在, 直接报错
+            if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
+                raise SQLCliException("Not Connected. ")
+            else:
+                self.LastJsonSQLResult = None
+                yield {
+                    "type": "error",
+                    "message": "Not connected. "
+                }
+
+        # 执行正常的SQL语句
+        if self.cur is not None:
+            try:
+                try:
+                    # 执行数据库的SQL语句
+                    if "SQL_DIRECT" in m_SQLHint.keys():
+                        self.cur.execute_direct(sql, TimeOutLimit=self.timeout)
+                    elif "SQL_PREPARE" in m_SQLHint.keys():
+                        self.cur.execute(sql, TimeOutLimit=self.timeout)
+                    else:
+                        if self.SQLOptions.get("SQL_EXECUTE").upper() == "DIRECT":
+                            self.cur.execute_direct(sql, TimeOutLimit=self.timeout)
+                        else:
+                            self.cur.execute(sql, TimeOutLimit=self.timeout)
+                except Exception as e:
+                    if "SQL_LOOP" in m_SQLHint.keys():
+                        # 如果在循环中, 错误不会处理， 一直到循环结束
+                        pass
+                    else:
+                        raise e
+
+                rowcount = 0
+                sqlStatus = 0
+                while True:
+                    (title, result, headers, columnTypes, status,
+                     m_FetchStatus, m_FetchedRows, m_SQLWarnings) = \
+                        self.get_result(self.cur, rowcount)
+                    rowcount = m_FetchedRows
+                    if "SQLCLI_DEBUG" in os.environ:
+                        print("[DEBUG] headers=" + str(headers))
+                        if result is not None:
+                            for m_RowPos in range(0, len(result)):
+                                for m_CellPos in range(0, len(result[m_RowPos])):
+                                    print("[DEBUG] Cell[" + str(m_RowPos) + ":" +
+                                          str(m_CellPos) + "]=[" + str(result[m_RowPos][m_CellPos]) + "]")
+
+                    # 如果Hints中有order字样，对结果进行排序后再输出
+                    if "Order" in m_SQLHint.keys() and result is not None:
+                        if "SQLCLI_DEBUG" in os.environ:
+                            print("[DEBUG] Apply Sort for this result 2.")
+                        # 不能用sorted函数，需要考虑None出现在列表中特定元素的问题
+                        # l =  [(-32767,), (32767,), (None,), (0,)]
+                        # l = sorted(l, key=lambda x: (x is None, x))
+                        # '<' not supported between instances of 'NoneType' and 'int'
+                        self.sortresult(result)
+
+                    # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
+                    if "LogFilter" in m_SQLHint.keys() and result is not None:
+                        for m_SQLFilter in m_SQLHint["LogFilter"]:
+                            for item in result[:]:
+                                if "SQLCLI_DEBUG" in os.environ:
+                                    print("[DEBUG] Apply Filter: " + str(''.join(str(item))) +
+                                          " with " + m_SQLFilter)
+                                if re.match(m_SQLFilter, ''.join(str(item)), re.IGNORECASE):
+                                    result.remove(item)
+                                    continue
+
+                    # 如果Hint中存在LogMask,则掩码指定的输出信息
+                    if "LogMask" in m_SQLHint.keys() and result is not None:
+                        for i in range(0, len(result)):
+                            m_RowResult = list(result[i])
+                            m_DataChanged = False
+                            for j in range(0, len(m_RowResult)):
+                                if m_RowResult[j] is None:
+                                    continue
+                                m_Output = str(m_RowResult[j])
+                                for m_SQLMaskString in m_SQLHint["LogMask"]:
+                                    m_SQLMask = m_SQLMaskString.split("=>")
+                                    if len(m_SQLMask) == 2:
+                                        m_SQLMaskPattern = m_SQLMask[0]
+                                        m_SQLMaskTarget = m_SQLMask[1]
+                                        if "SQLCLI_DEBUG" in os.environ:
+                                            print("[DEBUG] Apply Mask: " + m_Output +
+                                                  " with " + m_SQLMaskPattern + "=>" + m_SQLMaskTarget)
+                                        try:
+                                            m_BeforeSub = m_Output
+                                            nIterCount = 0
+                                            while True:
+                                                # 循环多次替代，一直到没有可替代为止
+                                                m_AfterSub = re.sub(m_SQLMaskPattern, m_SQLMaskTarget,
+                                                                    m_BeforeSub, re.IGNORECASE)
+                                                if m_AfterSub == m_BeforeSub or nIterCount > 99:
+                                                    m_NewOutput = m_AfterSub
+                                                    break
+                                                m_BeforeSub = m_AfterSub
+                                                nIterCount = nIterCount + 1
+                                            if m_NewOutput != m_Output:
+                                                m_DataChanged = True
+                                                m_RowResult[j] = m_NewOutput
+                                        except re.error:
+                                            if "SQLCLI_DEBUG" in os.environ:
+                                                print('[DEBUG] traceback.print_exc():\n%s'
+                                                      % traceback.print_exc())
+                                                print('[DEBUG] traceback.format_exc():\n%s'
+                                                      % traceback.format_exc())
+                                    else:
+                                        if "SQLCLI_DEBUG" in os.environ:
+                                            print("[DEBUG] LogMask Hint Error: " + m_SQLHint["LogMask"])
+                            if m_DataChanged:
+                                result[i] = tuple(m_RowResult)
+                    # 保存之前的运行结果
+                    if result is None:
+                        m_Rows = 0
+                    else:
+                        m_Rows = len(result)
+                    self.LastJsonSQLResult = {"desc": headers,
+                                              "rows": m_Rows,
+                                              "elapsed": time.time() - start,
+                                              "result": result,
+                                              "status": 0,
+                                              "warnings": m_SQLWarnings}
+
+                    m_SQL_ErrorMessage = ""
+                    # 如果存在SQL_LOOP信息，则需要反复执行上一个SQL
+                    if "SQL_LOOP" in m_SQLHint.keys():
+                        if "SQLCLI_DEBUG" in os.environ:
+                            print("[DEBUG] LOOP=" + str(m_SQLHint["SQL_LOOP"]))
+                        # 循环执行SQL列表，构造参数列表
+                        m_LoopTimes = int(m_SQLHint["SQL_LOOP"]["LoopTimes"])
+                        m_LoopInterval = int(m_SQLHint["SQL_LOOP"]["LoopInterval"])
+                        m_LoopUntil = m_SQLHint["SQL_LOOP"]["LoopUntil"]
+                        if m_LoopInterval < 0:
+                            m_LoopTimes = 0
+                            if "SQLCLI_DEBUG" in os.environ:
+                                raise SQLCliException(
+                                    "SQLLoop Hint Error, Unexpected LoopInterval: " + str(m_LoopInterval))
+                        if m_LoopTimes < 0:
+                            if "SQLCLI_DEBUG" in os.environ:
+                                raise SQLCliException(
+                                    "SQLLoop Hint Error, Unexpected LoopTime: " + str(m_LoopTimes))
+
+                        # 保存Silent设置
+                        m_OldSilentMode = self.SQLOptions.get("SILENT")
+                        m_OldTimingMode = self.SQLOptions.get("TIMING")
+                        m_OldTimeMode = self.SQLOptions.get("TIME")
+                        self.SQLOptions.set("SILENT", "ON")
+                        self.SQLOptions.set("TIMING", "OFF")
+                        self.SQLOptions.set("TIME", "OFF")
+
+                        for m_nLoopPos in range(1, m_LoopTimes):
+                            # 检查Until条件，如果达到Until条件，退出
+                            m_AssertSuccessful = False
+                            for m_Result in \
+                                    self.run("__internal__ test assert " + m_LoopUntil):
+                                if m_Result["type"] == "result":
+                                    if m_Result["status"].startswith("Assert Successful"):
+                                        m_AssertSuccessful = True
+                                    break
+                            if m_AssertSuccessful:
+                                break
+                            else:
+                                # 测试失败, 等待一段时间后，开始下一次检查
+                                time.sleep(m_LoopInterval)
+                                if "SQLCLI_DEBUG" in os.environ:
+                                    print("[DEBUG] SQL(LOOP " + str(m_nLoopPos) + ")=[" + str(sql) + "]")
+                                for m_Result in self.run(sql):
+                                    # 最后一次执行的结果将被传递到外层，作为SQL返回结果
+                                    if m_Result["type"] == "result":
+                                        sqlStatus = 0
+                                        title = m_Result["title"]
+                                        result = m_Result["rows"]
+                                        if "Order" in m_SQLHint.keys() and result is not None:
+                                            if "SQLCLI_DEBUG" in os.environ:
+                                                print("[DEBUG] Apply Sort for this result 3.")
+                                            self.sortresult(result)
+                                        headers = m_Result["headers"]
+                                        columnTypes = m_Result["columnTypes"]
+                                        status = m_Result["status"]
+                                    if m_Result["type"] == "error":
+                                        sqlStatus = 1
+                                        m_SQL_ErrorMessage = m_Result["message"]
+                        self.SQLOptions.set("TIME", m_OldTimeMode)
+                        self.SQLOptions.set("TIMING", m_OldTimingMode)
+                        self.SQLOptions.set("SILENT", m_OldSilentMode)
+
+                    # 返回SQL结果
+                    if sqlStatus == 1:
+                        yield {
+                            "type": "error",
+                            "message": m_SQL_ErrorMessage
+                        }
+                    else:
+                        if self.SQLOptions.get('TERMOUT').upper() != 'OFF':
+                            yield {
+                                "type": "result",
+                                "title": title,
+                                "rows": result,
+                                "headers": headers,
+                                "columnTypes": columnTypes,
+                                "status": status
+                            }
+                        else:
+                            yield {
+                                "type": "result",
+                                "title": title,
+                                "rows": [],
+                                "headers": headers,
+                                "columnTypes": columnTypes,
+                                "status": status
+                            }
+                    if not m_FetchStatus:
+                        break
+            except SQLCliJDBCTimeOutException:
+                # 处理超时时间问题
+                if sql.upper() not in ["EXIT", "QUIT"]:
+                    if self.timeOutMode == "SCRIPT":
+                        m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout " \
+                                             "(" + str(self.scriptTimeOut) + \
+                                             ") expired. Abort this command."
+                    else:
+                        m_SQL_ErrorMessage = "SQLCLI-0000: SQL Timeout " \
+                                             "(" + str(self.sqlTimeOut) + \
+                                             ") expired. Abort this command."
+                    yield {"type": "error", "message": m_SQL_ErrorMessage}
+            except (SQLCliJDBCException, Exception) as je:
+                m_SQL_ErrorMessage = str(je).strip()
+                for m_ErrorPrefix in ["java.util.concurrent.ExecutionException:", ]:
+                    if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
+                        m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
+                for m_ErrorPrefix in ['java.sql.SQLSyntaxErrorException:',
+                                      "java.sql.SQLException:",
+                                      "java.sql.SQLInvalidAuthorizationSpecException:",
+                                      "java.sql.SQLDataException:",
+                                      "java.sql.SQLTransactionRollbackException:",
+                                      "java.sql.SQLTransientConnectionException:",
+                                      "java.sql.SQLFeatureNotSupportedException",
+                                      "com.microsoft.sqlserver.jdbc.", ]:
+                    if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
+                        m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
+
+                # 如果Hint中存在LogFilter，则输出的消息中过滤指定的输出信息
+                if "LogFilter" in m_SQLHint.keys():
+                    m_SQL_MultiLineErrorMessage = m_SQL_ErrorMessage.split('\n')
+                    m_ErrorMessageHasChanged = False
+                    for m_SQLFilter in m_SQLHint["LogFilter"]:
+                        for item in m_SQL_MultiLineErrorMessage[:]:
+                            if re.match(m_SQLFilter, ''.join(str(item)), re.IGNORECASE):
+                                m_SQL_MultiLineErrorMessage.remove(item)
+                                m_ErrorMessageHasChanged = True
+                                continue
+                    if m_ErrorMessageHasChanged:
+                        m_SQL_ErrorMessage = "\n".join(m_SQL_MultiLineErrorMessage)
+
+                # 如果Hint中存在LogMask,则掩码指定的输出信息
+                if "LogMask" in m_SQLHint.keys():
+                    m_SQL_MultiLineErrorMessage = m_SQL_ErrorMessage.split('\n')
+                    m_ErrorMessageHasChanged = False
+                    for m_SQLMaskString in m_SQLHint["LogMask"]:
+                        m_SQLMask = m_SQLMaskString.split("=>")
+                        if len(m_SQLMask) == 2:
+                            m_SQLMaskPattern = m_SQLMask[0]
+                            m_SQLMaskTarget = m_SQLMask[1]
+                            for pos2 in range(0, len(m_SQL_MultiLineErrorMessage)):
+                                m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget,
+                                                     m_SQL_MultiLineErrorMessage[pos2],
+                                                     re.IGNORECASE)
+                                if m_NewOutput != m_SQL_MultiLineErrorMessage[pos2]:
+                                    m_ErrorMessageHasChanged = True
+                                    m_SQL_MultiLineErrorMessage[pos2] = m_NewOutput
+                        else:
+                            if "SQLCLI_DEBUG" in os.environ:
+                                raise SQLCliException("LogMask Hint Error: " + m_SQLHint["LogMask"])
+                    if m_ErrorMessageHasChanged:
+                        m_SQL_ErrorMessage = "\n".join(m_SQL_MultiLineErrorMessage)
+
+                self.LastJsonSQLResult = {"elapsed": time.time() - start,
+                                          "message": m_SQL_ErrorMessage,
+                                          "status": -1,
+                                          "rows": 0}
+
+                # 发生了JDBC的SQL语法错误
+                if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
+                    raise SQLCliException(m_SQL_ErrorMessage)
+                else:
+                    yield {"type": "error", "message": m_SQL_ErrorMessage}
+
+    def executeAPIStatement(self, sql: str, m_SQLHint, start):
+        if self:
+            pass
+        yield {"type": "error", "message": "还没有实现呢"}
+
     def run(self, statement, p_sqlscript=None):
         """
         返回的结果可能是多种类型，处理的时候需要根据type的结果来判断具体的数据格式：
@@ -200,19 +503,16 @@ class SQLExecute(object):
         if not statement:  # Empty string
             return
 
-        # 优先级
-        m_Priorites = []
-        if self.SQLOptions.get("PRIORITY") != "":
-            for m_Priority in self.SQLOptions.get("PRIORITY").split(','):
-                m_Priorites.append(m_Priority.strip().upper())
-
         # 记录SQL的文件名
         self.SQLScript = p_sqlscript
 
         # 分析SQL语句
-        m_HasOutputScenarioSkipInfo = False
-        (ret_bSQLCompleted, ret_SQLSplitResults,
-         ret_SQLSplitResultsWithComments, ret_SQLHints) = SQLAnalyze(statement)
+        if self.SQLOptions.get("NAMESPACE") == "SQL":
+            (ret_bSQLCompleted, ret_SQLSplitResults,
+             ret_SQLSplitResultsWithComments, ret_SQLHints) = SQLAnalyze(statement)
+        else:
+            (ret_bSQLCompleted, ret_SQLSplitResults,
+             ret_SQLSplitResultsWithComments, ret_SQLHints) = APIAnalyze(statement)
 
         for pos in range(0, len(ret_SQLSplitResults)):
             m_raw_sql = ret_SQLSplitResults[pos]                 # 记录原始SQL
@@ -236,34 +536,15 @@ class SQLExecute(object):
             m_SQLHint = ret_SQLHints[pos]                         # SQL提示信息，其中Scenario用作日志处理
             if "SCENARIO" in m_SQLHint.keys():
                 if m_SQLHint['SCENARIO'].strip().upper() == "END":
-                    m_HasOutputScenarioSkipInfo = False
                     self.SQLScenario = ""
-                    self.SQLPriority = ""
                 else:
                     self.SQLScenario = m_SQLHint['SCENARIO']
-                    m_HasOutputScenarioSkipInfo = False
-                    if "PRIORITY" in m_SQLHint.keys():
-                        self.SQLPriority = m_SQLHint['PRIORITY']
-
-            # 检查优先级, 如果定义了优先级，但不符合定义要求，则直接跳过这个语句
-            if self.SQLPriority != "" and len(m_Priorites) != 0:
-                if self.SQLPriority not in m_Priorites:
-                    # 由于优先级原因，这个SQL不会被执行，直接返回
-                    # Scenario的第一个语句打印Skip信息
-                    if not m_HasOutputScenarioSkipInfo:
-                        yield {
-                            "type": "result",
-                            "title": None,
-                            "rows": None,
-                            "headers": None,
-                            "columnTypes": None,
-                            "status": "Skip scenario [" + self.SQLScenario + "] due to priority set."
-                        }
-                        m_HasOutputScenarioSkipInfo = True
-                    continue
 
             # 记录包含有注释信息的SQL
-            m_FormattedSQL = SQLFormatWithPrefix(m_CommentSQL)
+            if self.SQLOptions.get("NAMESPACE") == "SQL":
+                m_FormattedSQL = SQLFormatWithPrefix(m_CommentSQL)
+            if self.SQLOptions.get("NAMESPACE") == "API":
+                m_FormattedSQL = APIFormatWithPrefix(m_CommentSQL)
 
             # 如果打开了回显，并且指定了输出文件，且SQL被改写过，输出改写后的SQL
             if self.SQLOptions.get("SQLREWRITE").upper() == 'ON':
@@ -590,7 +871,7 @@ class SQLExecute(object):
                             m_Result["rows"] = []
                             m_Result["title"] = ""
                     yield m_Result
-            except SQLCliJDBCTimeOutException:
+            except (SQLCliJDBCTimeOutException, SQLCliAPITimeOutException):
                 # 处理超时时间问题
                 if sql.upper() not in ["EXIT", "QUIT"]:
                     if self.timeOutMode == "SCRIPT":
@@ -603,292 +884,15 @@ class SQLExecute(object):
                                              ") expired. Abort this command."
                     yield {"type": "error", "message": m_SQL_ErrorMessage}
             except CommandNotFound:
-                # 进入到SQL执行阶段, 开始执行SQL语句
-                if self.conn:
-                    # 打开游标
-                    self.cur = self.conn.cursor()
-                else:
-                    # 进入到SQL执行阶段，不是特殊命令, 数据库连接也不存在
-                    if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
-                        raise SQLCliException("Not Connected. ")
-                    else:
-                        self.LastJsonSQLResult = None
-                        yield {
-                            "type": "error",
-                            "message": "Not connected. "
-                        }
-
-                # 执行正常的SQL语句
-                if self.cur is not None:
-                    try:
-                        try:
-                            # 执行数据库的SQL语句
-                            if "SQL_DIRECT" in m_SQLHint.keys():
-                                self.cur.execute_direct(sql, TimeOutLimit=self.timeout)
-                            elif "SQL_PREPARE" in m_SQLHint.keys():
-                                self.cur.execute(sql, TimeOutLimit=self.timeout)
-                            else:
-                                if self.SQLOptions.get("SQL_EXECUTE").upper() == "DIRECT":
-                                    self.cur.execute_direct(sql, TimeOutLimit=self.timeout)
-                                else:
-                                    self.cur.execute(sql, TimeOutLimit=self.timeout)
-                        except Exception as e:
-                            if "SQL_LOOP" in m_SQLHint.keys():
-                                # 如果在循环中, 错误不会处理， 一直到循环结束
-                                pass
-                            else:
-                                raise e
-
-                        rowcount = 0
-                        m_SQL_Status = 0
-                        while True:
-                            (title, result, headers, columnTypes, status,
-                             m_FetchStatus, m_FetchedRows, m_SQLWarnings) = \
-                                self.get_result(self.cur, rowcount)
-                            rowcount = m_FetchedRows
-                            if "SQLCLI_DEBUG" in os.environ:
-                                print("[DEBUG] headers=" + str(headers))
-                                if result is not None:
-                                    for m_RowPos in range(0, len(result)):
-                                        for m_CellPos in range(0, len(result[m_RowPos])):
-                                            print("[DEBUG] Cell[" + str(m_RowPos) + ":" +
-                                                  str(m_CellPos) + "]=[" + str(result[m_RowPos][m_CellPos]) + "]")
-
-                            # 如果Hints中有order字样，对结果进行排序后再输出
-                            if "Order" in m_SQLHint.keys() and result is not None:
-                                if "SQLCLI_DEBUG" in os.environ:
-                                    print("[DEBUG] Apply Sort for this result 2.")
-                                # 不能用sorted函数，需要考虑None出现在列表中特定元素的问题
-                                # l =  [(-32767,), (32767,), (None,), (0,)]
-                                # l = sorted(l, key=lambda x: (x is None, x))
-                                # '<' not supported between instances of 'NoneType' and 'int'
-                                self.sortresult(result)
-
-                            # 如果Hint中存在LogFilter，则结果集中过滤指定的输出信息
-                            if "LogFilter" in m_SQLHint.keys() and result is not None:
-                                for m_SQLFilter in m_SQLHint["LogFilter"]:
-                                    for item in result[:]:
-                                        if "SQLCLI_DEBUG" in os.environ:
-                                            print("[DEBUG] Apply Filter: " + str(''.join(str(item))) +
-                                                  " with " + m_SQLFilter)
-                                        if re.match(m_SQLFilter, ''.join(str(item)), re.IGNORECASE):
-                                            result.remove(item)
-                                            continue
-
-                            # 如果Hint中存在LogMask,则掩码指定的输出信息
-                            if "LogMask" in m_SQLHint.keys() and result is not None:
-                                for i in range(0, len(result)):
-                                    m_RowResult = list(result[i])
-                                    m_DataChanged = False
-                                    for j in range(0, len(m_RowResult)):
-                                        if m_RowResult[j] is None:
-                                            continue
-                                        m_Output = str(m_RowResult[j])
-                                        for m_SQLMaskString in m_SQLHint["LogMask"]:
-                                            m_SQLMask = m_SQLMaskString.split("=>")
-                                            if len(m_SQLMask) == 2:
-                                                m_SQLMaskPattern = m_SQLMask[0]
-                                                m_SQLMaskTarget = m_SQLMask[1]
-                                                if "SQLCLI_DEBUG" in os.environ:
-                                                    print("[DEBUG] Apply Mask: " + m_Output +
-                                                          " with " + m_SQLMaskPattern + "=>" + m_SQLMaskTarget)
-                                                try:
-                                                    m_BeforeSub = m_Output
-                                                    nIterCount = 0
-                                                    while True:
-                                                        # 循环多次替代，一直到没有可替代为止
-                                                        m_AfterSub = re.sub(m_SQLMaskPattern, m_SQLMaskTarget,
-                                                                            m_BeforeSub, re.IGNORECASE)
-                                                        if m_AfterSub == m_BeforeSub or nIterCount > 99:
-                                                            m_NewOutput = m_AfterSub
-                                                            break
-                                                        m_BeforeSub = m_AfterSub
-                                                        nIterCount = nIterCount + 1
-                                                    if m_NewOutput != m_Output:
-                                                        m_DataChanged = True
-                                                        m_RowResult[j] = m_NewOutput
-                                                except re.error:
-                                                    if "SQLCLI_DEBUG" in os.environ:
-                                                        print('[DEBUG] traceback.print_exc():\n%s'
-                                                              % traceback.print_exc())
-                                                        print('[DEBUG] traceback.format_exc():\n%s'
-                                                              % traceback.format_exc())
-                                            else:
-                                                if "SQLCLI_DEBUG" in os.environ:
-                                                    print("[DEBUG] LogMask Hint Error: " + m_SQLHint["LogMask"])
-                                    if m_DataChanged:
-                                        result[i] = tuple(m_RowResult)
-                            # 保存之前的运行结果
-                            if result is None:
-                                m_Rows = 0
-                            else:
-                                m_Rows = len(result)
-                            self.LastJsonSQLResult = {"desc": headers,
-                                                      "rows": m_Rows,
-                                                      "elapsed": time.time() - start,
-                                                      "result": result,
-                                                      "status": 0,
-                                                      "warnings": m_SQLWarnings}
-
-                            # 如果存在SQL_LOOP信息，则需要反复执行上一个SQL
-                            if "SQL_LOOP" in m_SQLHint.keys():
-                                if "SQLCLI_DEBUG" in os.environ:
-                                    print("[DEBUG] LOOP=" + str(m_SQLHint["SQL_LOOP"]))
-                                # 循环执行SQL列表，构造参数列表
-                                m_LoopTimes = int(m_SQLHint["SQL_LOOP"]["LoopTimes"])
-                                m_LoopInterval = int(m_SQLHint["SQL_LOOP"]["LoopInterval"])
-                                m_LoopUntil = m_SQLHint["SQL_LOOP"]["LoopUntil"]
-                                if m_LoopInterval < 0:
-                                    m_LoopTimes = 0
-                                    if "SQLCLI_DEBUG" in os.environ:
-                                        raise SQLCliException(
-                                            "SQLLoop Hint Error, Unexpected LoopInterval: " + str(m_LoopInterval))
-                                if m_LoopTimes < 0:
-                                    if "SQLCLI_DEBUG" in os.environ:
-                                        raise SQLCliException(
-                                            "SQLLoop Hint Error, Unexpected LoopTime: " + str(m_LoopTimes))
-
-                                # 保存Silent设置
-                                m_OldSilentMode = self.SQLOptions.get("SILENT")
-                                m_OldTimingMode = self.SQLOptions.get("TIMING")
-                                m_OldTimeMode = self.SQLOptions.get("TIME")
-                                self.SQLOptions.set("SILENT", "ON")
-                                self.SQLOptions.set("TIMING", "OFF")
-                                self.SQLOptions.set("TIME", "OFF")
-                                for m_nLoopPos in range(1, m_LoopTimes):
-                                    # 检查Until条件，如果达到Until条件，退出
-                                    m_AssertSuccessful = False
-                                    for m_Result in \
-                                            self.run("__internal__ test assert " + m_LoopUntil):
-                                        if m_Result["type"] == "result":
-                                            if m_Result["status"].startswith("Assert Successful"):
-                                                m_AssertSuccessful = True
-                                            break
-                                    if m_AssertSuccessful:
-                                        break
-                                    else:
-                                        # 测试失败, 等待一段时间后，开始下一次检查
-                                        time.sleep(m_LoopInterval)
-                                        if "SQLCLI_DEBUG" in os.environ:
-                                            print("[DEBUG] SQL(LOOP " + str(m_nLoopPos) + ")=[" + str(sql) + "]")
-                                        for m_Result in self.run(sql):
-                                            # 最后一次执行的结果将被传递到外层，作为SQL返回结果
-                                            if m_Result["type"] == "result":
-                                                m_SQL_Status = 0
-                                                title = m_Result["title"]
-                                                result = m_Result["rows"]
-                                                if "Order" in m_SQLHint.keys() and result is not None:
-                                                    if "SQLCLI_DEBUG" in os.environ:
-                                                        print("[DEBUG] Apply Sort for this result 3.")
-                                                    self.sortresult(result)
-                                                headers = m_Result["headers"]
-                                                columnTypes = m_Result["columnTypes"]
-                                                status = m_Result["status"]
-                                            if m_Result["type"] == "error":
-                                                m_SQL_Status = 1
-                                                m_SQL_ErrorMessage = m_Result["message"]
-                                self.SQLOptions.set("TIME", m_OldTimeMode)
-                                self.SQLOptions.set("TIMING", m_OldTimingMode)
-                                self.SQLOptions.set("SILENT", m_OldSilentMode)
-
-                            # 返回SQL结果
-                            if m_SQL_Status == 1:
-                                yield {"type": "error", "message": m_SQL_ErrorMessage}
-                            else:
-                                if self.SQLOptions.get('TERMOUT').upper() != 'OFF':
-                                    yield {
-                                        "type": "result",
-                                        "title": title,
-                                        "rows": result,
-                                        "headers": headers,
-                                        "columnTypes": columnTypes,
-                                        "status": status
-                                    }
-                                else:
-                                    yield {
-                                        "type": "result",
-                                        "title": title,
-                                        "rows": [],
-                                        "headers": headers,
-                                        "columnTypes": columnTypes,
-                                        "status": status
-                                    }
-                            if not m_FetchStatus:
-                                break
-                    except SQLCliJDBCTimeOutException:
-                        # 处理超时时间问题
-                        if sql.upper() not in ["EXIT", "QUIT"]:
-                            if self.timeOutMode == "SCRIPT":
-                                m_SQL_ErrorMessage = "SQLCLI-0000: Script Timeout " \
-                                                     "(" + str(self.scriptTimeOut) + \
-                                                     ") expired. Abort this command."
-                            else:
-                                m_SQL_ErrorMessage = "SQLCLI-0000: SQL Timeout " \
-                                                     "(" + str(self.sqlTimeOut) + \
-                                                     ") expired. Abort this command."
-                            yield {"type": "error", "message": m_SQL_ErrorMessage}
-                    except (SQLCliJDBCException, Exception) as je:
-                        m_SQL_Status = 1
-                        m_SQL_ErrorMessage = str(je).strip()
-                        for m_ErrorPrefix in ["java.util.concurrent.ExecutionException:", ]:
-                            if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
-                                m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
-                        for m_ErrorPrefix in ['java.sql.SQLSyntaxErrorException:',
-                                              "java.sql.SQLException:",
-                                              "java.sql.SQLInvalidAuthorizationSpecException:",
-                                              "java.sql.SQLDataException:",
-                                              "java.sql.SQLTransactionRollbackException:",
-                                              "java.sql.SQLTransientConnectionException:",
-                                              "java.sql.SQLFeatureNotSupportedException",
-                                              "com.microsoft.sqlserver.jdbc.", ]:
-                            if m_SQL_ErrorMessage.startswith(m_ErrorPrefix):
-                                m_SQL_ErrorMessage = m_SQL_ErrorMessage[len(m_ErrorPrefix):].strip()
-
-                        # 如果Hint中存在LogFilter，则输出的消息中过滤指定的输出信息
-                        if "LogFilter" in m_SQLHint.keys():
-                            m_SQL_MultiLineErrorMessage = m_SQL_ErrorMessage.split('\n')
-                            m_ErrorMessageHasChanged = False
-                            for m_SQLFilter in m_SQLHint["LogFilter"]:
-                                for item in m_SQL_MultiLineErrorMessage[:]:
-                                    if re.match(m_SQLFilter, ''.join(str(item)), re.IGNORECASE):
-                                        m_SQL_MultiLineErrorMessage.remove(item)
-                                        m_ErrorMessageHasChanged = True
-                                        continue
-                            if m_ErrorMessageHasChanged:
-                                m_SQL_ErrorMessage = "\n".join(m_SQL_MultiLineErrorMessage)
-
-                        # 如果Hint中存在LogMask,则掩码指定的输出信息
-                        if "LogMask" in m_SQLHint.keys():
-                            m_SQL_MultiLineErrorMessage = m_SQL_ErrorMessage.split('\n')
-                            m_ErrorMessageHasChanged = False
-                            for m_SQLMaskString in m_SQLHint["LogMask"]:
-                                m_SQLMask = m_SQLMaskString.split("=>")
-                                if len(m_SQLMask) == 2:
-                                    m_SQLMaskPattern = m_SQLMask[0]
-                                    m_SQLMaskTarget = m_SQLMask[1]
-                                    for pos2 in range(0, len(m_SQL_MultiLineErrorMessage)):
-                                        m_NewOutput = re.sub(m_SQLMaskPattern, m_SQLMaskTarget,
-                                                             m_SQL_MultiLineErrorMessage[pos2],
-                                                             re.IGNORECASE)
-                                        if m_NewOutput != m_SQL_MultiLineErrorMessage[pos2]:
-                                            m_ErrorMessageHasChanged = True
-                                            m_SQL_MultiLineErrorMessage[pos2] = m_NewOutput
-                                else:
-                                    if "SQLCLI_DEBUG" in os.environ:
-                                        raise SQLCliException("LogMask Hint Error: " + m_SQLHint["LogMask"])
-                            if m_ErrorMessageHasChanged:
-                                m_SQL_ErrorMessage = "\n".join(m_SQL_MultiLineErrorMessage)
-
-                        self.LastJsonSQLResult = {"elapsed": time.time() - start,
-                                                  "message": m_SQL_ErrorMessage,
-                                                  "status": -1,
-                                                  "rows": 0}
-
-                        # 发生了JDBC的SQL语法错误
-                        if self.SQLOptions.get("WHENEVER_SQLERROR") == "EXIT":
-                            raise SQLCliException(m_SQL_ErrorMessage)
-                        else:
-                            yield {"type": "error", "message": m_SQL_ErrorMessage}
+                # 既然不是特殊语句，那就是普通语句，根据NAMESPACE来处理
+                # 处理SQL语句
+                if self.SQLOptions.get("NAMESPACE") == "SQL":
+                    for result in self.executeSQLStatement(sql, m_SQLHint, start):
+                        yield result
+                # 处理API语句
+                if self.SQLOptions.get("NAMESPACE") == "API":
+                    for result in self.executeAPIStatement(sql, m_SQLHint, start):
+                        yield result
             except EOFError:
                 # EOFError是程序退出的标志，退出应用程序
                 raise EOFError
@@ -923,13 +927,11 @@ class SQLExecute(object):
                     "ErrorMessage": m_SQL_ErrorMessage,
                     "thread_name": self.WorkerName,
                     "Scenario": self.SQLScenario,
-                    "Priority": self.SQLPriority,
                     "Transaction": self.SQLTransactionName
                 }
-        # 当前SQL文件已经执行完毕，清空Scenario，以及Priority
+        # 当前SQL文件已经执行完毕，清空Scenario
         if p_sqlscript is not None:
             self.SQLScenario = ''
-            self.SQLPriority = ''
 
     def get_result(self, cursor, rowcount):
         """

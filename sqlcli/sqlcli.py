@@ -27,9 +27,9 @@ from prompt_toolkit.shortcuts import PromptSession
 from prompt_toolkit.formatted_text import HTML
 
 # 加载JDBC驱动和ODBC驱动
-from .sqlclijdbcapi import connect as jdbcconnect
-from .sqlclijdbcapi import SQLCliJDBCTimeOutException
-from .sqlclijdbcapi import SQLCliJDBCException
+from .sqlclijdbc import connect as jdbcconnect
+from .sqlclijdbc import SQLCliJDBCTimeOutException
+from .sqlclijdbc import SQLCliJDBCException
 import jpype
 
 from .sqlexecute import SQLExecute
@@ -47,7 +47,7 @@ from .commandanalyze import CommandNotFound
 from .sqloption import SQLOptions
 from .__init__ import __version__
 from .sqlparse import SQLAnalyze
-
+from .apiparse import APIAnalyze
 OFLAG_LOGFILE = 1
 OFLAG_LOGGER = 2
 OFLAG_CONSOLE = 4
@@ -105,9 +105,9 @@ class SQLCli(object):
             resultcharset='UTF-8',                  # 输出字符集，在打印输出文件，日志的时候均采用这个字符集
             profile=None,                           # 程序初始化执行脚本
             scripttimeout=-1,                       # 程序的脚本超时时间，默认为不限制
-            priority=None,                          # 只运行特定priority的脚本，其他脚本忽略,
             suitename=None,                         # 程序所在的SuiteName
-            casename=None                           # 程序所在的CaseName
+            casename=None,                          # 程序所在的CaseName
+            namespace=None,                         # 程序的默认命名空间
     ):
         self.db_saved_conn = {}                         # 数据库Session备份
         self.SQLMappingHandler = SQLMapping()           # 函数句柄，处理SQLMapping信息
@@ -141,7 +141,6 @@ class SQLCli(object):
             self.SQLOptions.set("RESULT_ENCODING", resultcharset)
         self.WorkerName = WorkerName                    # 当前进程名称. 如果有参数传递，以参数为准
         self.profile = []                               # 程序的初始化脚本文件
-
         self.m_LastComment = None                       # 如果当前SQL之前的内容完全是注释，则注释带到这里
 
         # 传递各种参数
@@ -158,10 +157,8 @@ class SQLCli(object):
         self.logger = logger
         self.suitename = suitename
         self.casename = casename
-
-        # 如果程序传递了Priority，则以程序传递的参数为准
-        if priority is not None:
-            self.SQLOptions.set("PRIORITY", priority)
+        self.nameSpace = namespace
+        self.SQLOptions.set("NAMESPACE", self.nameSpace)
 
         # profile的顺序， <PYTHON_PACKAGE>/sqlcli/profile/default， SQLCLI_HOME/profile/default , user define
         if os.path.isfile(os.path.join(os.path.dirname(__file__), "profile", "default")):
@@ -1125,11 +1122,9 @@ class SQLCli(object):
                     cls.SQLExecuteHandler.SQLScenario = ''
                     cls.SQLExecuteHandler.SQLTransaction = ''
                     cls.SQLExecuteHandler.setStartTime(time.time())
-
-                    # 执行指定的SQL文件
+                    # 执行指定的测试文件
                     for m_ExecuteResult in \
                             cls.SQLExecuteHandler.run(query, os.path.expanduser(script_file)):
-                        # 记录命令结束的时间
                         yield m_ExecuteResult
                 except IOError as e:
                     yield {
@@ -1486,7 +1481,7 @@ class SQLCli(object):
         # 不认识的internal命令
         raise SQLCliException("Unknown internal Command [" + str(arg) + "]. Please double check.")
 
-    # 逐条处理SQL语句
+    # 逐条处理语句
     # 如果执行成功，返回true
     # 如果执行失败，返回false
     def DoSQL(self, text=None):
@@ -1505,7 +1500,7 @@ class SQLCli(object):
                                             '</style></b>')
                     self.prompt_app.bottom_toolbar = m_Bottom_Toolbar
                     if full_text is None:
-                        text = self.prompt_app.prompt('SQL> ')
+                        text = self.prompt_app.prompt(self.SQLOptions.get('NAMESPACE') + '> ')
                     else:
                         text = self.prompt_app.prompt('   > ')
                 except KeyboardInterrupt:
@@ -1521,12 +1516,20 @@ class SQLCli(object):
                     full_text = text
                 else:
                     full_text = full_text + '\n' + text
-                # 判断SQL语句是否已经结束
-                (ret_bSQLCompleted, ret_SQLSplitResults, ret_SQLSplitResultsWithComments, _) = \
-                    SQLAnalyze(full_text)
-                if ret_bSQLCompleted:
-                    # SQL 语句已经结束
-                    break
+                if self.SQLOptions.get('NAMESPACE') == "SQL":
+                    # 判断SQL语句是否已经结束
+                    (ret_bSQLCompleted, ret_SQLSplitResults, ret_SQLSplitResultsWithComments, _) = \
+                        SQLAnalyze(full_text)
+                    if ret_bSQLCompleted:
+                        # SQL 语句已经结束
+                        break
+                if self.SQLOptions.get('NAMESPACE') == "API":
+                    # 判断SQL语句是否已经结束
+                    (ret_bSQLCompleted, ret_SQLSplitResults, ret_SQLSplitResultsWithComments, _) = \
+                        APIAnalyze(full_text)
+                    if ret_bSQLCompleted:
+                        # SQL 语句已经结束
+                        break
 
             if len("".join(ret_SQLSplitResults).strip()) == 0 and \
                     len("".join(ret_SQLSplitResultsWithComments).strip()) != 0:
@@ -1811,7 +1814,7 @@ class SQLCli(object):
                 m_OutputPrefix = self.SQLOptions.get('OUTPUT_PREFIX') + " "
             else:
                 m_OutputPrefix = ''
-            match_obj = re.match(r"SQL>(\s+)?set(\s+)?OUTPUT_PREFIX(\s+)?$", s, re.IGNORECASE | re.DOTALL)
+            match_obj = re.match(self.nameSpace + r">(\s+)?set(\s+)?OUTPUT_PREFIX(\s+)?$", s, re.IGNORECASE | re.DOTALL)
             if match_obj:
                 m_OutputPrefix = ''
             if Flags & OFLAG_LOGFILE:
@@ -2160,7 +2163,7 @@ class SQLCli(object):
                 self.SQLPerfFileHandle = open(self.SQLPerfFile, "a", encoding="utf-8")
                 self.SQLPerfFileHandle.write("Script\tStarted\telapsed\tRAWSQL\tSQL\t"
                                              "SQLStatus\tErrorMessage\tworker_name\t"
-                                             "Suite\tCase\tScenario\tPriority\tTransaction\n")
+                                             "Suite\tCase\tScenario\tTransaction\n")
                 self.SQLPerfFileHandle.close()
 
             # 对于多线程运行，这里的thread_name格式为JOB_NAME#副本数-完成次数
@@ -2186,7 +2189,6 @@ class SQLCli(object):
                 str(self.suitename) + "\t" +
                 str(self.casename) + "\t" +
                 str(p_SQLResult["Scenario"]) + "\t" +
-                str(p_SQLResult["Priority"]) + "\t" +
                 str(p_SQLResult["Transaction"]) +
                 "\n"
             )
