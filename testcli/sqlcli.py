@@ -160,7 +160,7 @@ class SQLCli(object):
         self.nameSpace = namespace
         self.SQLOptions.set("NAMESPACE", self.nameSpace)
 
-        # profile的顺序， <PYTHON_PACKAGE>/sqlcli/profile/default， SQLCLI_HOME/profile/default , user define
+        # profile的顺序， <PYTHON_PACKAGE>/testcli/profile/default， SQLCLI_HOME/profile/default , user define
         if os.path.isfile(os.path.join(os.path.dirname(__file__), "profile", "default")):
             if os.path.getsize(os.path.join(os.path.dirname(__file__), "profile", "default")) > 0:
                 self.profile.append(os.path.join(os.path.dirname(__file__), "profile", "default"))
@@ -1729,7 +1729,7 @@ class SQLCli(object):
         if self.sqlscript is None and not self.HeadlessMode:
             # 如果可能，在用户的当前目录下生成sqlcli-history.txt隐含文件
             user_home = os.path.expanduser('~')
-            m_HistoryFile = os.path.join(user_home, '.sqlcli-history.txt')
+            m_HistoryFile = os.path.join(user_home, '.testcli-history.txt')
             if os.access(user_home, os.W_OK):
                 history = FileHistory(m_HistoryFile)
                 enable_history_search = True

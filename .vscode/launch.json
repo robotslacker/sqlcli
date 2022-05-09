@@ -1,10 +1,10 @@
 {
     "configurations": [
         {
-            "name": "运行SQLCLI",
+            "name": "运行TestCli",
             "type": "python",
             "request": "launch",
-            "module": "sqlcli.main"
+            "module": "testcli.main"
         }
     ]
 }

@@ -18,7 +18,7 @@ How to build and upload this package to Local site:
 
 _version_re = re.compile(r"__version__\s+=\s+(.*)")
 
-with open("sqlcli/__init__.py", "rb") as f:
+with open("testcli/__init__.py", "rb") as f:
     version = str(
         ast.literal_eval(_version_re.search(f.read().decode("utf-8")).group(1))
     )
@@ -33,7 +33,7 @@ def open_file(filename):
 readme = open_file("README.md")
 
 setup(
-    name='robotslacker-sqlcli-noodbc',
+    name='robotslacker-testcli-noodbc',
     version=version,
     description='SQL Command test tool, use JDBC',
     long_description=readme,
@@ -51,11 +51,11 @@ setup(
     url='https://github.com/robotslacker/sqlcli',
 
     zip_safe=False,
-    packages=['sqlcli'],
-    package_data={'sqlcli': ['jlib/README', 'conf/*ini', 'profile/*']},
+    packages=['testcli'],
+    package_data={'testcli': ['jlib/README', 'conf/*ini', 'profile/*']},
     python_requires='>=3.6',
     entry_points={
-        "console_scripts": ["sqlcli = sqlcli.main:cli"],
+        "console_scripts": ["testcli = testcli.main:cli"],
         "distutils.commands": ["lint = tasks:lint", "test = tasks:test"],
     },
 )
