@@ -21,7 +21,7 @@ from .sqlcliexception import SQLCliException
 @click.option("--resultcharset", type=str, help="Set result charset. Default is same to clientCharset.")
 @click.option("--profile", type=str, help="Init profile.")
 @click.option("--scripttimeout", type=int, help="Script Timeout(Seconds).")
-@click.option("--namespace", default='SQL', type=str, help="Command name space.")
+@click.option("--namespace", default='API', type=str, help="Command name space.")
 def cli(
         version,
         logon,
