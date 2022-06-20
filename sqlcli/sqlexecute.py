@@ -293,14 +293,19 @@ class SQLExecute(object):
             #    用户定义的变量
             match_obj = re.search(r"\${LastSQLResult\((.*?)\)}", sql, re.IGNORECASE | re.DOTALL)
             if match_obj:
-                m_Searched = match_obj.group(0)
-                m_JQPattern = match_obj.group(1)
-                sql = sql.replace(m_Searched, self.jqparse(obj=self.LastJsonSQLResult, path=m_JQPattern))
-                if self.SQLOptions.get("SILENT").upper() == 'ON':
-                    # SILENT模式下不打印任何日志
-                    pass
-                else:
-                    # 记录被JQ表达式改写的SQL
+                while True:
+                    m_Searched = match_obj.group(0)
+                    m_JQPattern = match_obj.group(1)
+                    new_sql = sql.replace(m_Searched, self.jqparse(obj=self.LastJsonSQLResult, path=m_JQPattern))
+                    if new_sql == sql:
+                        # 没有新的变化，没有必要继续循环下去
+                        break
+                    sql = new_sql
+                    match_obj = re.search(r"\${LastSQLResult\((.*?)\)}", sql, re.IGNORECASE | re.DOTALL)
+                    if not match_obj:
+                        break
+                # 记录被JQ表达式改写的SQL
+                if self.SQLOptions.get("SILENT").upper() != 'ON':
                     m_RewrotedSQL.append(SQLFormatWithPrefix("Your SQL has been changed to:\n" + sql, 'REWROTED '))
 
             # ${random(1,100)}
