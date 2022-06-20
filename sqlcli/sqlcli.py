@@ -808,6 +808,10 @@ class SQLCli(object):
 
         # 连接数据库
         m_jdbcconn_prop = {}
+        m_TimeOutLimit = 0
+        m_driverclass = ""
+        m_JDBCURL = ""
+        m_JarList = []
         try:
             if cls.db_conntype == 'JDBC':  # JDBC 连接数据库
                 # 加载所有的Jar包， 根据class的名字加载指定的文件
@@ -914,15 +918,11 @@ class SQLCli(object):
             if "SQLCLI_DEBUG" in os.environ:
                 print('traceback.print_exc():\n%s' % traceback.print_exc())
                 print('traceback.format_exc():\n%s' % traceback.format_exc())
-                print("db_user = [" + str(cls.db_username) + "]")
-                print("db_pass = [" + str(cls.db_password) + "]")
-                print("db_type = [" + str(cls.db_type) + "]")
-                print("db_host = [" + str(cls.db_host) + "]")
-                print("db_port = [" + str(cls.db_port) + "]")
-                print("db_service_name = [" + str(cls.db_service_name) + "]")
-                print("db_url = [" + str(cls.db_url) + "]")
-                print("jar_file = [" + str(cls.connection_configs) + "]")
+                print("jclassname = [" + str(m_driverclass) + "]")
+                print("url = [" + str(m_JDBCURL) + "]")
+                print("jars = [" + str(m_JarList) + "]")
                 print("driver_args = [" + str(m_jdbcconn_prop) + "]")
+                print("TimeOutLimit = [" + str(m_TimeOutLimit) + "]")
             if str(e).find("SQLInvalidAuthorizationSpecException") != -1:
                 raise SQLCliException(str(jpype.java.sql.SQLInvalidAuthorizationSpecException(e).getCause()))
             else:
