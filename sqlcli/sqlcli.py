@@ -807,6 +807,7 @@ class SQLCli(object):
             cls.db_driver_type = ""
 
         # 连接数据库
+        m_jdbcconn_prop = {}
         try:
             if cls.db_conntype == 'JDBC':  # JDBC 连接数据库
                 # 加载所有的Jar包， 根据class的名字加载指定的文件
@@ -824,6 +825,12 @@ class SQLCli(object):
                         break
                 if "SQLCLI_DEBUG" in os.environ:
                     print("Driver Jar List: " + str(m_JarList))
+
+                # 处理Oracle的sysdba连接问题
+                if cls.db_type == "oracle" and cls.db_service_name.upper().endswith("AS SYSDBA"):
+                    m_jdbcconn_prop["internal_logon"] = "sysdba"
+                    cls.db_service_name = cls.db_service_name[0:-9].strip()
+
                 if m_JDBCURL is None:
                     raise SQLCliException("Unknown database [" + cls.db_type.upper() + "]." +
                                           "Connect Failed. JDBCURL is None\n" +
@@ -838,7 +845,6 @@ class SQLCli(object):
                 if m_driverclass is None:
                     raise SQLCliException(
                         "Missed driver [" + cls.db_type.upper() + "] in config. Database Connect Failed. ")
-                m_jdbcconn_prop = {}
                 if cls.db_username is not None:
                     m_jdbcconn_prop['user'] = cls.db_username
                 if cls.db_password is not None:
@@ -916,6 +922,7 @@ class SQLCli(object):
                 print("db_service_name = [" + str(cls.db_service_name) + "]")
                 print("db_url = [" + str(cls.db_url) + "]")
                 print("jar_file = [" + str(cls.connection_configs) + "]")
+                print("driver_args = [" + str(m_jdbcconn_prop) + "]")
             if str(e).find("SQLInvalidAuthorizationSpecException") != -1:
                 raise SQLCliException(str(jpype.java.sql.SQLInvalidAuthorizationSpecException(e).getCause()))
             else:
