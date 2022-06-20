@@ -75,7 +75,11 @@ class SQLExecute(object):
         class DecimalEncoder(json.JSONEncoder):
             def default(self, o):
                 if isinstance(o, decimal.Decimal):
-                    return float(o)
+                    intPart = o.quantize(decimal.Decimal(1), decimal.ROUND_HALF_UP)
+                    if o - intPart == 0:
+                        return int(intPart)
+                    else:
+                        return float(o)
                 super(DecimalEncoder, self).default(o)
 
         if self is None:
