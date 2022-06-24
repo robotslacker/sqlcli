@@ -914,7 +914,7 @@ def _javaobj_to_pyobj(p_javaobj, p_objColumnSQLType=None):
                                        str(ld.getMinute()).zfill(2) + ":" + str(ld.getSecond()).zfill(2) + " " +
                                        str(ld.getNano() // 1000), "%Y-%m-%d %H:%M:%S %f")
         return d
-    elif m_TypeName == 'java.sql.Date':
+    elif m_TypeName.upper().find('SQL.DATE') != -1:
         d = datetime.date(year=p_javaobj.toLocalDate().getYear(),
                           month=p_javaobj.toLocalDate().getMonthValue(),
                           day=p_javaobj.toLocalDate().getDayOfMonth())
