@@ -1055,23 +1055,32 @@ def _java_to_py_array(conn, rs, col, p_objColumnSQLType=None):
     java_val = rs.getObject(col)
     if java_val is None:
         return
-    m_TypeName = str(java_val.getClass().getTypeName())
-    if m_TypeName.upper().find('ARRAY') != -1:
-        m_BaseTypeName = java_val.getBaseTypeName()
-        java_val = java_val.getArray()
-        m_retVal = []
-        for java_item in java_val:
-            m_retVal.append(_javaobj_to_pyobj(java_item, m_BaseTypeName))
-        return m_retVal
-    elif m_TypeName.find('Object[]') != -1:
-        m_retVal = []
-        for java_item in java_val:
-            m_retVal.append(_javaobj_to_pyobj(java_item))
-        return m_retVal
+    if type(java_val) == str:
+        java_val = str(java_val).strip()
+        if java_val.startswith("[") and java_val.endswith("]"):
+            java_val = java_val[1: -1]
+            m_retVal = []
+            for java_item in java_val.split(","):
+                m_retVal.append(java_item)
+            return m_retVal
     else:
-        raise SQLCliJDBCException(
-            "SQLCLI-00000: Unknown java class type [" + m_TypeName +
-            "] in _java_to_py_array")
+        m_TypeName = str(java_val.getClass().getTypeName())
+        if m_TypeName.upper().find('ARRAY') != -1:
+            m_BaseTypeName = java_val.getBaseTypeName()
+            java_val = java_val.getArray()
+            m_retVal = []
+            for java_item in java_val:
+                m_retVal.append(_javaobj_to_pyobj(java_item, m_BaseTypeName))
+            return m_retVal
+        elif m_TypeName.find('Object[]') != -1:
+            m_retVal = []
+            for java_item in java_val:
+                m_retVal.append(_javaobj_to_pyobj(java_item))
+            return m_retVal
+        else:
+            raise SQLCliJDBCException(
+                "SQLCLI-00000: Unknown java class type [" + m_TypeName +
+                "] in _java_to_py_array")
 
 
 def _init_types(types_map):
